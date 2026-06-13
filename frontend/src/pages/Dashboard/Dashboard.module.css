@@ -1,0 +1,103 @@
+.dashboardContainer {
+  @apply ml-72 bg-[#f8f9fc] min-h-screen flex flex-col;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentWrapper {
+  @apply p-8 flex-grow;
+}
+
+.statsGrid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6;
+}
+
+.statCard {
+  @apply bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-5 transition-all duration-300;
+}
+
+.statCard:hover {
+  @apply shadow-md -translate-y-1 border-[#c5a059]/30;
+}
+
+.iconWrapper {
+  @apply w-12 h-12 rounded-lg flex items-center justify-center text-white text-xl shadow-inner;
+}
+
+.info {
+  @apply flex flex-col;
+}
+
+.statLabel {
+  @apply text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1;
+}
+
+.statValue {
+  @apply text-2xl font-extrabold text-[#3a2000];
+}
+
+.loadingContainer {
+  @apply ml-72 min-h-screen flex flex-col items-center justify-center bg-[#f8f9fc];
+}
+
+.spinner {
+  @apply animate-spin rounded-full h-10 w-10 border-4 border-[#c5a059] border-t-transparent mb-4;
+}
+
+.loadingContainer p {
+  @apply text-xs font-bold text-gray-400 tracking-[0.3em];
+}
+
+.footerContainer {
+  @apply mt-auto;
+}
+
+.sectionBlock {
+  @apply mb-6;
+}
+
+.sectionHeader {
+  @apply px-2 py-3 mb-4 border-b border-gray-100 flex items-center;
+}
+
+.sectionHeader h3 {
+  @apply text-sm font-bold text-gray-700 uppercase tracking-wider;
+}

@@ -1,0 +1,92 @@
+.modalOverlay {
+  @apply fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex justify-center items-center p-4;
+}
+
+.cardRegister {
+  @apply bg-black rounded-3xl p-8 md:p-12 w-full max-w-5xl flex flex-col md:flex-row items-center gap-8 md:gap-16 shadow-2xl border border-gray-800 relative;
+}
+
+.xButton {
+  @apply absolute top-4 right-4 text-white hover:text-bali-gold transition-colors;
+}
+
+.logoContainer {
+  @apply w-full md:w-5/12 flex flex-col items-center justify-center;
+}
+
+.inputRegister {
+  @apply w-full md:w-7/12 overflow-y-auto max-h-[85vh] pr-2;
+}
+
+.inputGroup {
+  position: relative;
+  overflow: visible !important;
+  margin-bottom: 20px;
+  @apply flex items-center w-full mb-4 bg-white rounded overflow-hidden;
+}
+
+.dropdownPanel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: white;
+  border: 1px solid #c5a059;
+  border-radius: 0 0 8px 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 9999 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.dropdownInput {
+  @apply w-full text-left px-4 py-3 text-xs hover:bg-amber-50 border-b border-gray-100 last:border-0 text-black font-medium block;
+}
+
+.dropdownWarn {
+  @apply p-4 text-center text-gray-500 text-xs italic bg-white;
+}
+
+.iconWrapper {
+  @apply bg-gray-300 text-gray-600 p-3 flex items-center justify-center h-full aspect-square;
+}
+
+.authInput {
+  @apply flex-1 bg-white outline-none text-gray-800 px-4 py-3 text-sm h-full placeholder:text-gray-500;
+}
+
+.labelGrid {
+  @apply text-[10px] text-gray-300 block mb-1 uppercase tracking-wider;
+}
+
+.inputGrid {
+  @apply w-full bg-white border border-transparent text-xs rounded p-2 text-gray-600 font-semibold focus:outline-none;
+}
+
+.eyePassword {
+  @apply absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white cursor-pointer z-10;
+}
+
+.termsContainer {
+  @apply flex items-center space-x-2 text-sm text-gray-300 mt-2 mb-6;
+}
+
+.termsInput {
+  @apply w-4 h-4 rounded border-gray-600 accent-[#c5a059] cursor-pointer disabled:cursor-not-allowed;
+}
+
+.checkTerms {
+  @apply cursor-pointer hover:text-white select-none ml-2;
+}
+
+.btnRegister {
+  @apply w-full bg-[#3A2000] hover:bg-[#2b1700] text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors tracking-wider;
+}
+
+.spinner {
+  @apply animate-spin mr-2 h-4 w-4 border-2 border-b-0 border-white rounded-full inline-block;
+}
+
+.switchModal {
+  @apply font-bold hover:text-amber-500 transition-colors ml-1 underline;
+}

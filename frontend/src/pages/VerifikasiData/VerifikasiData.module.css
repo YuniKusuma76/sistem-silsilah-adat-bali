@@ -1,0 +1,119 @@
+.loadingContainer {
+  @apply ml-72 min-h-screen flex flex-col items-center justify-center bg-[#f8f9fc];
+}
+
+.spinner {
+  @apply animate-spin rounded-full h-10 w-10 border-4 border-[#c5a059] border-t-transparent mb-4;
+}
+
+.dashboardContainer {
+  @apply ml-72 bg-[#f8f9fc] min-h-screen flex flex-col;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentWrapper {
+  @apply p-8 flex-grow;
+}
+
+.statsGrid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+}
+
+.statsCard {
+  @apply flex flex-col bg-white/80 backdrop-blur-md rounded-2xl border border-stone-200/60 p-6 shadow-sm shadow-stone-100 transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-md hover:border-amber-200;
+}
+
+.cardHeader {
+  @apply flex items-center gap-4 mb-4;
+}
+
+.cardHeader h3 {
+  @apply text-sm font-bold text-bali-brown tracking-wide;
+}
+
+.iconBox {
+  @apply p-3 bg-blue-50 text-blue-700 rounded-xl flex items-center justify-center text-lg border border-blue-100/50 shadow-inner;
+}
+
+.countWrapper {
+  @apply bg-stone-50/50 rounded-xl py-4 text-center mb-5 border border-stone-200/20;
+}
+
+.countValue {
+  @apply text-3xl font-black text-stone-800 tracking-tight block mb-0.5;
+}
+
+.countLabel {
+  @apply text-[11px] font-bold text-stone-400 tracking-widest uppercase;
+}
+
+.statusDivider {
+  @apply flex justify-between border-t border-dashed border-stone-200 pt-4 mb-6 gap-3;
+}
+
+.subStat {
+  @apply flex items-center gap-2 text-xs flex-1 justify-center py-1 rounded-lg;
+}
+
+.subStat strong {
+  @apply block text-sm text-center font-extrabold text-stone-800 leading-none mb-0.5;
+}
+
+.subStat p {
+  @apply text-[10px] text-stone-400 font-bold uppercase tracking-wider;
+}
+
+.iconPending {
+  @apply inline-flex items-center justify-center p-2 text-sm text-amber-600 bg-amber-50 rounded-xl border border-amber-100/50 shadow-inner;
+}
+
+.iconApproved {
+  @apply inline-flex items-center justify-center p-2 text-sm text-emerald-600 bg-emerald-50 rounded-xl border border-emerald-100/50 shadow-inner;
+}
+
+.iconRejected {
+  @apply inline-flex items-center justify-center p-2 text-sm text-rose-600 bg-rose-50 rounded-xl border border-rose-100/50 shadow-inner;
+}
+
+.btnNavigate {
+  @apply mt-auto w-full bg-bali-brown hover:bg-amber-900 text-white text-xs font-bold tracking-wider uppercase py-3.5 px-4 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2;
+}

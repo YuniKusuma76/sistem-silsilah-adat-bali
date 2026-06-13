@@ -1,0 +1,162 @@
+.loadingContainer {
+  @apply ml-72 min-h-screen flex flex-col items-center justify-center bg-[#f8f9fc];
+}
+
+.spinner {
+  @apply animate-spin rounded-full h-10 w-10 border-4 border-[#c5a059] border-t-transparent mb-4;
+}
+
+.mainContainer {
+  @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentArea {
+  @apply p-8 flex-1 mb-12;
+}
+
+.cardInfoUser {
+  @apply bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center sticky top-28;
+}
+
+.avatarWrapper {
+  @apply p-2 rounded-full border-2 border-dashed border-amber-200;
+}
+
+.avatar {
+  @apply w-28 h-28 bg-gradient-to-br from-gray-700 to-gray-900 rounded-full flex items-center justify-center text-4xl font-black text-white shadow-lg;
+}
+
+.badgeRole {
+  @apply mt-4 inline-flex items-center px-4 py-1.5 bg-amber-50 text-amber-800 text-xs font-black uppercase tracking-widest rounded-full border border-amber-100;
+}
+
+.cardDetails {
+  @apply bg-white p-8 rounded-3xl shadow-sm border border-gray-100;
+}
+
+.labelDetails {
+  @apply font-black text-[#3A2000] uppercase tracking-widest flex items-center;
+}
+
+.btnEdit {
+  @apply flex items-center gap-2 px-5 py-2 bg-yellow-500 text-black text-xs font-bold rounded-xl hover:bg-yellow-600 transition-all shadow-md active:scale-95;
+}
+
+.btnEditPass {
+  @apply flex items-center gap-2 px-5 py-2 bg-blue-500 text-white text-xs font-bold rounded-xl hover:bg-blue-600 transition-all shadow-md active:scale-95;
+}
+
+.labelField {
+  @apply block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1;
+}
+
+.valueField {
+  @apply text-base font-semibold text-gray-800 bg-gray-50 px-4 py-3 rounded-xl border border-gray-100 shadow-inner;
+}
+
+.labelAdat {
+  @apply font-black text-[#3A2000] uppercase tracking-widest flex items-center mb-6;
+}
+
+.valueFieldAlamat {
+  @apply text-sm font-bold text-gray-700 leading-relaxed italic;
+}
+
+.miniWilayahCard {
+  @apply bg-gray-50 p-4 shadow-inner rounded-2xl border border-gray-100 hover:border-amber-200 transition-colors;
+}
+
+.labelWilayah {
+  @apply text-[10px] text-gray-400 font-bold uppercase;
+}
+
+.wilayah {
+  @apply text-sm font-bold text-gray-700;
+}
+
+.modalOverlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4;
+}
+
+.modalContent {
+  @apply bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl animate-fade-in border-t-4 border-amber-700;
+}
+
+.headerModal {
+  @apply flex-1 flex justify-between items-center mb-6 border-b pb-4;
+}
+
+.headerModal h3 {
+  @apply flex flex-1 font-black text-[#3A2000] uppercase text-lg;
+}
+
+.iconClose {
+  @apply text-gray-400 hover:rotate-90 transition-transform duration-300;
+}
+
+.inputForm {
+  @apply w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all font-medium text-gray-700;
+}
+
+.btnSaveModal {
+  @apply flex-1 flex items-center justify-center gap-2 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-all;
+}
+
+.btnCancelModal {
+  @apply flex-1 bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-all;
+}
+
+.animate-fade-in {
+  @apply animate-[fadeIn_0.5s_ease-out];
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

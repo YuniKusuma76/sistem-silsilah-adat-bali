@@ -1,0 +1,890 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Poppins", sans-serif;
+}
+
+/* =============================================== */
+/* Global Style CSS */
+/* =============================================== */
+.no-scroll {
+  overflow: hidden;
+  height: 100vh;
+}
+
+.loading-container {
+  @apply flex items-center justify-center h-screen bg-gray-50;
+}
+
+.loading-content {
+  @apply flex flex-col items-center gap-4;
+}
+
+.spinner-actios {
+  @apply w-12 h-12 border-4 border-amber-300 border-t-amber-600 rounded-full animate-spin;
+}
+
+.blok-text {
+  @apply text-amber-950 font-medium animate-pulse;
+}
+
+.app-container {
+  @apply flex w-full min-h-screen bg-gray-100 font-sans relative;
+}
+
+.alert-section {
+  @apply fixed top-6 right-6 z-50 flex flex-col max-w-sm w-full bg-white rounded-lg shadow-lg border-l-4 overflow-hidden animate-slide-fade;
+  z-index: 9999;
+}
+
+.alert-button {
+  @apply ml-3 text-gray-400 hover:text-gray-900 focus:outline-none;
+}
+
+/* ================================================== */
+/* BELUM FIX */
+.app-loading {
+  @apply flex items-center justify-center h-screen bg-gray-50;
+}
+.app-spinner-loading {
+  @apply w-12 h-12 border-4 border-gray-200 border-t-[#3A2000] rounded-full animate-spin;
+}
+
+.app-text-loading {
+  @apply text-gray-600 font-medium animate-pulse;
+}
+
+.app-content {
+  @apply flex w-full min-h-screen bg-gray-100 font-sans relative;
+}
+
+.alert-container {
+  @apply fixed top-6 right-6 z-50 flex flex-col max-w-sm w-full bg-white rounded-lg shadow-lg border-l-4 overflow-hidden animate-slide-fade;
+  z-index: 100;
+}
+
+/* Animasi */
+@keyframes slideFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shrinkLine {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Set Animasi */
+.animate-slide-fade {
+  animation: slideFadeIn 0.4s ease-out forwards;
+}
+
+.animate-shrink {
+  animation: shrinkLine 3s linear forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* ================================================================================================================================================ */
+/* MAIN STYLE */
+.main-container {
+  @apply ml-72 bg-white min-h-screen flex flex-col font-sans;
+}
+
+.main-title {
+  @apply flex flex-col items-center mb-10 text-center;
+}
+
+.main-title-h2 {
+  @apply text-3xl font-bold text-[#3A2000] uppercase inline-block border-b-2 border-[#3A2000] w-4/5 pb-1;
+}
+
+.main-banner {
+  @apply w-full h-[350px] bg-gray-300 overflow-hidden relative;
+}
+/* ================================================================================================================================================ */
+
+/* Card Halper Style */
+.card-container {
+  @apply rounded-xl overflow-hidden shadow-lg flex flex-col h-full bg-[#3A2000] border border-gray-200;
+}
+
+.card-image {
+  @apply h-72 overflow-hidden bg-gray-300 relative border-b-2 border-[#c5a059];
+}
+
+.images-card {
+  @apply w-full h-full object-cover transition-transform duration-500 group-hover:scale-110;
+}
+
+.text-card {
+  @apply p-5 flex flex-col flex-grow text-white;
+}
+
+.h3-card {
+  @apply font-bold text-lg mb-3 text-white tracking-wide;
+}
+
+.p-card {
+  @apply text-xs leading-5 text-white font-light text-left;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* KONTAK USER STYLE */
+.kontak-banner {
+  @apply w-full h-[400px] overflow-hidden bg-gray-200;
+}
+
+.kontak-content {
+  @apply flex-1 flex flex-col items-center py-10 px-4 md:px-0;
+}
+
+.kontak-content-header {
+  @apply w-full max-w-3xl text-center mb-8;
+}
+
+.kontak-header-h2 {
+  @apply text-3xl font-extrabold text-[#3A2000] mb-1 uppercase tracking-wide;
+}
+
+.kontak-line {
+  @apply w-full h-[1px] bg-[#3A2000] mb-1;
+}
+
+.kontak-button {
+  @apply bg-[#3A2000] hover:bg-[#2b1700] text-white font-bold text-lg py-3 px-20 rounded-xl mt-10 transition-colors shadow-md disabled:opacity-50;
+}
+
+.status-dropdown {
+  @apply px-2 py-1 rounded text-white text-xs font-medium cursor-pointer focus:outline-none appearance-none text-center w-full transition-colors;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* TABLE STYLE */
+.table-container {
+  @apply bg-white rounded-t-md shadow-sm border-t border-l border-r border-gray-200 overflow-hidden;
+}
+
+.thead-tr {
+  @apply bg-[#3A2000] text-white text-left text-sm font-bold tracking-wide;
+}
+
+.hover-tr {
+  @apply hover:bg-gray-100 transition-colors;
+}
+
+.thead-th {
+  @apply py-4 px-6 border-b border-[#3A2000];
+}
+
+.tbody {
+  @apply divide-y divide-gray-200 text-gray-700 text-sm;
+}
+
+.tbody-td {
+  @apply py-3 px-6 border-r border-gray-100;
+}
+
+.span-badge {
+  @apply px-3 py-1 rounded-md text-xs font-bold tracking-wide border;
+}
+
+.span-green {
+  @apply bg-green-100 text-green-700 border-green-200;
+}
+
+.span-red {
+  @apply bg-red-100 text-red-700 border-red-200;
+}
+
+.span-blue {
+  @apply bg-blue-100 text-blue-700 border-blue-200;
+}
+
+.span-yellow {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-200;
+}
+
+.span-gray {
+  @apply bg-gray-100 text-gray-600 border-gray-200;
+}
+
+.badge-green {
+  @apply flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-100 text-green-700 border border-green-200 text-sm font-bold uppercase tracking-wide;
+}
+
+.badge-red {
+  @apply flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-100 text-red-700 border border-red-200 text-sm font-bold uppercase tracking-wide;
+}
+
+.select-green {
+  @apply bg-green-600 text-white border-green-200;
+}
+
+.select-blue {
+  @apply bg-blue-600 text-white border-blue-200;
+}
+
+.select-yellow {
+  @apply bg-yellow-400 text-black border-yellow-200;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* LOADING SPINNER STYLE */
+.loading-spinner-content {
+  @apply flex justify-center items-center gap-2;
+}
+
+.loading-spinner {
+  @apply animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900;
+}
+
+.spinner-button {
+  @apply animate-spin h-4 w-4 border-2 border-b-0 border-white rounded-full inline-block;
+}
+
+.loading {
+  @apply animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full;
+}
+
+.loading-button {
+  @apply w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* PAGINATION STYLE */
+.elipsis-style {
+  @apply px-3 py-1 text-gray-500 bg-white border-r border-gray-300 cursor-default flex items-center;
+}
+
+.btn-page-number {
+  @apply px-3 py-1 border-r border-gray-300 transition text-sm font-medium;
+}
+
+.active-page {
+  @apply bg-[#3A2000] text-white border-[#2C1900];
+}
+
+.not-active-page {
+  @apply border-gray-300 hover:bg-gray-100 text-gray-600;
+}
+
+/* Pagination Content */
+.page-container {
+  @apply flex flex-col sm:flex-row justify-between items-center text-xs text-gray-600 mt-3;
+}
+
+.page-content {
+  @apply flex border border-gray-300 rounded overflow-hidden bg-white shadow-sm;
+}
+
+.btn-page {
+  @apply px-3 py-1 hover:bg-gray-100 disabled:opacity-50 disabled:bg-gray-50 text-gray-700 font-semibold;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* BUTTON STYLE */
+.btn-add {
+  @apply bg-green-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-green-700 flex items-center gap-1 shadow-md transition-all;
+}
+
+.btn-detail {
+  @apply bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-blue-700 transition shadow-sm flex items-center gap-1.5;
+}
+
+.btn-visualisasi {
+  @apply px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold shadow-sm transition flex items-center gap-2;
+}
+
+.btn-delete {
+  @apply bg-red-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-red-700 transition shadow-sm flex items-center gap-1.5;
+}
+
+.btn-edit {
+  @apply bg-yellow-400 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-yellow-500 transition shadow-sm flex items-center gap-1.5;
+}
+
+.btn-cencel {
+  @apply flex items-center justify-center gap-2 bg-red-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-red-700 transition shadow-md w-36 focus:outline-none;
+}
+
+.btn-submit {
+  @apply flex items-center justify-center gap-2 bg-green-500 text-white px-6 py-2 rounded-md font-semibold hover:bg-green-600 transition shadow-md w-36 focus:outline-none;
+}
+
+.btn-update {
+  @apply flex items-center justify-center gap-2 bg-yellow-400 text-white px-6 py-2 rounded-md font-semibold hover:bg-yellow-500 transition shadow-md w-36 focus:outline-none;
+}
+
+.btn-eyes {
+  @apply absolute right-3 top-1/2 -translate-y-1/2 text-black text-lg hover:text-gray-600 focus:outline-none;
+}
+
+.btn-start {
+  @apply flex items-center justify-center gap-2 px-4 py-2 bg-[#3e2713] text-white rounded hover:bg-opacity-90 transition text-sm font-medium;
+}
+
+.btn-action {
+  @apply bg-[#3A2000] hover:bg-[#2b1700] text-white font-bold py-2 px-10 rounded-xl transition-colors shadow-lg mt-3;
+}
+
+.btn-add2 {
+  @apply text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded hover:bg-blue-100 font-bold flex items-center gap-1;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* MODAL STYLE */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4;
+}
+
+.modal-container {
+  @apply bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden transform scale-100 transition-transform border-t-4 border-red-500 animate-fade-in;
+}
+
+.elipsis-icon-warn {
+  @apply h-12 w-12 flex items-center justify-center bg-red-100 rounded-full;
+}
+
+.icon-warn {
+  @apply text-red-600 text-2xl;
+}
+
+.btn-modal-cencel {
+  @apply px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition duration-200;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* PERMOHONAN PERAN PENGGUNA STYLE */
+.permohonan-title {
+  @apply flex flex-col items-center mb-3 text-center;
+}
+
+.card-permohonan {
+  @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8 max-w-4xl mx-auto;
+}
+
+.isAnimasi {
+  @apply mb-5 flex items-center gap-2 justify-center animate-fade-in;
+}
+
+.role-checklist {
+  @apply bg-[#f9f5f0] border border-[#e6dccf] rounded-lg p-5 animate-fade-in;
+}
+
+.title-checklist {
+  @apply text-[#3A2000] font-bold text-sm mb-3 flex items-center gap-2;
+}
+
+.text-checklist {
+  @apply ml-3 text-sm text-gray-700 group-hover:text-black transition-colors select-none;
+}
+
+.card-input-docs {
+  @apply mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:bg-gray-50 transition-colors relative;
+}
+
+.icon-success {
+  @apply h-12 w-12 text-[#3A2000] bg-orange-100 rounded-full flex items-center justify-center mb-2;
+}
+
+.btn-hapus-docs {
+  @apply text-xs text-red-500 hover:text-red-700 font-bold mt-2 underline;
+}
+
+.label-input {
+  @apply relative cursor-pointer bg-white rounded-md font-medium underline text-[#3A2000] hover:text-[#2b1700] focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#3A2000];
+}
+
+.upload-proses {
+  @apply animate-spin rounded-full h-4 w-4 border-b-2 border-white;
+}
+
+.list-checklist {
+  @apply flex items-start gap-2 text-sm text-gray-700 bg-white p-2;
+}
+
+.card-error {
+  @apply bg-red-50 border border-red-200 text-red-700 p-6 rounded-lg flex flex-col items-center shadow-sm;
+}
+
+.card-st-container {
+  @apply bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden;
+}
+
+/* Role Style */
+.role-page {
+  @apply p-6 border-b border-gray-100 flex flex-wrap justify-between items-center gap-4;
+}
+
+.role-header {
+  @apply text-gray-400 text-xs font-bold uppercase tracking-wider mb-1;
+}
+
+.role-text {
+  @apply text-2xl font-bold text-[#3A2000] flex items-center gap-2;
+}
+
+.status-condition {
+  @apply flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold shadow-sm;
+}
+
+.date-page {
+  @apply p-6 bg-gray-50/50 grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8 text-sm;
+}
+
+.date-title {
+  @apply text-gray-400 text-xs font-bold uppercase mb-1;
+}
+
+.date-text {
+  @apply font-medium text-gray-800 flex items-center gap-2;
+}
+
+.card-detail {
+  @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+}
+
+.card-detail-title {
+  @apply text-lg font-bold text-[#3A2000] mb-4 border-b border-gray-100 pb-3 flex items-center gap-2;
+}
+
+.label-data {
+  @apply block text-xs font-bold text-gray-400 uppercase mb-2;
+}
+
+.kolom-alasan {
+  @apply bg-gray-50 p-4 rounded-lg text-gray-700 leading-relaxed border border-gray-200 text-sm;
+}
+
+.card-dokumen {
+  @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
+}
+
+.card-dokumen-title {
+  @apply text-base font-bold text-[#3A2000] mb-4 uppercase flex items-center gap-2 border-b border-gray-100 pb-2;
+}
+
+.content-noDokumen {
+  @apply text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300;
+}
+
+.content-isDokumen {
+  @apply w-full h-48 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 flex items-center justify-center relative;
+}
+
+.preview-dokumen {
+  @apply w-full h-full object-cover transition-transform group-hover:scale-105;
+}
+
+.btn-download {
+  @apply bg-green-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-green-700 transition flex items-center justify-center gap-2;
+}
+
+.btn-preview {
+  @apply bg-blue-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2;
+}
+
+.card-note {
+  @apply rounded-xl shadow-sm border p-5 animate-fade-in;
+}
+
+.field-keputusan {
+  @apply text-xs font-bold mb-2 uppercase flex items-center gap-2;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* FORM INPUT STYLE */
+.field-input {
+  @apply w-full bg-[#dcdcdc] border border-[#3A2000] rounded-lg px-4 py-3 text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#3b2411];
+}
+
+.select-input {
+  @apply w-full bg-[#dcdcdc] border border-[#3A2000] rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#3b2411] transition text-gray-700 appearance-none cursor-pointer;
+}
+
+.arrow-down {
+  @apply absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-black;
+}
+
+.text-detail-p {
+  @apply text-xs text-gray-400;
+}
+
+.checklist-input {
+  @apply h-5 w-5 cursor-pointer appearance-none rounded border border-gray-400 checked:bg-[#3A2000] checked:border-[#3A2000] transition-all;
+}
+
+.check {
+  @apply absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none opacity-0 peer-checked:opacity-100 text-white transition-opacity;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* SEARCH BAR STYLE */
+.search-span {
+  @apply absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400;
+}
+
+.search-field {
+  @apply pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-bali-gold text-sm transition-all;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* FORM MESSAGE STYLE */
+.form-message {
+  @apply mt-3 px-4 py-2 rounded-md text-sm text-center animate-fade-in;
+}
+
+.form-message.error {
+  @apply bg-red-500/15 text-red-700 border border-red-500/40;
+}
+
+.form-message.success {
+  @apply bg-green-500/15 text-green-300 border border-green-500/40;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* FORM LOGIN REGISTER STYLE */
+input[type="checkbox"] {
+  accent-color: #c5a059;
+}
+/* ================================================================================================================================================ */
+
+/* ================================================================================================================================================ */
+/* VERIFIKASI PERMOHONAN STYLE */
+.modal-verifikasi {
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform scale-100 transition-all animate-fade-in;
+}
+
+.modal-header {
+  @apply px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50;
+}
+
+.modal-title {
+  @apply text-lg font-bold text-[#3A2000] flex items-center gap-2;
+}
+
+.modal-close {
+  @apply text-gray-400 hover:text-gray-600 transition;
+}
+
+.card-user-content {
+  @apply flex items-start gap-4 mb-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100;
+}
+
+.user-images {
+  @apply w-10 h-10 mt-3 rounded-full flex items-center justify-center flex-shrink-0;
+}
+
+.card-role-content {
+  @apply bg-blue-50/50 p-4 mb-4 rounded-xl border border-blue-100 text-sm;
+}
+
+.card-btn-setuju {
+  @apply relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2;
+}
+
+.isSetuju {
+  @apply border-green-500 bg-green-50 text-green-700 shadow-sm;
+}
+
+.isNotSetuju {
+  @apply border-gray-200 hover:border-green-200 text-gray-500 hover:bg-gray-50;
+}
+
+.card-btn-tolak {
+  @apply relative p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2;
+}
+
+.isTolak {
+  @apply border-red-500 bg-red-50 text-red-700 shadow-sm;
+}
+
+.isNotTolak {
+  @apply border-gray-200 hover:border-red-200 text-gray-500 hover:bg-gray-50;
+}
+
+.area-input-note {
+  @apply w-full p-3 rounded-xl border-2 outline-none transition-colors min-h-[100px] text-sm resize-none;
+}
+
+.error-note {
+  @apply border-red-300 focus:border-red-500 bg-red-50;
+}
+
+.setuju-note {
+  @apply border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500;
+}
+
+.tolak-note {
+  @apply border-gray-200 focus:border-red-500 focus:ring-1 focus:ring-red-500;
+}
+
+.btn-verif-batal {
+  @apply px-5 py-2.5 rounded-xl text-gray-500 font-medium hover:bg-gray-100 transition;
+}
+
+.btn-verif {
+  @apply px-6 py-2.5 rounded-xl font-bold text-white shadow-lg transform active:scale-95 transition-all flex items-center gap-2;
+}
+
+.btn-setuju {
+  @apply bg-gradient-to-r from-green-600 to-green-500 hover:shadow-green-200;
+}
+
+.btn-tolak {
+  @apply bg-gradient-to-r from-red-600 to-red-500 hover:shadow-red-200;
+}
+
+.spinner-verif {
+  @apply animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full;
+}
+
+.verif-field {
+  @apply bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 shadow-md flex items-center gap-2 transition-all active:scale-95;
+}
+/* ========================== */
+/* DAFTAR KRAMA BALI STYLE */
+/* ========================== */
+.silsilah-container {
+  @apply flex-1 ml-72 bg-white min-h-screen flex flex-col font-sans;
+}
+
+.silsilah-title {
+  @apply flex flex-col items-center mb-10 text-center;
+}
+
+.silsilah-h2 {
+  @apply text-3xl font-bold text-[#3A2000] mb-1 uppercase inline-block border-b-2 border-[#3A2000] w-4/5 pb-1;
+}
+
+/* ===================== */
+/* DETAIL KRAMA BALI STYLE */
+/* ====================== */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff rgba(0, 0, 0, 0.2);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  margin-block: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #c5a059;
+  border-radius: 10px;
+
+  border: 2px solid #3a2000;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #e0b667;
+  border-width: 1px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ========================================= */
+/* VISUALISASI SILSILAH - FINAL REFINED      */
+/* ========================================= */
+:root {
+  --line-color: #333;
+  --line-width: 2px;
+  --gap: 40px; /* Jarak vertikal antar generasi */
+  --card-height: 50px; /* Tinggi kartu harus fix untuk presisi garis */
+}
+
+.tree * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.tree ul {
+  padding-top: var(--gap);
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.tree li {
+  text-align: center;
+  list-style-type: none;
+  position: relative;
+  padding: var(--gap) 10px 0 10px;
+}
+
+/* --- 1. HAPUS GARIS DI ATAS ROOT (PERBAIKAN UTAMA) --- */
+/* Menghilangkan garis vertikal yang 'mengambang' di atas orang tua pertama */
+.tree > ul {
+  padding-top: 0;
+}
+.tree > ul > li {
+  padding-top: 0;
+}
+.tree > ul > li::before,
+.tree > ul > li::after {
+  display: none !important;
+}
+
+/* --- 2. GARIS VERTIKAL TURUN DARI PASANGAN --- */
+/* Garis ini turun dari tengah marriage-line menuju barisan anak */
+.tree li.has-children > .tree-node-wrapper > .couple-container::after {
+  content: "";
+  position: absolute;
+  top: 50%; /* Mulai dari tengah kartu (titik marriage line) */
+  left: 50%;
+  border-left: var(--line-width) solid var(--line-color);
+  /* Tinggi = Sisa kartu (25px) + Gap (40px) */
+  height: calc((var(--card-height) / 2) + var(--gap));
+  transform: translateX(-50%);
+  z-index: 0;
+}
+
+/* --- 3. GARIS HORIZONTAL PENGHUBUNG SAUDARA --- */
+.tree li::before,
+.tree li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  border-top: var(--line-width) solid var(--line-color);
+  width: 50%;
+  height: var(--gap);
+}
+.tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: var(--line-width) solid var(--line-color);
+}
+
+/* --- 4. PENYESUAIAN ANAK TUNGGAL --- */
+/* Jika hanya 1 anak, tidak perlu garis horizontal melintang */
+.tree li:only-child::after,
+.tree li:only-child::before {
+  display: none !important;
+}
+.tree li:only-child {
+  padding-top: var(--gap);
+}
+.tree li:only-child::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  border-left: var(--line-width) solid var(--line-color);
+  height: var(--gap);
+  display: block !important;
+  transform: translateX(-50%);
+}
+
+/* --- 5. MERAPIKAN SIKU GARIS --- */
+.tree li:first-child::after {
+  border-radius: 8px 0 0 0;
+}
+.tree li:last-child::before {
+  border-right: var(--line-width) solid var(--line-color);
+  border-radius: 0 8px 0 0;
+}
+.tree li:first-child::before,
+.tree li:last-child::after {
+  border: 0 none;
+}
+
+/* --- 6. STYLING KARTU --- */
+.tree-node-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 10;
+}
+
+.couple-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.marriage-line {
+  width: 20px;
+  height: var(--line-width);
+  background-color: var(--line-color);
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+.tree-card {
+  background: #fff;
+  border: 1px solid #999;
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 140px;
+  height: var(--card-height);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  z-index: 20;
+}
+
+.tree-card.is-target {
+  background: #3d2616;
+  color: #fff;
+  border-color: #3d2616;
+}
+.card-name {
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}

@@ -1,0 +1,54 @@
+.modalOverlay {
+  @apply fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex justify-center items-center p-4;
+}
+
+.cardLogin {
+  @apply bg-black rounded-3xl p-8 w-full max-w-md shadow-2xl flex flex-col items-center relative border border-gray-800;
+}
+
+.xButton {
+  @apply absolute top-4 right-4 text-white hover:text-bali-gold transition-colors;
+}
+
+.inputGroup {
+  position: relative;
+  overflow: visible !important;
+  margin-bottom: 20px;
+  @apply flex items-center w-full mb-4 bg-white rounded overflow-hidden;
+}
+
+.iconWrapper {
+  @apply bg-gray-300 text-gray-600 p-3 flex items-center justify-center h-full aspect-square;
+}
+
+.authInput {
+  @apply flex-1 bg-white outline-none text-gray-800 px-4 py-3 text-sm h-full placeholder:text-gray-500;
+}
+
+.eyePassword {
+  @apply absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white cursor-pointer z-10;
+}
+
+.checkbox {
+  @apply flex justify-between items-center w-full text-sm text-gray-300 mb-8 px-1;
+}
+
+.labelRememberMe {
+  @apply flex items-center space-x-2 cursor-pointer hover:text-white transition-colors;
+}
+
+.checkboxInput {
+  @apply w-4 h-4 rounded border-gray-600 cursor-pointer disabled:cursor-not-allowed;
+}
+
+.btnLogin {
+  @apply w-full bg-[#3A2000] hover:bg-[#2b1700] text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors tracking-wider;
+}
+
+.spinner {
+  @apply animate-spin mr-2 h-4 w-4 border-2 border-b-0 border-white rounded-full inline-block;
+}
+
+.switchModal {
+  @apply font-bold hover:text-amber-500 transition-colors ml-1 underline;
+}

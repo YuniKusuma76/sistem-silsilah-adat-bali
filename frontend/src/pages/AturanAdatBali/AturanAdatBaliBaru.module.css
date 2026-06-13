@@ -1,0 +1,134 @@
+.mainContainer {
+  @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentArea {
+  @apply p-8 flex-1;
+}
+
+.formGrid {
+  @apply grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8;
+}
+
+.leftColumn {
+  @apply lg:col-span-2 flex flex-col gap-6;
+}
+
+.rightColumn {
+  @apply lg:col-span-1 flex flex-col gap-6;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden;
+}
+
+.cardHeader {
+  @apply px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center gap-3;
+}
+
+.cardHeaderDynamic {
+  @apply px-6 py-3.5 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center;
+}
+
+.cardHeader h3,
+.cardHeaderDynamic h3 {
+  @apply text-sm font-bold text-gray-800 uppercase tracking-wider;
+}
+
+.iconHeader {
+  @apply text-amber-800 text-base;
+}
+
+.cardBody {
+  @apply p-6;
+}
+
+.inputGroup {
+  @apply mb-5 last:mb-0 flex flex-col gap-2;
+}
+
+.inputGroup label {
+  @apply text-xs font-bold text-gray-500 uppercase tracking-wide;
+}
+
+.inputGroup input,
+.inputGroup select,
+.inputGroup textarea {
+  @apply w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-lg text-sm text-gray-800 transition-all focus:bg-white focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none;
+}
+
+.gridTwoCols {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+
+.btnAddRow {
+  @apply flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold rounded-lg transition-colors;
+}
+
+.kriteriaList {
+  @apply flex flex-col gap-3;
+}
+
+.kriteriaRowItem {
+  @apply flex items-center gap-2 p-3 bg-gray-50/50 border border-gray-100 rounded-lg;
+}
+
+.kriteriaRowItem input {
+  @apply w-full px-3 py-2 bg-white border border-gray-200 rounded-md focus:border-amber-700 outline-none;
+}
+
+.btnDeleteRow {
+  @apply p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors;
+}
+
+.buttonGroup {
+  @apply mt-12 pb-10 pt-6 flex flex-wrap items-center justify-center gap-3;
+}
+
+.btnBackRed {
+  @apply inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-red-700 active:scale-95 transition-all shadow-md shadow-red-100;
+}
+
+.btnSubmit {
+  @apply inline-flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-100;
+}

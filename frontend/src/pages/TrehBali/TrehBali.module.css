@@ -1,0 +1,431 @@
+:root {
+  --line-color: #8c7853;
+  --line-width: 2px;
+  --gap: 70px;
+  --card-height: 50px;
+  --sibling-gap: 30px;
+}
+
+/* Warna Gender */
+.genderMale {
+  background-color: #4a90e2 !important;
+  border-color: #357abd !important;
+}
+
+.genderFemale {
+  background-color: #f06292 !important;
+  border-color: #e91e63 !important;
+}
+
+.genderUnknown {
+  background-color: #2b9348 !important;
+  border-color: #007f5f !important;
+}
+
+/* Warna Ornamen */
+.crownIcon {
+  color: #ffd700 !important;
+  filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));
+  flex-shrink: 0;
+}
+.seedlingIcon {
+  color: #2ecc71 !important;
+  filter: drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.2));
+  flex-shrink: 0;
+}
+
+.ancestorOrnament,
+.descendantOrnament {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+/* Styling Legenda */
+.legendContainer {
+  position: absolute;
+  bottom: 50px;
+  right: 50px;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #c5a059;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+}
+
+.legendTitle {
+  font-size: 11px;
+  font-weight: 800;
+  color: #3a2000;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 4px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.legendBox {
+  width: 25px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+/* Styling Kartu */
+.treeCard {
+  border-radius: 7px;
+  padding: 5px 10px;
+  min-width: 150px;
+  height: var(--card-height);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.treeCard.isTarget {
+  box-shadow: 0 0 15px rgba(197, 160, 89, 0.6) !important;
+  transform: scale(1.05);
+  border: 2px solid #c5a059 !important;
+  animation: pulseGold 2s infinite ease-in-out;
+}
+
+.cardAncestor,
+.cardDescendant {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.cardNameContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+}
+
+.treeCard .cardName {
+  color: #ffffff !important;
+  text-shadow: none !important;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  padding: 3px;
+}
+
+/* Modal Detail Krama */
+.modal {
+  @apply fixed ml-72 inset-0 z-[999] flex items-center justify-center p-4;
+}
+
+.overlay {
+  @apply absolute inset-0 bg-black/50 backdrop-blur-sm;
+}
+
+.cardModal {
+  @apply relative bg-[#ffffff] rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-[#c5a059]/30;
+}
+
+.cardHeader {
+  @apply bg-[#3a2000] p-5 flex justify-between items-center text-white border-b border-[#c5a059];
+}
+
+.titleHeader {
+  @apply font-bold flex items-center gap-2 tracking-wide uppercase text-sm;
+}
+
+.tipeData {
+  @apply text-[12px] text-[#c5a059] font-semibold font-sans tracking-[0.3em] uppercase mb-2;
+}
+
+.namaLengkap {
+  @apply text-2xl font-bold text-[#3a2000] leading-tight;
+}
+
+.namaPanggilan {
+  @apply text-gray-600 text-sm font-medium mt-2;
+}
+
+.detailContent {
+  @apply grid grid-cols-2 gap-y-6 gap-x-4 border-t border-b border-gray-200 py-6 mb-8;
+}
+
+.titleDetail {
+  @apply text-[10px] font-semibold text-gray-400 uppercase tracking-tighter mb-1;
+}
+
+.textDetail {
+  @apply font-bold text-black text-sm;
+}
+
+.btnTreh {
+  @apply w-full py-4 bg-[#3a2000] text-white rounded-lg hover:bg-amber-950/90 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-lg active:scale-95;
+}
+
+/* Styling Loading */
+.loadContainer {
+  @apply ml-72 min-h-screen flex flex-col items-center justify-center bg-[#f4f1ea];
+}
+
+.loadContent {
+  @apply flex flex-col items-center gap-3;
+}
+
+.loadSpinner {
+  @apply animate-spin rounded-full h-12 w-12 border-4 border-[#c5a059] border-t-transparent;
+}
+
+.loadText {
+  @apply text-[#3A2000] font-bold tracking-widest animate-pulse uppercase text-sm;
+}
+
+/* Styling Halaman Utama */
+.visualisasi {
+  background-color: #ffffff;
+  margin-left: 18rem;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  width: calc(100vw - 18rem);
+}
+
+.navNavigate {
+  @apply p-4 md:p-6 bg-white shadow-sm flex flex-col md:flex-row justify-between items-center z-50 sticky top-0 border-b border-[#c5a059]/20;
+  z-index: 50;
+  flex-shrink: 0;
+}
+
+.navLeft {
+  @apply mb-4 md:mb-0 text-center md:text-left;
+}
+
+.titleText {
+  @apply text-xl font-bold text-[#3A2000] tracking-tight uppercase;
+}
+
+.zoomInOut {
+  @apply flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1;
+}
+
+.persentase {
+  @apply px-2 font-mono text-xs font-bold w-12 text-center text-[#3A2000];
+}
+
+.btnReset {
+  @apply px-4 py-2 bg-[#3A2000] text-white rounded-md text-xs font-bold flex items-center gap-2 hover:bg-amber-950/90 transition-all shadow-md;
+}
+
+.btnBack {
+  @apply px-4 py-2 bg-red-600 text-white rounded-md text-xs font-bold flex items-center gap-2 hover:bg-red-700 transition-all shadow-md;
+}
+
+/* Area Visualisasi */
+.areaVisualisasi {
+  background-color: #f4f1ea;
+  flex: 1;
+  width: 100%;
+  overflow: auto;
+  position: relative;
+  display: block;
+}
+
+.areaVisualisasi:active {
+  cursor: grabbing;
+}
+
+@keyframes pulseGold {
+  0% {
+    box-shadow: 0 0 5px rgba(197, 160, 89, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(197, 160, 89, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(197, 160, 89, 0.4);
+  }
+}
+
+/* Styling Tree */
+.tree {
+  padding: 100px;
+  display: inline-block;
+  min-width: 100%;
+  transform-origin: top center;
+  transition: transform 0.3s ease-out;
+  text-align: center;
+}
+
+.tree * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.tree ul {
+  padding-top: var(--gap);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap !important;
+}
+
+.tree li {
+  text-align: center;
+  list-style-type: none;
+  position: relative;
+  padding: var(--gap) var(--sibling-gap) 0 var(--sibling-gap);
+  flex: 1 1 auto;
+}
+
+.tree > ul {
+  padding-top: 0;
+}
+
+.tree > ul > li {
+  padding-top: 0;
+}
+
+.tree > ul > li::before,
+.tree > ul > li::after {
+  display: none !important;
+}
+
+/* Garis vertikal turun dari pasangan */
+.tree li.hasChildren > .treeNodeWrapper::after {
+  content: "";
+  position: absolute;
+  bottom: calc(var(--gap) * -1);
+  left: 50%;
+  border-left: var(--line-width) solid var(--line-color);
+  height: var(--gap);
+  z-index: 0;
+  transform: translateX(-50%);
+  display: block !important;
+}
+
+.tree li.hasChildren > .treeNodeWrapper > .coupleContainer::after {
+  display: none !important;
+}
+
+/* Garis horizontal penghubung antar saudara */
+.tree li::before,
+.tree li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  border-top: var(--line-width) solid var(--line-color);
+  width: 50%;
+  height: var(--gap);
+}
+
+.tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: var(--line-width) solid var(--line-color);
+}
+
+/* Penanganan Anak Tunggal */
+.tree li:only-child::after,
+.tree li:only-child::before {
+  display: none !important;
+  border: 0 none !important;
+}
+
+.tree li:only-child {
+  padding-top: var(--gap);
+}
+
+.tree li:only-child > .treeNodeWrapper::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--gap) * -1);
+  left: 50%;
+  border-left: var(--line-width) solid var(--line-color);
+  height: var(--gap);
+  z-index: 0;
+  transform: translateX(-50%);
+  display: block;
+}
+
+.tree > ul > li > .treeNodeWrapper::before {
+  content: none !important;
+  display: none !important;
+  visibility: hidden !important;
+}
+
+.tree li:only-child > .treeNodeWrapper > .coupleContainer::before {
+  display: none !important;
+}
+
+/* Merapikan siku garis pada anak pertama dan terakhir */
+.tree li:first-child::before,
+.tree li:last-child::after {
+  border: 0 none !important;
+}
+
+.tree li:first-child::after {
+  border-radius: 8px 0 0 0;
+}
+
+.tree li:last-child::before {
+  border-right: var(--line-width) solid var(--line-color);
+  border-radius: 0 8px 0 0;
+}
+
+/* Wrapper Node & Pasangan */
+.treeNodeWrapper {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 10;
+}
+
+.coupleContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 140px; /* Lebar tetap kartu suami */
+  margin: 0 auto;
+}
+
+.coupleContainer:not(:has(.marriageLine)) {
+  margin-right: 0 !important;
+}
+
+.coupleContainer > :nth-child(3) {
+  position: absolute;
+  left: 160px;
+  z-index: 20;
+}
+
+.marriageLine {
+  position: absolute;
+  left: 140px;
+  width: 20px;
+  height: var(--line-width);
+  background-color: var(--line-color);
+  z-index: 5;
+}

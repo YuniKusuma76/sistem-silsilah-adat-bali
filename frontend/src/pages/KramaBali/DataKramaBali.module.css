@@ -1,0 +1,147 @@
+.mainContainer {
+  @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentArea {
+  @apply p-8 flex-1;
+}
+
+.toolbar {
+  @apply mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4;
+}
+
+.searchWrapper {
+  @apply relative w-full max-w-md;
+}
+
+.searchIcon {
+  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400;
+}
+
+.searchInput {
+  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3A2000]/10 transition-all;
+}
+
+.btnTrehPuncak {
+  @apply inline-flex items-center gap-2 bg-[#3A2000] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-amber-800 active:scale-95 transition-all shadow-md shadow-gray-200;
+}
+
+.btnMyData {
+  @apply inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-200;
+}
+
+.tableWrapper {
+  @apply bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden;
+}
+
+.table {
+  @apply w-full border-collapse;
+}
+
+.table thead tr {
+  @apply bg-[#3A2000] text-white text-xs uppercase tracking-widest;
+}
+
+.table th {
+  @apply py-4 px-6 font-semibold;
+}
+
+.table td {
+  @apply py-4 px-6 border-b border-gray-50 text-sm;
+}
+
+.table tr:last-child td {
+  @apply border-b-0;
+}
+
+.loadContainer {
+  @apply flex justify-center items-center gap-2 text-gray-700 text-sm;
+}
+
+.loadSpinner {
+  @apply rounded-full h-4 w-4 border-b-2 border-amber-700;
+}
+
+.infoDataContent {
+  @apply flex flex-col items-center justify-center;
+}
+
+.infoDataIcon {
+  @apply text-gray-300 text-3xl mb-2;
+}
+
+.badge {
+  @apply px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter;
+}
+
+.badgeSuccess {
+  @apply bg-green-100 text-green-700;
+}
+
+.badgeDanger {
+  @apply bg-red-100 text-red-700;
+}
+
+.badgeGray {
+  @apply bg-gray-200 text-gray-700;
+}
+
+.btnDetail {
+  @apply inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition-all;
+}
+
+.pagination {
+  @apply mt-6 flex justify-between items-center text-xs text-gray-500 font-medium;
+}
+
+.pageButtons {
+  @apply flex gap-1;
+}
+
+.btnPageNumber {
+  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-all;
+}
+
+.activePage {
+  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-md;
+}

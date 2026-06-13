@@ -1,0 +1,60 @@
+.home {
+  background-color: #ffffff;
+  @apply ml-72 min-h-screen flex flex-col;
+}
+
+.bannerHome {
+  @apply w-full h-[350px] bg-gray-300 overflow-hidden relative;
+}
+
+.bannerOverlay {
+  @apply absolute inset-0 bg-gradient-to-b from-transparent to-black/10;
+}
+
+.homeSection {
+  @apply max-w-7xl mx-auto px-10 py-12 flex-grow;
+}
+
+.sectionTitle {
+  @apply text-3xl font-bold text-[#3A2000] uppercase inline-block border-b-2 border-bali-gold w-4/5 pb-1 mb-6 tracking-widest;
+}
+
+.sectionContent {
+  @apply text-justify text-gray-900 leading-relaxed text-[15px];
+}
+
+.sectionCard {
+  @apply flex flex-col md:flex-row gap-6 mt-8 mb-12;
+}
+
+.cardContent {
+  @apply w-full md:w-1/2 h-[300px] rounded-xl overflow-hidden shadow-lg relative;
+}
+
+.cardKhusus {
+  @apply grid grid-cols-1 md:grid-cols-3 gap-6 mt-12;
+}
+
+.cardContainer {
+  @apply rounded-xl overflow-hidden shadow-2xl flex flex-col h-full bg-bali-brown border-bali-gold/30 transition-all hover:-translate-y-2;
+}
+
+.cardImage {
+  @apply h-72 overflow-hidden bg-gray-300 relative border-b-2 border-[#c5a059];
+}
+
+.imageContent {
+  @apply w-full h-full object-cover transition-transform duration-500 group-hover:scale-110;
+}
+
+.cardText {
+  @apply p-5 flex flex-col flex-grow text-white bg-gradient-to-b from-transparent to-black/20;
+}
+
+.cardTitle {
+  @apply font-bold text-lg mb-3 text-white tracking-wide;
+}
+
+.cardDesc {
+  @apply text-xs leading-5 text-white font-light text-left;
+}

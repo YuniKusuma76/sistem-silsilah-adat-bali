@@ -1,0 +1,143 @@
+.sidebar {
+  background-color: #000000;
+  @apply w-72 text-white h-screen fixed left-0 top-0 flex flex-col border-r border-gray-800 z-50;
+}
+
+.logoContainer {
+  @apply p-6 flex flex-col items-center border-b border-gray-700/30;
+}
+
+.sidebarLogo {
+  @apply w-48 h-48 mb-2 flex items-center justify-center;
+}
+
+.loginBorder {
+  @apply px-6 py-6 border-b border-gray-700/30 bg-black/20 relative mb-3 backdrop-blur-sm;
+  z-index: 90;
+}
+
+.borderProfile {
+  @apply w-10 h-10 rounded-full border-2 border-yellow-600 flex items-center justify-center;
+}
+
+.defaultAvatar {
+  @apply w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 text-white flex items-center justify-center font-bold text-sm rounded-full;
+}
+
+.circleGreen {
+  @apply absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border border-black;
+}
+
+.boxUsername {
+  @apply flex justify-between items-center cursor-pointer select-none;
+}
+
+.clickToggle {
+  @apply text-white transition-transform duration-200;
+}
+
+.textGreen {
+  @apply text-green-500 text-[10px] font-semibold tracking-wide;
+}
+
+.dropdown {
+  @apply absolute top-full left-0 w-full bg-white/95 backdrop-blur-md rounded-b-md overflow-hidden shadow-2xl;
+  z-index: 100;
+}
+
+.profile {
+  @apply block hover:bg-gray-100 rounded-t-md transition-colors;
+}
+
+.profileContent {
+  @apply flex items-center gap-3 px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100;
+}
+
+.logoutContent {
+  @apply flex items-center gap-3 px-4 py-3 hover:bg-gray-100 cursor-pointer rounded-b-md transition-colors;
+}
+
+.profileContent,
+.logoutContent {
+  position: relative;
+  z-index: 101;
+}
+
+.authContainer {
+  @apply px-6 py-4 border-b border-gray-700/30 mb-3 flex flex-row gap-3 items-center;
+}
+
+.authButtonLogin {
+  @apply flex-1 py-2 px-2 border border-bali-gold text-bali-gold font-bold text-[11px] rounded-md transition-all hover:bg-bali-gold hover:text-black active:scale-95 uppercase tracking-wider text-center;
+}
+
+.authButtonRegister {
+  @apply flex-1 py-2 px-2 bg-bali-gold text-bali-dark font-bold text-[11px] rounded-md transition-all hover:bg-opacity-80 active:scale-95 uppercase tracking-wider shadow-md text-center;
+}
+
+.sidebarScroll {
+  @apply overflow-y-auto flex-1 mb-5 px-3;
+  z-index: 10;
+  position: relative;
+}
+
+.sidebarDivider {
+  @apply my-3 border-b border-gray-700/30;
+}
+
+.sidebarScroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebarScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebarScroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  transition: background-color 0.3s ease;
+}
+
+.sidebarScroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.sidebarScroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.menuItem {
+  @apply flex cursor-pointer transition-all duration-200 mb-1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.isActive {
+  @apply bg-bali-gold/15 text-bali-gold backdrop-blur-sm;
+  box-shadow: inset 3px 0 0 0 #c5a059;
+}
+
+.notActive {
+  @apply hover:bg-white/5 text-gray-400 hover:text-bali-gold transition-all;
+}
+
+.menuItem a {
+  @apply flex items-center w-full px-4 py-3;
+}
+
+.menuItem span:first-child {
+  @apply mr-3 opacity-80;
+  display: flex;
+  align-items: center;
+}
+
+.menuItem span:last-child {
+  @apply text-[11px] font-semibold tracking-widest uppercase;
+  font-family: "Inter", sans-serif;
+}
+
+.sidebarDivider {
+  @apply my-2 border-b border-gray-800/50 mx-4;
+}

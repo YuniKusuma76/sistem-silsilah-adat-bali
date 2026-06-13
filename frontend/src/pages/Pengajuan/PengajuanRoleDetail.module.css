@@ -1,0 +1,179 @@
+.modalOverlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
+}
+
+.modalContainer {
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
+}
+
+.elipsis {
+  @apply h-16 w-16 flex items-center justify-center bg-red-50 rounded-full;
+}
+
+.btnCancel {
+  @apply px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
+}
+
+.btnDelete {
+  @apply inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all;
+}
+
+.badge {
+  @apply px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border-none shadow-sm flex items-center gap-2 text-xs;
+}
+
+.badgeSuccess {
+  @apply bg-green-100 text-green-700;
+}
+
+.badgeDanger {
+  @apply bg-red-100 text-red-700 border-red-200;
+}
+
+.badgeWarning {
+  @apply bg-yellow-100 text-yellow-700 border-yellow-200;
+}
+
+.badgeGray {
+  @apply bg-gray-100 text-gray-700 border-gray-200;
+}
+
+.badgeAmber {
+  @apply bg-amber-100 text-amber-700 border-amber-200;
+}
+
+.mainContainer {
+  @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentArea {
+  @apply p-8 flex-1;
+}
+
+.cardContainer {
+  @apply bg-white p-8 rounded-2xl shadow-sm border-t-4 border-amber-300;
+}
+
+.roleStatus {
+  @apply flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4;
+}
+
+.labelColumn {
+  @apply text-[10px] font-bold text-gray-400 uppercase mb-1;
+}
+
+.roleContent {
+  @apply text-2xl font-black text-[#3A2000] flex items-center gap-3;
+}
+
+.desaWaktu {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-12 py-6 border-t border-gray-50;
+}
+
+.contentColumn {
+  @apply text-sm font-bold text-gray-700 flex items-center gap-2;
+}
+
+.labelReason {
+  @apply text-sm font-black text-[#3A2000] uppercase mb-4 flex items-center gap-2;
+}
+
+.reason {
+  @apply bg-gray-50 p-6 rounded-xl text-sm text-gray-600 leading-relaxed italic shadow-inner border border-gray-200;
+}
+
+.noteArea {
+  @apply p-6 rounded-2xl border-l-4 shadow-sm;
+}
+
+.labelNote {
+  @apply text-[10px] font-black tracking-widest uppercase mb-2 flex items-center gap-2;
+}
+
+.noteTanggal {
+  @apply mt-3 pt-3 border-t border-black/5 flex items-center gap-2 text-[10px] text-gray-400 font-bold;
+}
+
+.cardDokumen {
+  @apply bg-white p-6 rounded-2xl shadow-sm border border-gray-200;
+}
+
+.labelCardDokumen {
+  @apply text-sm font-black text-[#3A2000] uppercase tracking-widest mb-4;
+}
+
+.unknowContent {
+  @apply text-center py-10 bg-gray-50 rounded-xl border-2 border-dashed border-gray-100;
+}
+
+.unknowIcon {
+  @apply mx-auto text-gray-300 text-3xl mb-2;
+}
+
+.unknow {
+  @apply text-[10px] text-gray-400 font-bold uppercase;
+}
+
+.areaFile {
+  @apply aspect-[4/3] bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden shadow-inner border border-gray-200;
+}
+
+.labelFile {
+  @apply text-[10px] font-bold mt-2 uppercase tracking-tighter;
+}
+
+.btnLihatFile {
+  @apply inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-900/10 justify-center;
+}
+
+.btnUnduhFile {
+  @apply inline-flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-900/10 justify-center;
+}
+
+.btnHapusRed {
+  @apply w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors;
+}
+
+.btnBackNetral {
+  @apply w-full flex items-center justify-center gap-2 bg-amber-100 border border-amber-200 text-amber-700 px-6 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-amber-200 active:scale-95 transition-all shadow-sm;
+}

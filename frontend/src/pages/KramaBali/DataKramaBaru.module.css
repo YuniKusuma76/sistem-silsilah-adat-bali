@@ -1,0 +1,271 @@
+.mainContainer {
+  @apply ml-72 bg-white/50 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.section {
+  @apply bg-white shadow-sm z-20 border border-gray-200 rounded-2xl p-6 md:p-8 transition-all hover:shadow-md;
+}
+
+.sectionTitle {
+  @apply text-xl font-bold text-amber-900 border-b-2 border-amber-500 pb-3 mb-6 flex items-center gap-2;
+}
+
+.labelInput {
+  @apply text-sm font-semibold text-gray-700;
+}
+
+.inputSelect {
+  @apply w-full appearance-none px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all;
+}
+
+.selectIcon {
+  @apply absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400;
+}
+
+.inputText {
+  @apply w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all placeholder:text-gray-400;
+}
+
+.dualInput {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6;
+}
+
+.checkbox {
+  @apply flex flex-col bg-amber-50 p-3 rounded-xl border border-amber-100 mt-auto;
+}
+
+.checkboxInput {
+  @apply w-5 h-5 accent-amber-600 cursor-pointer;
+}
+
+.checkboxLabel {
+  @apply text-sm font-bold text-amber-900 cursor-pointer;
+}
+
+.checkboxNote {
+  @apply text-[11px] text-amber-800/80 italic mt-2 leading-relaxed;
+}
+
+.isBaliDual {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+
+.termsDesaAdat {
+  @apply w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 outline-none transition-all;
+}
+
+.termsIcon {
+  @apply absolute inset-y-0 right-4 flex items-center text-gray-400 pointer-events-none;
+}
+
+.dropdownResult {
+  @apply relative z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto overflow-x-hidden;
+}
+
+.dropdownItems {
+  @apply px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-gray-50 last:border-none transition-colors;
+}
+
+.descDesaAdat {
+  @apply text-[10px] text-gray-500 uppercase tracking-tighter;
+}
+
+.noted {
+  @apply text-xs text-gray-500 italic mt-1 px-1;
+}
+
+.sectionContent {
+  @apply flex justify-between items-center border-b-2 border-amber-500 pb-3 mb-6;
+}
+
+.sectionDualTitle {
+  @apply text-xl font-bold text-amber-900 flex items-center gap-2;
+}
+
+.btnAddIstri {
+  @apply flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95;
+}
+
+.cardSection {
+  @apply p-6 border border-gray-100 rounded-2xl bg-gray-50/50 relative transition-all hover:bg-gray-50;
+}
+
+.btnTrashKawin {
+  @apply absolute -top-3 -right-3 bg-white text-red-500 border border-red-100 shadow-sm rounded-full p-2.5 hover:bg-red-50 transition-all;
+}
+
+.dualColumn {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6 items-end mb-6;
+}
+
+.labelInputSelect {
+  @apply text-xs font-bold text-gray-700 uppercase tracking-wider;
+}
+
+.inputPilihan {
+  @apply w-full appearance-none px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all;
+}
+
+.btnResetDetail {
+  @apply text-amber-700 text-sm font-bold flex items-center gap-1 hover:underline mb-3 ml-auto;
+}
+
+.inputCalendar {
+  @apply w-full px-4 py-2.5 rounded-xl border border-gray-300 outline-none focus:ring-2 focus:ring-amber-500 transition-all;
+}
+
+.popupInput {
+  @apply space-y-6 mt-4 border-t border-gray-200 pt-6;
+}
+
+.dropdownHasilPasangan {
+  @apply relative z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto overflow-x-hidden;
+}
+
+.listHasilTerms {
+  @apply px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 cursor-pointer border-b;
+}
+
+.filterHasilTerms {
+  @apply px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-gray-50 last:border-none transition-colors text-sm;
+}
+
+.cardPasanganBaru {
+  @apply p-5 bg-blue-50/50 border border-blue-100 rounded-2xl space-y-4;
+}
+
+.titleCardPasangan {
+  @apply text-xs font-bold text-blue-700 uppercase tracking-widest flex items-center gap-2;
+}
+
+.asalSingleParent {
+  @apply bg-gray-100 shadow-inner p-3 rounded-lg border border-gray-200 mt-2 text-xs space-y-1;
+}
+
+.alamatLuarParent {
+  @apply text-gray-600 text-[11px] italic leading-relaxed bg-white/60 p-2 rounded border border-gray-200/50 mt-1;
+}
+
+.fontAlamatLuar {
+  @apply font-semibold text-gray-500 block not-italic text-[10px] uppercase tracking-wider mb-0.5;
+}
+
+.cardInfoGray {
+  @apply p-5 bg-gray-100 border border-gray-200 rounded-2xl space-y-4;
+}
+
+.titleCardGray {
+  @apply font-bold text-gray-800 text-sm mb-3 border-b border-gray-200 uppercase tracking-widest flex items-center gap-2 pb-2;
+}
+
+.cardInfoBiru {
+  @apply p-5 bg-blue-50 border border-blue-200 rounded-2xl space-y-4;
+}
+
+.titleCardBiru {
+  @apply font-bold text-blue-800 text-sm mb-3 border-b border-blue-200 uppercase tracking-widest flex items-center gap-2 pb-2;
+}
+
+.cardInfoPink {
+  @apply p-5 bg-pink-50 border border-pink-200 rounded-2xl space-y-4;
+}
+
+.titleCardPink {
+  @apply font-bold text-pink-800 text-sm mb-3 border-b border-pink-200 uppercase tracking-widest flex items-center gap-2 pb-2;
+}
+
+.cardInfoGreen {
+  @apply p-5 bg-green-50 border border-green-200 rounded-2xl space-y-4;
+}
+
+.titleCardGreen {
+  @apply font-bold text-green-800 text-sm mb-3 border-b border-green-200 uppercase tracking-widest flex items-center gap-2 pb-2;
+}
+
+.buttonGroup {
+  @apply mt-12 mb-10 pt-6 flex flex-wrap items-center justify-center gap-3 border-t border-gray-100;
+}
+
+.btnBackRed {
+  @apply inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-red-700 active:scale-95 transition-all shadow-md shadow-red-100;
+}
+
+.btnSubmit {
+  @apply inline-flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-100;
+}
+
+.spinner {
+  @apply animate-spin mr-2 h-4 w-4 border-2 border-b-0 border-white rounded-full inline-block;
+}
+
+.previewWilayahAdat {
+  @apply bg-amber-50 shadow-inner p-4 rounded-lg grid grid-cols-3 gap-2 border border-gray-100;
+}
+
+.inputContent {
+  @apply space-y-5 border-t pt-4 border-dashed border-gray-200;
+}
+
+.notedPredana {
+  @apply text-xs bg-blue-50 border border-blue-200 text-blue-700 p-2.5 rounded-md leading-relaxed;
+}
+
+.modalOverlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
+}
+
+.modalContainer {
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
+}
+
+.elipsis {
+  @apply h-16 w-16 flex items-center justify-center bg-red-50 rounded-full;
+}
+
+.btnCancel {
+  @apply px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
+}
+
+.btnDelete {
+  @apply inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all;
+}

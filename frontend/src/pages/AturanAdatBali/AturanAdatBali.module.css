@@ -1,0 +1,195 @@
+.modalOverlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
+}
+
+.modalContainer {
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
+}
+
+.elipsis {
+  @apply h-16 w-16 flex items-center justify-center bg-red-50 rounded-full;
+}
+
+.btnCancel {
+  @apply px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
+}
+
+.mainContainer {
+  @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentArea {
+  @apply p-8 flex-1;
+}
+
+.statsCardWrapper {
+  @apply bg-white rounded-xl border-t-4 border-amber-600 shadow-sm overflow-hidden mb-12;
+}
+
+.statsHeader {
+  @apply px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3;
+}
+
+.statsHeader h3 {
+  @apply text-sm font-bold text-gray-800 uppercase tracking-wider;
+}
+
+.statsContainer {
+  @apply grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-white;
+}
+
+.statsCard {
+  @apply bg-gray-50/50 p-4 rounded-xl border border-gray-50 flex items-center gap-4 transition-all duration-200 hover:bg-gray-100;
+}
+
+.statsIconWrapper {
+  @apply w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 bg-white shadow-sm;
+}
+
+.statsLabel {
+  @apply block text-xs font-semibold text-gray-400 uppercase tracking-wider;
+}
+
+.statsCount {
+  @apply text-xl font-extrabold text-gray-800 mt-0.5;
+}
+
+.toolbar {
+  @apply mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4;
+}
+
+.searchWrapper {
+  @apply relative w-full max-w-md;
+}
+
+.searchIcon {
+  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400;
+}
+
+.searchInput {
+  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3A2000]/10 transition-all;
+}
+
+.btnAddData {
+  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-md shadow-green-900/10;
+}
+
+.tableWrapper {
+  @apply bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden;
+}
+
+.table {
+  @apply w-full border-collapse;
+}
+
+.table thead tr {
+  @apply bg-[#3A2000] text-white text-xs uppercase tracking-widest;
+}
+
+.table th {
+  @apply py-4 px-6 font-semibold;
+}
+
+.table td {
+  @apply py-5 px-6 border-b border-gray-50 text-sm align-middle;
+}
+
+.table tr:last-child td {
+  @apply border-b-0;
+}
+
+.loadContainer {
+  @apply flex justify-center items-center gap-2 text-gray-700 text-sm;
+}
+
+.loadSpinner {
+  @apply rounded-full h-4 w-4 border-b-2 border-amber-700;
+}
+
+.badge {
+  @apply px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border-none shadow-sm;
+}
+
+.badgeSuccess {
+  @apply bg-green-100 text-green-700;
+}
+
+.badgeDanger {
+  @apply bg-red-100 text-red-700 border-red-200;
+}
+
+.badgeAmber {
+  @apply bg-amber-100 text-amber-700 border-amber-200;
+}
+
+.infoDataContent {
+  @apply flex flex-col items-center justify-center;
+}
+
+.infoDataIcon {
+  @apply text-gray-300 text-3xl mb-2;
+}
+
+.btnDetail {
+  @apply inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition-all;
+}
+
+.btnDelete {
+  @apply inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all;
+}
+
+.pagination {
+  @apply mt-6 flex justify-between items-center text-xs text-gray-500 font-medium;
+}
+
+.pageButtons {
+  @apply flex gap-1;
+}
+
+.btnPageNumber {
+  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-all;
+}
+
+.activePage {
+  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-md;
+}

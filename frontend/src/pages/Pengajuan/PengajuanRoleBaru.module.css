@@ -1,0 +1,123 @@
+.mainContainer {
+  @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentArea {
+  @apply p-8 flex-1;
+}
+
+.cardContainer {
+  @apply bg-white p-1;
+}
+
+.labelInputSelect {
+  @apply text-sm font-bold text-gray-800;
+}
+
+.inputPilihan {
+  @apply w-full appearance-none px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-amber-500 outline-none transition-all;
+}
+
+.selectIcon {
+  @apply absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400;
+}
+
+.previewWilayahAdat {
+  @apply bg-amber-50 shadow-inner p-4 rounded-lg grid grid-cols-3 gap-2 border border-gray-100;
+}
+
+.dropdownResult {
+  @apply absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto;
+}
+
+.dropdownItems {
+  @apply px-4 py-3 hover:bg-amber-50 cursor-pointer border-b border-gray-50 last:border-none transition-colors;
+}
+
+.note {
+  @apply text-xs text-gray-400 italic mt-1;
+}
+
+.inputText {
+  @apply w-full min-h-[120px] px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all placeholder:text-gray-400;
+}
+
+.inputTextArea {
+  @apply border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-amber-500 transition-all bg-gray-50/50;
+}
+
+.iconChecklist {
+  @apply text-green-500 text-3xl mb-2;
+}
+
+.namaFile {
+  @apply text-sm text-gray-700 font-medium;
+}
+
+.btnHapusFile {
+  @apply mt-2 text-xs text-red-600 font-bold hover:underline;
+}
+
+.iconUpload {
+  @apply mx-auto h-8 w-8 text-gray-400 mb-5;
+}
+
+.areaUpload {
+  @apply flex text-sm text-gray-600 justify-center;
+}
+
+.upload {
+  @apply relative cursor-pointer bg-white rounded-md font-medium underline text-blue-700 hover:text-blue-800 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-amber-400;
+}
+
+.buttonGroup {
+  @apply mt-12 pb-10 pt-6 flex flex-wrap items-center justify-center gap-3;
+}
+
+.btnBackRed {
+  @apply inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-red-700 active:scale-95 transition-all shadow-md shadow-red-100;
+}
+
+.btnSubmit {
+  @apply inline-flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-100;
+}
