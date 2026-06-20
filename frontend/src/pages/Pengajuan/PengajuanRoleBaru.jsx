@@ -28,6 +28,7 @@ const PengajuanRoleBaru = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
 
@@ -54,7 +55,7 @@ const PengajuanRoleBaru = () => {
         setDaftarKabupaten(resKab.data.data || []);
         setDaftarProvinsi(resProv.data.data || []);
       } catch (error) {
-        console.error("Gagal memuat data wilayah", error);
+        console.error("Gagal memuat data wilayah adat", error);
       }
     };
     fetchSemuaWilayah();
@@ -97,14 +98,13 @@ const PengajuanRoleBaru = () => {
   
   // Effect: Auto-close alert
   useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert(prev => ({ 
-        ...prev, 
-        show: false 
-      })), 3000);
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [alert.show]);
+  }, [alert.show, alert.type]);
 
   // Helper: Fungsi upload file dokumen pendukung
   const handleFileChange = (e) => {
@@ -123,34 +123,35 @@ const PengajuanRoleBaru = () => {
     }
   };
 
-  // SUBMIT DATA
+  // SUBMIT DATA PERMOHONAN
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validasi Form
+
+    // Validasi input role
     if (!roleYangDiminta) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Silakan pilih role yang diajukan!' 
+        message: 'Silakan pilih role yang ingin diajukan!' 
       });
       return;
     }
-
+    // Validasi input desa adat khusus role admin desa
     if (roleYangDiminta === 'Admin Desa' && !desaAdatIdTujuan) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Role Admin Desa wajib memilih Desa Adat tujuan!' 
+        message: 'Role Admin Desa wajib memilih Desa Adat Tujuan!' 
       });
       window.scrollTo(0, 0);
       return;
     }
-
+    // Validasi input alasan permohonan dan dokumen pendukung
     if (!alasanPermohonan.trim() || !fileDokumen) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Alasan dan dokumen pendukung wajib diisi!' 
+        message: 'Alasan permohonan dan dokumen pendukung wajib diisi!' 
       });
       window.scrollTo(0, 0);
       return;
@@ -161,7 +162,6 @@ const PengajuanRoleBaru = () => {
     formData.append('desa_adat_id_tujuan', roleYangDiminta === 'Admin Desa' ? desaAdatIdTujuan : '');
     formData.append('alasan_permohonan', alasanPermohonan);
     formData.append('dokumen_pendukung', fileDokumen);
-
     setIsLoading(true);
 
     try {
@@ -170,14 +170,14 @@ const PengajuanRoleBaru = () => {
       });
       navigate('/pengajuan-role/my-data', { 
         state: { 
-          successMessage: 'Permohonan berhasil dikirim! Mohon tunggu verifikasi.' 
+          successMessage: 'Permohonan perubahan role berhasil dikirim! Menunggu verifikasi dari admin...' 
         } 
       });
     } catch (error) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || 'Gagal mengirim permohonan role.' 
+        message: error.response?.data?.message || 'Gagal mengajukan permohonan perubahan role.' 
       });
       window.scrollTo(0, 0);
     } finally {
@@ -191,10 +191,10 @@ const PengajuanRoleBaru = () => {
         <nav className={styles.navbar}>
           <div className={styles.navLeft}>
             <h2 className={styles.navTitle}>
-              Pengajuan Role Baru
+              Pengajuan Permohonan Perubahan Role
             </h2>
             <p className={styles.navSubtitle}>
-              Lengkapi formulir pengajuan perubahan role dengan data yang valid dan sah
+              Lengkapi formulir pengajuan permohonan perubahan role dengan data yang valid dan sah
             </p>
           </div>
           <div className={styles.navRight}>
@@ -212,40 +212,61 @@ const PengajuanRoleBaru = () => {
         </nav>
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-section 
-          ${alert.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+        <div className={`alert-section
+          ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
+            : alert.type === 'error' ? 'border-red-500 bg-red-50'
+            : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
+            : 'border-blue-500 bg-blue-50'}`
+          }>
           <div className="flex items-start p-4">
-            <div className="flex-shrink-0 mr-3 mt-2 text-2xl">
-              {alert.type === 'success' ? '✅' : '⚠️'}
+            {/* Icon */}
+            <div className="flex-shrink-0 mr-3 text-2xl">
+              {alert.type === 'success' && '✅'}
+              {alert.type === 'error' && '❌'}
+              {alert.type === 'warning' && '⚠️'}
+              {alert.type === 'loading' && '⏳'}
             </div>
+            {/* Content */}
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${alert.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                {alert.type === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan.'}
+              <h4 className={`font-bold text-sm 
+                ${alert.type === 'success' ? 'text-green-800' 
+                  : alert.type === 'error' ? 'text-red-800' 
+                  : alert.type === 'warning' ? 'text-amber-800'
+                  : 'text-blue-800'}`
+                }>
+                {alert.type === 'success' ? 'Berhasil!' 
+                  : alert.type === 'error' ? 'Terjadi Kesalahan!' 
+                  : alert.type === 'warning' ? 'Perhatian Adat!'
+                  : 'Mohon Tunggu...'
+                }
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {alert.message}
               </p>
             </div>
+            {/* Close Button */}
             <button onClick={() => setAlert(prev => ({ ...prev, show: false }))} className="alert-button">
-              &times;
+              <span className="text-2xl leading-none">&times;</span>
             </button>
           </div>
-          {(alert.type === 'success' || alert.type === 'error') && (
+          {/* Progress Bar Line */}
+          {(alert.type === 'success' || alert.type === 'error' || alert.type === 'warning') && (
             <div className="h-1.5 w-full bg-gray-200">
-              <div className={`h-full animate-shrink ${alert.type === 'success' 
-                ? 'bg-green-500' 
-                : 'bg-red-500'}`}>
-              </div>
+              <div className={`h-full animate-shrink ${
+                alert.type === 'success' ? 'bg-green-500' : 
+                alert.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+                }`
+              }></div>
             </div>
           )}
         </div>
       )}
-      {/* Form Permohonan */}
+      {/* Form Permohonan Role */}
       <div className={styles.contentArea}>
         <div className={styles.cardContainer}>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Permohonan Role dan Desa Adat */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Permohonan Role */}
             <div>
               <label className={styles.labelInputSelect}>
                 Permohonan Role <span className="text-red-500">*</span>
@@ -273,7 +294,7 @@ const PengajuanRoleBaru = () => {
                 * Pilih peran yang sesuai dengan kapasitas Anda dalam sistem.
               </p>
             </div>
-
+            {/* Desa Adat Tujuan */}
             {roleYangDiminta === 'Admin Desa' && (
               <div ref={dropdownRef} className="space-y-4 animate-fade-in">
                 <div>
@@ -284,7 +305,7 @@ const PengajuanRoleBaru = () => {
                     <input
                       type="text"
                       className={styles.inputPilihan}
-                      placeholder="Ketik nama desa adat..."
+                      placeholder="Ketikkan nama desa adat..."
                       value={searchTerm}
                       onChange={(e) => {
                         setSearchTerm(e.target.value);
@@ -375,7 +396,7 @@ const PengajuanRoleBaru = () => {
             </label>
             <textarea 
               className={styles.inputText}
-              placeholder="Jelaskan alasan pengajuan peran..."
+              placeholder="Jelaskan alasan pengajuan permohonan perubahan role..."
               value={alasanPermohonan}
               onChange={(e) => setAlasanPermohonan(e.target.value)}
               disabled={isLoading}
@@ -421,7 +442,7 @@ const PengajuanRoleBaru = () => {
                     </p>
                   </div>
                   <p className="text-xs text-gray-500">
-                    PNG, JPG, PDF, Max 5MB
+                    PNG, JPG, JPEG, PDF, Max 5MB
                   </p>
                 </>
               )}

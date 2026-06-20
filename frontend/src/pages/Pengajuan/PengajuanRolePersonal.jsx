@@ -48,15 +48,19 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProce
 
 // Helper: Membuat slug url
 const createSlug = (role, date, id) => {
+  if (!role) return id;
   const roleSlug = role.toLowerCase().replace(/ /g, '-');
   const dateFormatted = new Date(date).toISOString().split('T')[0];
   const encodedId = btoa(id.toString()).replace(/=/g, '');
   return `${roleSlug}-${dateFormatted}-${encodedId}`;
 };
 
-const PengajuanRole = ({ user }) => {
+const PengajuanRolePersonal = ({ user }) => {
   const [riwayat, setRiwayat] = useState([]);
   const [desaAdatMap, setDesaAdatMap] = useState({});
+  const [daftarDesaRaw, setDaftarDesaRaw] = useState([]);
+  const [daftarKecamatan, setDaftarKecamatan] = useState([]);
+  const [daftarKabupaten, setDaftarKabupaten] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,6 +68,7 @@ const PengajuanRole = ({ user }) => {
   
   const navigate = useNavigate();
   const location = useLocation();
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
@@ -80,24 +85,31 @@ const PengajuanRole = ({ user }) => {
     id: null 
   });
 
-  // Helper: Mengambil nama desa adat
-  const fetchDesaAdat = async () => {
+  // Helper: Mengambil wilayah adat
+  const fetchWilayahDanDesa = async () => {
     try {
-      const response = await axiosInstance.get('/desa-adat');
-      const dataDesa = response.data.data;
+      const [resDesa, resKec, resKab] = await Promise.all([
+        axiosInstance.get('/desa-adat'),
+        axiosInstance.get('/kecamatan'),
+        axiosInstance.get('/kabupaten')
+      ]);
 
-      // Mengubah array menjadi object map
+      const desaData = resDesa.data?.data || [];
+      setDaftarDesaRaw(desaData);
+      setDaftarKecamatan(resKec.data?.data || []);
+      setDaftarKabupaten(resKab.data?.data || []);
+
       const map = {};
-      dataDesa.forEach(desa => {
-        map[desa.id] = desa.nama_desa_adat;
+      desaData.forEach(desa => { 
+        map[desa.id] = desa.nama_desa_adat; 
       });
       setDesaAdatMap(map);
     } catch (error) {
-      console.error("Gagal mengambil data desa adat", error);
+      console.error("Gagal memuat data wilayah adat:", error);
     }
   };
 
-  // Helper: Fungsi mengambil data permohonan role
+  // Helper: Fungsi mengambil data permohonan perubahan role
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -108,14 +120,19 @@ const PengajuanRole = ({ user }) => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Gagal memuat riwayat permohonan role.' 
+        message: 'Gagal memuat riwayat permohonan perubahan role.' 
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Halper: Fungsi membatalkan permohonan role
+  useEffect(() => {
+    fetchWilayahDanDesa();
+    fetchData();
+  }, []);
+
+  // Halper: Fungsi membatalkan permohonan perubahan role
   const handleConfirmBatalkan = async () => {
     if (!modal.id) return;
     setIsSubmitting(true);
@@ -123,7 +140,7 @@ const PengajuanRole = ({ user }) => {
       await axiosInstance.put(`/permohonan-role/cancel/${modal.id}`);
       setAlert({ 
         show: true, type: 'success', 
-        message: 'Permohonan role berhasil dibatalkan.' 
+        message: 'Permohonan perubahan role berhasil dibatalkan.' 
       });
       fetchData(); 
       setModal({ 
@@ -134,7 +151,7 @@ const PengajuanRole = ({ user }) => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || "Gagal membatalkan permohonan role." 
+        message: error.response?.data?.message || "Gagal membatalkan permohonan perubahan role." 
       });
     } finally {
       setIsSubmitting(false);
@@ -151,20 +168,31 @@ const PengajuanRole = ({ user }) => {
       });
       window.history.replaceState({}, document.title);
     }
-    fetchDesaAdat();
-    fetchData();
   }, [location]);
 
-  // Effect: Auto-close alert
+  // Helper: Fungsi mengambil detail wilayah berdasarkan desa adat id
+  const getWilayahLengkap = (desaId) => {
+    const desa = daftarDesaRaw.find(d => String(d.id) === String(desaId));
+    if (!desa) return null;
+
+    const kec = daftarKecamatan.find(k => String(k.id) === String(desa.kecamatan_id));
+    const kab = daftarKabupaten.find(kb => String(kb.id) === String(kec?.kabupaten_id));
+
+    return {
+      kecamatan: kec ? kec.nama_kecamatan : '-',
+      kabupaten: kab ? kab.nama_kabupaten : '-',
+    };
+  };
+
+  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert(prev => ({ 
-        ...prev, 
-        show: false 
-      })), 3000);
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [alert.show]);
+  }, [alert.show, alert.type]);
 
   // Helper: Fungsi search filter riwayat
   const filteredRiwayat = useMemo(() => {
@@ -256,10 +284,10 @@ const PengajuanRole = ({ user }) => {
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Riwayat Pengajuan Role
+            Riwayat Permohonan Perubahan Role
           </h2>
           <p className={styles.navSubtitle}>
-            Berikut adalah riwayat pengajuan perubahan role yang diajukan
+            Berikut adalah riwayat permohonan perubahan role yang diajukan
           </p>
         </div>
         <div className={styles.navRight}>
@@ -282,34 +310,55 @@ const PengajuanRole = ({ user }) => {
         onConfirm={handleConfirmBatalkan}
         isProcessing={isSubmitting}
         title="Batalkan Permohonan?"
-        message="Permohonan yang dibatalkan tidak akan diproses oleh admin."
+        message="Permohonan perubahan role yang dibatalkan bersifat permanen dan tidak akan diproses oleh admin."
       />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-section 
-          ${alert.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+        <div className={`alert-section
+          ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
+            : alert.type === 'error' ? 'border-red-500 bg-red-50'
+            : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
+            : 'border-blue-500 bg-blue-50'}`
+          }>
           <div className="flex items-start p-4">
-            <div className="flex-shrink-0 mr-3 mt-2 text-2xl">
-              {alert.type === 'success' ? '✅' : '⚠️'}
+            {/* Icon */}
+            <div className="flex-shrink-0 mr-3 text-2xl">
+              {alert.type === 'success' && '✅'}
+              {alert.type === 'error' && '❌'}
+              {alert.type === 'warning' && '⚠️'}
+              {alert.type === 'loading' && '⏳'}
             </div>
+            {/* Content */}
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${alert.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                {alert.type === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan.'}
+              <h4 className={`font-bold text-sm 
+                ${alert.type === 'success' ? 'text-green-800' 
+                  : alert.type === 'error' ? 'text-red-800' 
+                  : alert.type === 'warning' ? 'text-amber-800'
+                  : 'text-blue-800'}`
+                }>
+                {alert.type === 'success' ? 'Berhasil!' 
+                  : alert.type === 'error' ? 'Terjadi Kesalahan!' 
+                  : alert.type === 'warning' ? 'Perhatian Adat!'
+                  : 'Mohon Tunggu...'
+                }
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {alert.message}
               </p>
             </div>
+            {/* Close Button */}
             <button onClick={() => setAlert(prev => ({ ...prev, show: false }))} className="alert-button">
-              &times;
+              <span className="text-2xl leading-none">&times;</span>
             </button>
           </div>
-          {(alert.type === 'success' || alert.type === 'error') && (
+          {/* Progress Bar Line */}
+          {(alert.type === 'success' || alert.type === 'error' || alert.type === 'warning') && (
             <div className="h-1.5 w-full bg-gray-200">
-              <div className={`h-full animate-shrink ${alert.type === 'success' 
-                ? 'bg-green-500' 
-                : 'bg-red-500'}`}>
-              </div>
+              <div className={`h-full animate-shrink ${
+                alert.type === 'success' ? 'bg-green-500' : 
+                alert.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+                }`
+              }></div>
             </div>
           )}
         </div>
@@ -342,7 +391,7 @@ const PengajuanRole = ({ user }) => {
                 <th className="text-center">Tanggal Pengajuan</th>
                 <th className="text-center">Permohonan Role</th>
                 <th className="text-center">Desa Adat Tujuan</th>
-                <th className="text-center">Status</th>
+                <th className="text-center">Status Permohonan</th>
                 <th className="text-center"></th>
               </tr>
             </thead>
@@ -362,53 +411,69 @@ const PengajuanRole = ({ user }) => {
                     <div className={styles.infoDataContent}>
                       <FaInfoCircle className={styles.infoDataIcon} />
                       <p className="text-sm font-medium">
-                        {searchTerm ? `Data "${searchTerm}" tidak ditemukan` : "Tidak ada data pengajuan"}
+                        {searchTerm ? `Data "${searchTerm}" tidak ditemukan` : "Tidak ada data permohonan"}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                currentItems.map((item, index) => (
-                  <tr key={item.id}>
-                    <td className="text-center text-gray-400">
-                      {indexOfFirstItem + index + 1}
-                    </td>
-                    <td className="text-center">
-                      {new Date(item.tanggal_pengajuan).toLocaleDateString('id-ID', { 
-                        day: 'numeric', month: 'long', year: 'numeric' 
-                      })}
-                    </td>
-                    <td className="text-center font-bold">
-                      {item.role_yang_diminta}
-                    </td>
-                    <td className="text-center">
-                      {desaAdatMap[item.desa_adat_id_tujuan] || (item.desa_adat_id_tujuan ? `${item.desa_adat_id_tujuan}` : "-")}
-                    </td>
-                    <td className="text-center">
-                      <span className={`${styles.badge} ${getStatusClass(item.status_permohonan)}`}>
-                        {item.status_permohonan}
-                      </span>
-                    </td>
-                    <td className="text-center">
-                      <div className="flex justify-center gap-2">
-                        <button 
-                          className={styles.btnDetail} 
-                          onClick={() => {
-                            const slug = createSlug(item.role_yang_diminta, item.tanggal_pengajuan, item.id);
-                            navigate(`/pengajuan-role/my-data/detail/${slug}`);
-                          }}
-                        >
-                          <FaInfoCircle /> Detail
-                        </button>
-                        {item.status_permohonan === 'Menunggu' && (
-                          <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: item.id })}>
-                            <FaTrash size={11} /> Batal
+                currentItems.map((item, index) => {
+                  const namaDesa = desaAdatMap[item.desa_adat_id_tujuan] || "-";
+                  const infoWilayah = item.desa_adat_id_tujuan 
+                    ? getWilayahLengkap(item.desa_adat_id_tujuan) 
+                    : null;
+
+                  return (
+                    <tr key={item.id}>
+                      <td className="text-center text-gray-400">
+                        {indexOfFirstItem + index + 1}
+                      </td>
+                      <td className="text-center">
+                        {new Date(item.tanggal_pengajuan).toLocaleDateString('id-ID', { 
+                          day: 'numeric', month: 'long', year: 'numeric' 
+                        })}
+                      </td>
+                      <td className="text-center font-bold">
+                        {item.role_yang_diminta}
+                      </td>
+                      <td className="text-center">
+                        <div className="flex flex-col">
+                          <span className="font-semibold">
+                            {namaDesa}
+                          </span>
+                          {infoWilayah && (
+                            <span className={styles.detailWilayah}>
+                              {infoWilayah.kecamatan} • {infoWilayah.kabupaten}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="text-center">
+                        <span className={`${styles.badge} ${getStatusClass(item.status_permohonan)}`}>
+                          {item.status_permohonan}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            className={styles.btnDetail} 
+                            onClick={() => {
+                              const slug = createSlug(item.role_yang_diminta, item.tanggal_pengajuan, item.id);
+                              navigate(`/pengajuan-role/my-data/detail/${slug}`);
+                            }}
+                          >
+                            <FaInfoCircle /> Detail
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {item.status_permohonan === 'Menunggu' && (
+                            <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: item.id })}>
+                              <FaTrash size={11} /> Batal
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -426,4 +491,4 @@ const PengajuanRole = ({ user }) => {
   );
 };
 
-export default PengajuanRole;
+export default PengajuanRolePersonal;

@@ -3,68 +3,33 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
   FaSearch, 
-  FaTrash, 
+  FaArrowLeft, 
   FaInfoCircle, 
-  FaPlus, 
-  FaExclamationTriangle
+  FaSpinner
 } from 'react-icons/fa'; 
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
-import styles from './PengajuanDesaPersonal.module.css';
-
-// Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
-  if (!isOpen) return null;
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={`${styles.modalContainer} animate-fade-in`}>
-        <div className="p-6">
-          <div className="flex justify-center mb-5">
-            <div className={styles.elipsis}>
-              <FaExclamationTriangle className="text-red-600 text-2xl" />
-            </div>
-          </div>
-          <div className="text-center">
-            <h3 className="text-lg font-bold text-black mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {message}
-            </p>
-          </div>
-          <div className="mt-10 flex gap-3 justify-center">
-            <button onClick={onClose} disabled={isProcessing} className={styles.btnCancel}>
-              Kembali
-            </button>
-            <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Batalkan'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import styles from './PengajuanDesa.module.css';
 
 // Helper: Membuat slug url
 const createSlug = (desa, date, id) => {
+  if (!desa) return id;
   const desaSlug = desa.toLowerCase().replace(/ /g, '-');
   const dateFormatted = new Date(date).toISOString().split('T')[0];
   const encodedId = btoa(id.toString()).replace(/=/g, '');
   return `${desaSlug}-${dateFormatted}-${encodedId}`;
 };
 
-const PengajuanDesaPersonal = ({ user }) => {
-  const [riwayat, setRiwayat] = useState([]);
+const PengajuanDesa = ({ user }) => {
+  const [dataPengajuan, setDataPengajuan] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
   const [desaAdatMap, setDesaAdatMap] = useState({});
   const [daftarDesaRaw, setDaftarDesaRaw] = useState([]);
   const [daftarKecamatan, setDaftarKecamatan] = useState([]);
   const [daftarKabupaten, setDaftarKabupaten] = useState([]);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -78,11 +43,8 @@ const PengajuanDesaPersonal = ({ user }) => {
     message: '' 
   });
 
-  // State menampilkan modal konfirmasi
-  const [modal, setModal] = useState({ 
-    show: false, 
-    id: null 
-  });
+  const isAdminDesa = user?.role === 'Admin Desa';
+  const isSuperAdmin = user?.role === 'Super Admin';
 
   // Helper: Mengambil wilayah adat
   const fetchWilayahDanDesa = async () => {
@@ -112,14 +74,18 @@ const PengajuanDesaPersonal = ({ user }) => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const response = await axiosInstance.get('/permohonan-desa/owner');
-      setRiwayat(response.data.data || []);
+      const targetEndpoint = isAdminDesa 
+        ? '/permohonan-desa/berkas-desa' 
+        : '/permohonan-desa/berkas-pusat';
+
+      const response = await axiosInstance.get(targetEndpoint);
+      setDataPengajuan(response.data?.data || []);
     } catch (error) {
-      console.log(error);
+      console.error(error);
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Gagal memuat riwayat permohonan mutasi desa adat.' 
+        message: "Gagal memuat data permohonan mutasi desa adat." 
       });
     } finally {
       setIsLoading(false);
@@ -129,6 +95,7 @@ const PengajuanDesaPersonal = ({ user }) => {
   useEffect(() => {
     fetchWilayahDanDesa();
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Effect: Alert diteruskan ke alert halaman lain
@@ -157,33 +124,7 @@ const PengajuanDesaPersonal = ({ user }) => {
     };
   };
 
-  // Halper: Fungsi membatalkan permohonan mutasi desa adat
-  const handleConfirmBatalkan = async () => {
-    if (!modal.id) return;
-    setIsSubmitting(true);
-    try {
-      await axiosInstance.put(`/permohonan-desa/cancel/${modal.id}`);
-      setAlert({ 
-        show: true, type: 'success', 
-        message: 'Permohonan mutasi desa adat berhasil dibatalkan.' 
-      });
-      fetchData(); 
-      setModal({ 
-        show: false, 
-        id: null 
-      });
-    } catch (error) {
-      setAlert({ 
-        show: true, 
-        type: 'error', 
-        message: error.response?.data?.message || "Gagal membatalkan permohonan mutasi desa adat." 
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Effect: Auto-close alert
+  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -196,12 +137,12 @@ const PengajuanDesaPersonal = ({ user }) => {
   // Helper: Fungsi search filter riwayat
   const filteredRiwayat = useMemo(() => {
     const search = searchTerm.toLowerCase();
-    return riwayat.filter(item => {
+    return dataPengajuan.filter(item => {
       const namaAsal = desaAdatMap[item.desa_adat_id_asal]?.toLowerCase() || "";
       const namaTujuan = desaAdatMap[item.desa_adat_id_tujuan]?.toLowerCase() || "";
       return namaAsal.includes(search) || namaTujuan.includes(search);
     });
-  }, [riwayat, searchTerm, desaAdatMap]);
+  }, [dataPengajuan, searchTerm, desaAdatMap]);
 
   // HANDLE PAGINATION
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -286,10 +227,10 @@ const PengajuanDesaPersonal = ({ user }) => {
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Riwayat Permohonan Mutasi Desa Adat
+            Verifikasi Permohonan Mutasi Desa Adat
           </h2>
           <p className={styles.navSubtitle}>
-            Berikut adalah riwayat permohonan mutasi desa adat yang diajukan
+            Berikut adalah data permohonan mutasi desa adat yang diajukan
           </p>
         </div>
         <div className={styles.navRight}>
@@ -305,15 +246,6 @@ const PengajuanDesaPersonal = ({ user }) => {
           </div>
         </div>
       </nav>
-      {/* Modal Konfirmasi */}
-      <ConfirmationModal 
-        isOpen={modal.show}
-        onClose={() => setModal({ show: false, id: null })}
-        onConfirm={handleConfirmBatalkan}
-        isProcessing={isSubmitting}
-        title="Batalkan Permohonan?"
-        message="Permohonan mutasi desa adat yang dibatalkan bersifat permanen dan tidak akan diproses oleh admin."
-      />
       {/* Alert Section */}
       {alert.show && (
         <div className={`alert-section
@@ -378,12 +310,10 @@ const PengajuanDesaPersonal = ({ user }) => {
               className={styles.searchInput}
             />
           </div>
-          {user?.role !== 'Super Admin' && user?.role !== 'Pakar' && (
-            <button className={styles.btnAddData} onClick={() => navigate('/pengajuan-desa-adat/my-data/add')}>
-              <FaPlus size={12} />
-              <span>Pengajuan Baru</span>
-            </button>
-          )}
+          <button className={styles.btnBackRed} onClick={() => navigate('/verifikasi-data')}>
+            <FaArrowLeft size={12} />
+            <span>Kembali ke Dashboard</span>
+          </button>
         </div>
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
@@ -391,9 +321,10 @@ const PengajuanDesaPersonal = ({ user }) => {
               <tr>
                 <th className="text-center w-16">No</th>
                 <th className="text-center">Tanggal Pengajuan</th>
+                <th className="text-center">Desa Adat Asal</th>
                 <th className="text-center">Desa Adat Tujuan</th>
-                <th className="text-center">Status Berkas</th>
-                <th className="text-center">Status Permohonan</th>
+                {isAdminDesa && <th className="text-center">Status Berkas</th>}
+                {isSuperAdmin && <th className="text-center">Status Permohonan</th>}
                 <th className="text-center"></th>
               </tr>
             </thead>
@@ -420,10 +351,14 @@ const PengajuanDesaPersonal = ({ user }) => {
                 </tr>
               ) : (
                 currentItems.map((item, index) => {
-                  const namaDesa = desaAdatMap[item.desa_adat_id_tujuan] || "Desa Adat Tidak Diketahui";
-                  const infoWilayah = item.desa_adat_id_tujuan 
-                  ? getWilayahLengkap(item.desa_adat_id_tujuan) 
-                  : null;
+                  const namaDesaTujuan = desaAdatMap[item.desa_adat_id_tujuan] || "Desa Adat Tidak Diketahui";
+                  const namaDesaAsal = desaAdatMap[item.desa_adat_id_asal] || "Desa Adat Tidak Diketahui";
+                  const infoWilayahTujuan = item.desa_adat_id_tujuan 
+                    ? getWilayahLengkap(item.desa_adat_id_tujuan) 
+                    : null;
+                  const infoWilayahAsal = item.desa_adat_id_asal 
+                    ? getWilayahLengkap(item.desa_adat_id_asal) 
+                    : null;
 
                   return (
                     <tr key={item.id}>
@@ -438,41 +373,52 @@ const PengajuanDesaPersonal = ({ user }) => {
                       <td className="text-center">
                         <div className="flex flex-col">
                           <span className="font-bold">
-                            {namaDesa}
+                            {namaDesaAsal}
                           </span>
-                          {infoWilayah && (
+                          {infoWilayahAsal && (
                             <span className={styles.detailWilayah}>
-                              {infoWilayah.kecamatan} • {infoWilayah.kabupaten}
+                              {infoWilayahAsal.kecamatan} • {infoWilayahAsal.kabupaten}
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="text-center">
-                        <span className={`${styles.badge} ${getStatusClass(item.status_validasi_berkas)}`}>
-                          {item.status_validasi_berkas}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-bold">
+                            {namaDesaTujuan}
+                          </span>
+                          {infoWilayahTujuan && (
+                            <span className={styles.detailWilayah}>
+                              {infoWilayahTujuan.kecamatan} • {infoWilayahTujuan.kabupaten}
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="text-center">
-                        <span className={`${styles.badge} ${getStatusClass(item.status_permohonan)}`}>
-                          {item.status_permohonan}
-                        </span>
-                      </td>
+                      {isAdminDesa && (
+                        <td className="text-center">
+                          <span className={`${styles.badge} ${getStatusClass(item.status_validasi_berkas)}`}>
+                            {item.status_validasi_berkas}
+                          </span>
+                        </td>
+                      )}
+                      {isSuperAdmin && (
+                        <td className="text-center">
+                          <span className={`${styles.badge} ${getStatusClass(item.status_permohonan)}`}>
+                            {item.status_permohonan}
+                          </span>
+                        </td>
+                      )}
                       <td className="text-center">
                         <div className="flex justify-center gap-2">
                           <button 
                             className={styles.btnDetail} 
                             onClick={() => {
-                              const slug = createSlug(namaDesa, item.tanggal_pengajuan, item.id);
-                              navigate(`/pengajuan-desa-adat/my-data/detail/${slug}`);
+                              const slug = createSlug(namaDesaTujuan, item.tanggal_pengajuan, item.id);
+                              navigate(`/verifikasi-data/pengajuan-desa-adat/detail/${slug}`);
                             }}
                           >
                             <FaInfoCircle /> Detail
                           </button>
-                          {item.status_validasi_berkas === 'Menunggu Validasi Berkas' && (
-                            <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: item.id })}>
-                              <FaTrash size={11} /> Batal
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -495,4 +441,4 @@ const PengajuanDesaPersonal = ({ user }) => {
   );
 };
 
-export default PengajuanDesaPersonal;
+export default PengajuanDesa;

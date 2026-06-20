@@ -37,8 +37,8 @@ router.post("/", verifyToken, (req, res, next) => {
   });
 }, ajukanPermohonanDesa);
 
-router.put("/validasi/:id", verifyToken, adminDesaOnly, validasiBerkas);
-router.put("/verifikasi/:id", verifyToken, superAdminOnly, verifikasiPermohonanDesa);
+router.patch("/validasi/:id", verifyToken, adminDesaOnly, validasiBerkas);
+router.patch("/verifikasi/:id", verifyToken, superAdminOnly, verifikasiPermohonanDesa);
 router.put("/cancel/:id", verifyToken, batalkanPermohonanDesa);
 router.get("/document/:id", verifyToken, getDokumenPendukung);
 router.get("/berkas-desa", verifyToken, adminDesaOnly, getPermohonanAdminDesa);

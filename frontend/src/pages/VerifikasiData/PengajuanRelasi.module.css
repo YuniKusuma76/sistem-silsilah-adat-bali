@@ -1,19 +1,3 @@
-.modalOverlay {
-  @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
-}
-
-.modalContainer {
-  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
-}
-
-.elipsis {
-  @apply h-16 w-16 flex items-center justify-center bg-red-50 rounded-full;
-}
-
-.btnCancel {
-  @apply px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
-}
-
 .mainContainer {
   @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
 }
@@ -78,8 +62,8 @@
   @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3A2000]/10 transition-all;
 }
 
-.btnAddData {
-  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-md shadow-green-900/10;
+.btnBackRed {
+  @apply inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-red-700 active:scale-95 transition-all shadow-md shadow-red-100;
 }
 
 .tableWrapper {
@@ -124,6 +108,10 @@
 
 .detailWilayah {
   @apply text-[10px] text-amber-800 uppercase font-bold tracking-wider mt-0.5;
+}
+
+.warnUpdate {
+  @apply bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-lg border border-amber-200 animate-pulse font-bold inline-flex items-center;
 }
 
 .badge {

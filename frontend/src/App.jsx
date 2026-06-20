@@ -1,32 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import axiosInstance from './api/axiosInstance.js';
-// Autentikasi
 import Login from './auth/Login/Login.jsx';
 import Register from './auth/Register/Register.jsx';
-// Aturan Adat Bali
-import AturanAdatBaliEdit from './pages/AturanAdatBali/AturanAdatBaliEdit.jsx';
-import AturanAdatBaliBaru from './pages/AturanAdatBali/AturanAdatBaliBaru.jsx';
-import AturanAdatBaliDetail from './pages/AturanAdatBali/AturanAdatBaliDetail.jsx';
-import AturanAdatBali from './pages/AturanAdatBali/AturanAdatBali.jsx';
-// Conditional Layout
 import Sidebar from './components/Sidebar/Sidebar.jsx';
-import Profile from './components/Profile/Profile.jsx';
 import Home from './pages/Home/Home.jsx';
 import Dashboard from './pages/Dashboard/Dashboard.jsx';
-// Pengajuan Role
+import Profile from './components/Profile/Profile.jsx';
+import VerifikasiData from './pages/VerifikasiData/VerifikasiData.jsx';
+import PengajuanRolePersonal from './pages/Pengajuan/PengajuanRolePersonal.jsx';
 import PengajuanRoleBaru from './pages/Pengajuan/PengajuanRoleBaru.jsx';
 import PengajuanRoleDetail from './pages/Pengajuan/PengajuanRoleDetail.jsx';
-import PengajuanRolePersonal from './pages/Pengajuan/PengajuanRolePersonal.jsx';
-// Pengajuan Desa
-import PengajuanDesaDetail from './pages/Pengajuan/PengajuanDesaDetail.jsx';
-import PengajuanDesaBaru from './pages/Pengajuan/PengajuanDesaBaru.jsx';
+import PengajuanRole from './pages/VerifikasiData/PengajuanRole.jsx';
 import PengajuanDesaPersonal from './pages/Pengajuan/PengajuanDesaPersonal.jsx';
+import PengajuanDesaBaru from './pages/Pengajuan/PengajuanDesaBaru.jsx';
+import PengajuanDesaDetail from './pages/Pengajuan/PengajuanDesaDetail.jsx';
+import PengajuanDesa from './pages/VerifikasiData/PengajuanDesa.jsx';
+import AturanAdatBali from './pages/AturanAdatBali/AturanAdatBali.jsx';
+import AturanAdatBaliDetail from './pages/AturanAdatBali/AturanAdatBaliDetail.jsx';
+import AturanAdatBaliBaru from './pages/AturanAdatBali/AturanAdatBaliBaru.jsx';
+import AturanAdatBaliEdit from './pages/AturanAdatBali/AturanAdatBaliEdit.jsx';
+import User from './pages/User/User.jsx';
+import UserDetail from './pages/User/UserDetail.jsx';
+
 // Wilayah Adat Bali
 import WilayahAdatBali from './pages/WilayahAdatBali/WilayahAdatBali.jsx';
-// User Pengguna
-import UserDetail from './pages/User/UserDetail.jsx';
-import User from './pages/User/User.jsx';
 // Krama Bali
 import TrehBali from './pages/TrehBali/TrehBali.jsx';
 import TrehPuncak from './pages/TrehBali/TrehPuncak.jsx';
@@ -35,10 +33,13 @@ import DataKramaPersonal from './pages/KramaBali/DataKramaPersonal.jsx';
 import DataKramaBaru from './pages/KramaBali/DataKramaBaru.jsx';
 import SilsilahBali from './pages/TrehBali/SilsilahBali.jsx';
 import DataKramaEditKrama from './pages/KramaBali/DataKramaEditKrama.jsx';
-import DataKramaAddRelasi from './pages/KramaBali/DataKramaAddRelasi.jsx';
+import DataKramaTambahRelasi from './pages/KramaBali/DataKramaTambahRelasi.jsx';
 import DataKramaEditRelasi from './pages/KramaBali/DataKramaEditRelasi.jsx';
+import PengajuanKrama from './pages/VerifikasiData/PengajuanKrama.jsx';
+import PengajuanKramaDetail from './pages/VerifikasiData/PengajuanKramaDetail.jsx';
+import PengajuanRelasi from './pages/VerifikasiData/PengajuanRelasi.jsx';
+import PengajuanPerkawinan from './pages/VerifikasiData/PengajuanPerkawinan.jsx';
 // Verifikasi Data
-import VerifikasiData from './pages/VerifikasiData/VerifikasiData.jsx';
 
 import DataKramaDetail from './pages/KramaBali/DataKramaDetail.jsx';
 import Kontak from './pages/Kontak.jsx';
@@ -264,11 +265,59 @@ const App = () => {
           />
           <Route 
             path="/krama-bali/detail/add-relasi/:id" 
-            element={<DataKramaAddRelasi user={user} />} 
+            element={<DataKramaTambahRelasi user={user} />} 
           />
           <Route 
             path="/krama-bali/detail/edit-relasi/:id" 
             element={<DataKramaEditRelasi user={user} />} 
+          />
+          <Route 
+            path="/verifikasi-data/krama-bali" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <PengajuanKrama user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verifikasi-data/krama-bali/detail/:id" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <PengajuanKramaDetail user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verifikasi-data/relasi-krama" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <PengajuanRelasi user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verifikasi-data/relasi-krama/detail/:id" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <PengajuanKramaDetail user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verifikasi-data/perkawinan" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <PengajuanPerkawinan user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verifikasi-data/perkawinan/detail/:id" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <PengajuanKramaDetail user={user} />
+              </ProtectedRoute>
+            } 
           />
           {/* Pengajuan Role Routes */}
           <Route 
@@ -283,6 +332,18 @@ const App = () => {
             path="/pengajuan-role/my-data/detail/:id" 
             element={<PengajuanRoleDetail user={user} />} 
           />
+          <Route 
+            path="/verifikasi-data/pengajuan-role" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin']}>
+                <PengajuanRole user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verifikasi-data/pengajuan-role/detail/:id" 
+            element={<PengajuanRoleDetail user={user} />} 
+          />
           {/* Pengajuan Desa Adat Routes */}
           <Route 
             path="/pengajuan-desa-adat/my-data" 
@@ -294,6 +355,18 @@ const App = () => {
           />
           <Route 
             path="/pengajuan-desa-adat/my-data/detail/:id" 
+            element={<PengajuanDesaDetail user={user} />} 
+          />
+          <Route 
+            path="/verifikasi-data/pengajuan-desa-adat" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <PengajuanDesa user={user} />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/verifikasi-data/pengajuan-desa-adat/detail/:id" 
             element={<PengajuanDesaDetail user={user} />} 
           />
           {/* Conditional Routes */}

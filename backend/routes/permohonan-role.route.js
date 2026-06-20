@@ -34,7 +34,7 @@ router.post("/", verifyToken, (req, res, next) => {
   });
 }, ajukanPermohonan);
 
-router.put("/:id", verifyToken, superAdminOnly, verifikasiPermohonan);
+router.patch("/verifikasi/:id", verifyToken, superAdminOnly, verifikasiPermohonan);
 router.put("/cancel/:id", verifyToken, batalkanPermohonan);
 router.get("/document/:id", verifyToken, getDokumenPendukung);
 router.get("/", verifyToken, superAdminOnly, getAllPermohonan);

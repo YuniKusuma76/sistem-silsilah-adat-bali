@@ -6,6 +6,10 @@
   @apply animate-spin rounded-full h-10 w-10 border-4 border-[#c5a059] border-t-transparent mb-4;
 }
 
+.loadingContainer p {
+  @apply text-xs font-bold text-gray-400 tracking-[0.3em];
+}
+
 .dashboardContainer {
   @apply ml-72 bg-[#f8f9fc] min-h-screen flex flex-col;
 }

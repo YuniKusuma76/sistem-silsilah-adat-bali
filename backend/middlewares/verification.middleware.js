@@ -3,25 +3,25 @@ import User from "../models/user.model.js";
 
 // MIDDLEWARE 1: Strict Check Login
 export const verifyToken = (req, res, next) => {
-  const token = req.cookies.accessToken;
-  if (req.query.mode === 'public') {
-    return next();
-  }
-
-  const authHeader = req.headers['authorization'];
-
-
+  const token = req.cookies.accessToken || req.headers['authorization']?.split(' ')[1];
+  
   if (!token) {
-    return res.status(401).json({
-      message: "Token tidak tersedia! Silakan login!"
+    if (req.query.mode === 'public') {
+      return next();
+    }
+    return res.status(401).json({ 
+      message: "Token tidak tersedia! Silakan login kembali!" 
     });
   }
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, async (error, decoded) => {
     if (error) {
-      return res.status(403).json({
-        message: "Token tidak valid!"
-      });
+      if (req.query.mode !== 'public') {
+        return res.status(403).json({ 
+          message: "Token tidak valid!" 
+        });
+      }
+      return next();
     }
 
     try {
@@ -29,17 +29,12 @@ export const verifyToken = (req, res, next) => {
         attributes: ["id", "email", "role", "status_akun", "desa_adat_id"]
       });
 
-      if (!user || user.status_akun !== "Aktif") {
-        return res.status(403).json({ 
-          message: "Akun Anda sudah dinonaktifkan." 
-        });
+      if (user && user.status_akun === "Aktif") {
+        req.userId = user.id;
+        req.email = user.email;
+        req.role = user.role;
+        req.desaAdatId = user.desa_adat_id;
       }
-
-      // Set variable global request
-      req.userId = user.id;
-      req.email = user.email;
-      req.role = user.role;
-      req.desaAdatId = user.desa_adat_id;
 
       next();
     } catch (error) {

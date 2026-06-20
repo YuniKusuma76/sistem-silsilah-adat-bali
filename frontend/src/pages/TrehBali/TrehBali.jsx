@@ -183,7 +183,7 @@ const NodeCard = ({ data, onClick, isTarget }) => {
         {isAncestor && <FaCrown className={`${styles.crownIcon} mb-1`} size={12} title="Leluhur" />}
         {isDescendant && <FaSeedling className={`${styles.seedlingIcon} mb-1`} size={12} title="Keturunan" />}
         <span className={styles.cardName}>
-          {data.nama_panggilan || data.nama_lengkap}
+          {data.nama_lengkap}
         </span>
       </div>
     </div>

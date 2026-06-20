@@ -21,8 +21,7 @@ const DataKramaAddRelasi = ({ user }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const params = useParams();
-  const slugParam = params.id || params.slug;
+  const { id: slugParam } = useParams();
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -44,6 +43,7 @@ const DataKramaAddRelasi = ({ user }) => {
   
   // STATE RELASI ORANG TUA & PENGANGKATAN ANAK:
   const [searchOrangTuaTerm, setSearchOrangTuaTerm] = useState("");
+  // const [isDropdownOrangTuaOpen, setIsDropdownOrangTuaOpen] = useState(false);
   const [searchTermAnak, setSearchTermAnak] = useState("");
   const [isDropdownAnakOpen, setIsDropdownAnakOpen] = useState(false);
   
@@ -146,20 +146,23 @@ const DataKramaAddRelasi = ({ user }) => {
 
   // Helper: Decode slug url menjadi id asli
   const realId = useMemo(() => {
-    if (location.state?.defaultAnakId) {
-      return String(location.state.defaultAnakId);
-    }
     if (!slugParam) return null;
-    if (!slugParam.includes('-')) return slugParam;
+    if (!slugParam.includes('-')) {
+      return isNaN(slugParam) ? null : slugParam;
+    }
     try {
       const parts = slugParam.split('-');
       const encodedId = parts[parts.length - 1];
-      return atob(encodedId);
+      if (!encodedId) return null;
+      
+      const decoded = atob(encodedId);
+      if (!decoded || decoded.trim() === "") return null;
+      return decoded;
     } catch (error) {
-      console.error("Gagal melakukan decode ID dari slug URL:", error);
+      console.error("Format slug tidak valid:", error);
       return null;
     }
-  }, [slugParam, location.state]);
+  }, [slugParam]);
 
   useEffect(() => {
     console.log("=== DIAGNOSTIK PIPELINES REALID ===");
@@ -167,7 +170,23 @@ const DataKramaAddRelasi = ({ user }) => {
     console.log("State defaultAnakId terbaca ->", location.state?.defaultAnakId);
     console.log("Hasil akhir penyimpulan realId ->", realId);
     console.log("====================================");
-  }, [slugParam, location.state, realId]);
+
+    // 💡 PROTEKSI AKTIF: Jika slugParam ada tapi gagal didecode (realId bernilai null),
+    // langsung tendang balik ke halaman list krama utama agar web tidak hang/crash.
+    if (slugParam && realId === null) {
+      setAlert({
+        show: true,
+        type: 'danger',
+        message: 'Tautan navigasi relasi tidak valid atau telah dimodifikasi.'
+      });
+      
+      const timeout = setTimeout(() => {
+        navigate('/krama-bali', { replace: true });
+      }, 2000); // beri jeda 2 detik agar user sempat membaca alert, atau bisa langsung 0 panggil navigate.
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [slugParam, location.state, realId, navigate]);
   
   // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {

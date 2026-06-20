@@ -41,7 +41,7 @@ const initApp = async () => {
     await db.authenticate();
     console.log("Database connected...");
 
-    await db.sync();
+    await db.sync({ alter: true });
     await seederSuperAdmin();
     await seederWilayahBali();
 

@@ -63,7 +63,7 @@ const VerifikasiData = ({ user }) => {
   // Helper: Mendefinisikan kategori verifikasi data
   const categories = {
     role: {
-      label: 'Verifikasi Role Pangguna',
+      label: 'Verifikasi Perubahan Role',
       icon: <FaShieldAlt />,
       show: isSuperAdmin,
       endpoint: '/permohonan-role',
@@ -82,10 +82,9 @@ const VerifikasiData = ({ user }) => {
       endpoint: isAdminDesa 
         ? '/permohonan-desa/berkas-desa' 
         : '/permohonan-desa/berkas-pusat',
-      path: '/verifikasi-data/desa-adat',
-      statusField: 'status_verifikasi', 
+      path: '/verifikasi-data/pengajuan-desa-adat',
       statusMap: {
-        pending: ['Menunggu Validasi Berkas', 'Menunggu Verifikasi'],
+        pending: ['Menunggu Validasi Berkas', 'Menunggu Verifikasi', 'Menunggu'],
         approved: ['Berkas Valid', 'Disetujui'],
         rejected: ['Berkas Tidak Valid', 'Ditolak', 'Dibatalkan']
       }
@@ -111,7 +110,7 @@ const VerifikasiData = ({ user }) => {
       path: '/verifikasi-data/relasi-krama',
       statusField: 'status_verifikasi',
       statusMap: {
-        pending: ['Draft'],
+        pending: ['Draft', 'Menunggu Penerimaan', 'Menunggu Pelepasan'],
         approved: ['Disetujui'],
         rejected: ['Ditolak']
       }
@@ -137,38 +136,57 @@ const VerifikasiData = ({ user }) => {
       setLoading(true);
       const updatedStats = { ...stats };
 
-      for (const key in categories) {
-        if (categories[key].show) {
-          try {
-            const res = await axiosInstance.get(categories[key].endpoint);
-            const rawData = res.data?.data || res.data || [];
-            const data = Array.isArray(rawData) ? rawData : [];
+      // Mengumpulkan semua kategori dan mengeksekusi secara bersamaan
+      const activeKeys = Object.keys(categories).filter(key => categories[key].show);
+      const promises = activeKeys.map(key => axiosInstance.get(categories[key].endpoint));
+      const responses = await Promise.all(promises);
 
-            const cfg = categories[key];
+      activeKeys.forEach((key, index) => {
+        const res = responses[index];
+        const rawData = res.data?.data || res.data || [];
+        const data = Array.isArray(rawData) ? rawData : [];
 
-            // Filter data berdasarkan status verifikasi dari backend
-            const pending = data.filter(item => cfg.statusMap.pending.includes(item[cfg.statusField])).length;
-            const approved = data.filter(item => cfg.statusMap.approved.includes(item[cfg.statusField])).length;
-            const rejected = data.filter(item => cfg.statusMap.rejected.includes(item[cfg.statusField])).length;
+        const cfg = categories[key];
 
-            updatedStats[key] = { 
-              total: data.length, 
-              pending, 
-              approved, 
-              rejected 
-            };
-          } catch (error) {
-            console.error(`Gagal memuat statistik untuk ${key}`, error);
+        let pending = 0;
+        let approved = 0;
+        let rejected = 0;
+
+        data.forEach(item => {
+          let statusValue = key === 'desa_adat' 
+            ? (isAdminDesa ? item.status_validasi_berkas : item.status_permohonan)
+            : item[cfg.statusField];
+
+          if ((key === 'relasi_krama' || key === 'krama_bali' || key === 'perkawinan') && item.is_pending_update) {
+            pending++;
+          } 
+
+          if (cfg.statusMap.pending.includes(statusValue)) {
+            if (!((key === 'relasi_krama' || key === 'krama_bali' || key === 'perkawinan') && item.is_pending_update)) {
+              pending++;
+            }
+          } else if (cfg.statusMap.approved.includes(statusValue)) {
+            approved++;
+          } else if (cfg.statusMap.rejected.includes(statusValue)) {
+            rejected++;
           }
-        }
-      }
+        });
+
+        updatedStats[key] = {
+          total: data.length,
+          pending,
+          approved,
+          rejected
+        };
+      });
+
       setStats(updatedStats);
     } catch (error) {
       console.log(error);
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Gagal memuat beberapa data statistik.' 
+        message: 'Gagal memuat beberapa data statistik verifikasi.' 
       });
     } finally {
       setLoading(false);
@@ -222,7 +240,7 @@ const VerifikasiData = ({ user }) => {
       </nav>
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -277,7 +295,7 @@ const VerifikasiData = ({ user }) => {
             const cat = categories[key];
             if (!cat.show) return null;
             const dataStat = stats[key];
-            // Card Section
+
             return (
               <div key={key} className={styles.statsCard}>
                 <div className={styles.cardHeader}>

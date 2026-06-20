@@ -91,7 +91,7 @@
 }
 
 .cardContainer {
-  @apply bg-white p-8 rounded-2xl shadow-sm border-t-4 border-amber-300;
+  @apply bg-white p-8 rounded-2xl shadow-sm border-t-4 border-amber-600;
 }
 
 .section {
@@ -166,6 +166,10 @@
   @apply text-[10px] font-bold mt-2 uppercase tracking-tighter;
 }
 
+.file {
+  @apply text-center flex flex-col items-center justify-center h-full p-4;
+}
+
 .btnLihatFile {
   @apply inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-900/10 justify-center;
 }
@@ -174,10 +178,77 @@
   @apply inline-flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-900/10 justify-center;
 }
 
-.btnHapusRed {
-  @apply w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors;
+.btnBackNetral {
+  @apply w-full flex items-center justify-center gap-2 px-4 py-3 bg-stone-100 text-stone-600 border border-stone-200 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-stone-200/70 hover:text-stone-800 active:scale-[0.98] transition-all duration-200 shadow-sm;
 }
 
-.btnBackNetral {
-  @apply w-full flex items-center justify-center gap-2 bg-amber-100 border border-amber-200 text-amber-700 px-6 py-3.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-amber-200 active:scale-95 transition-all shadow-sm;
+.btnHapusRed {
+  @apply w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 active:scale-[0.98] transition-all duration-200 shadow-sm;
+}
+
+.btnApproveGold {
+  @apply w-full bg-bali-brown hover:bg-amber-900 text-white text-xs font-black tracking-wider uppercase py-3 px-4 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2;
+}
+
+.modalContent {
+  @apply bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl animate-fade-in border-t-4 border-amber-700;
+}
+
+.headerModal {
+  @apply flex-1 flex justify-between items-center mb-6 border-b pb-4;
+}
+
+.headerModal h3 {
+  @apply flex flex-1 font-black text-[#3A2000] uppercase text-base;
+}
+
+.iconClose {
+  @apply text-gray-400 hover:rotate-90 transition-transform duration-300;
+}
+
+.choise {
+  @apply flex-1 py-2 text-xs font-bold rounded-lg border transition-all;
+}
+
+.choiseApproved {
+  @apply bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm;
+}
+
+.choiseReject {
+  @apply bg-rose-50 border-rose-500 text-rose-700 shadow-sm;
+}
+
+.choiseDefault {
+  @apply bg-stone-50 text-stone-400 border-stone-200;
+}
+
+.label {
+  @apply text-[11px] font-bold text-stone-500 uppercase tracking-wider;
+}
+
+.inputForm {
+  @apply w-full text-sm p-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-gray-700;
+}
+
+.btnSaveModal {
+  @apply bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
+}
+
+.btnRejectModal {
+  @apply bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
+}
+
+.animate-fade-in {
+  @apply animate-[fadeIn_0.5s_ease-out];
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

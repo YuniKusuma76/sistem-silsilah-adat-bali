@@ -261,6 +261,33 @@ RelasiKrama.belongsTo(User, {
   as: "pembuat_relasi"
 });
 
+User.hasMany(RelasiKrama, {
+  foreignKey: "approved_asal_by",
+  as: "data_pelepasan_anak"
+});
+RelasiKrama.belongsTo(User, {
+  foreignKey: "approved_asal_by",
+  as: "approved_pelepasan"
+});
+
+User.hasMany(RelasiKrama, {
+  foreignKey: "approved_tujuan_by",
+  as: "data_penerimaan_anak"
+});
+RelasiKrama.belongsTo(User, {
+  foreignKey: "approved_tujuan_by",
+  as: "approved_penerimaan"
+});
+
+DesaAdat.hasMany(RelasiKrama, {
+  foreignKey: "desa_adat_id_tujuan",
+  as: "asal_ortu_angkat"
+});
+RelasiKrama.belongsTo(DesaAdat, { 
+  foreignKey: "desa_adat_id_tujuan", 
+  as: "desa_tujuan" 
+});
+
 KramaBali.hasMany(RiwayatPeranAdat, {
   foreignKey: "krama_id",
   as: "riwayat_peran_adat"

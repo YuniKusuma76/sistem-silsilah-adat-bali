@@ -1,8 +1,10 @@
+import { Op } from "sequelize";
 import db from "../config/db.config.js";
 import {
   RelasiKrama,
   Keluarga,
-  Perkawinan
+  Perkawinan,
+  RiwayatKeluarga
 } from "../models/associations.js";
 import { buatKeluargaLeluhur } from "./keluarga.service.js";
 import { simpanRiwayatKeluarga } from "./riwayat-keluarga.service.js";
@@ -21,7 +23,7 @@ export const integrasiRelasiLeluhur = async ({
   status_verifikasi,   
   catatan_admin_desa
 }, passedTransaction = null) => {
-  // Mulai transaksi database
+  // Mulai transaksi database yang dilewatkan
   const t = passedTransaction || await db.transaction();
 
   try {
@@ -40,7 +42,7 @@ export const integrasiRelasiLeluhur = async ({
     });
 
     if (status_verifikasi !== "Disetujui") {
-      if (!passedTransaction) {
+      if (!passedTransaction && !t.finished) {
         await t.commit();
       }
       return relasi;
@@ -56,7 +58,8 @@ export const integrasiRelasiLeluhur = async ({
             suami_id: ayah_id,
             istri_id: ibu_id
           },
-          transaction: t
+          transaction: t,
+          lock: t.LOCK.UPDATE
         });
         if (perkawinanLeluhur && perkawinanLeluhur.status_perkawinan === "Kawin") {
           await perkawinanLeluhur.update({
@@ -79,8 +82,10 @@ export const integrasiRelasiLeluhur = async ({
           kepala_keluarga_id: kepalaKeluargaId,
           jenis_keluarga: "Leluhur"
         },
-        transaction: t
+        transaction: t,
+        lock: t.LOCK.UPDATE 
       });
+
       // membuat data keluarga leluhur jika belum ada
       if (!keluargaLeluhur) {
         keluargaLeluhur = await buatKeluargaLeluhur({
@@ -99,21 +104,34 @@ export const integrasiRelasiLeluhur = async ({
     }
     // MENCATAT RIWAYAT KELUARGA UNTUK ANAK LELUHUR
     if (keluargaId) {
-      await simpanRiwayatKeluarga({
-        krama_id: anak_id,
-        keluarga_id: keluargaId,
-        kedudukan: "Anggota",
-        dasar_keputusan: "Kedudukan sebagai anggota diberikan karena krama ini merupakan keturunan di dalam silsilah keluarga leluhur.",
-        event_date: null,
-        allow_multiple: true
-      }, t);
+      // Memastikan anak belum terdaftar di keluarga leluhur yang sama
+      const sudahTerdaftar = await RiwayatKeluarga.findOne({
+        where: {
+          krama_id: anak_id,
+          keluarga_id: keluargaId,
+          kedudukan: "Anggota"
+        },
+        transaction: t
+      });
+
+      if (!sudahTerdaftar) {
+        await simpanRiwayatKeluarga({
+          krama_id: anak_id,
+          keluarga_id: keluargaId,
+          kedudukan: "Anggota",
+          dasar_keputusan: "Kedudukan sebagai anggota diberikan karena krama ini merupakan keturunan di dalam silsilah keluarga leluhur.",
+          event_date: null,
+          allow_multiple: true
+        }, t);
+      }
     }
-    if (!passedTransaction) {
+
+    if (!passedTransaction && !t.finished) {
       await t.commit();
     }
     return relasi;
   } catch (error) {
-    if (!passedTransaction) {
+    if (t && !passedTransaction && !t.finished) {
       await t.rollback();
     }
     throw error;

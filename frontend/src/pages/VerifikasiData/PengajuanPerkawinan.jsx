@@ -3,49 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
   FaSearch, 
-  FaTrash, 
+  FaArrowLeft, 
   FaInfoCircle,
-  FaPlus,
-  FaArrowLeft,
-  FaExclamationTriangle
+  FaSpinner
 } from 'react-icons/fa';
-import axiosInstance from '../../api/axiosInstance.js';
-import Footer from '../../components/Footer/Footer.jsx';
-import styles from './DataKramaPersonal.module.css';
-
-// Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
-  if (!isOpen) return null;
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={`${styles.modalContainer} animate-fade-in`}>
-        <div className="p-6">
-          <div className="flex justify-center mb-5">
-            <div className={styles.elipsis}>
-              <FaExclamationTriangle className="text-red-600 text-2xl" />
-            </div>
-          </div>
-          <div className="text-center">
-            <h3 className="text-lg font-bold text-black mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {message}
-            </p>
-          </div>
-          <div className="mt-10 flex gap-3 justify-center">
-            <button onClick={onClose} disabled={isProcessing} className={styles.btnCancel}>
-              Kembali
-            </button>
-            <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Hapus'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import axiosInstance from '../../api/axiosInstance';
+import Footer from '../../components/Footer/Footer';
+import styles from './PengajuanPerkawinan.module.css';
 
 // Helper: Membuat slug url
 const createSlug = (namaLengkap, tipeData, id) => {
@@ -68,43 +32,36 @@ const createSlug = (namaLengkap, tipeData, id) => {
   return `${safeName}-${safeType}-${encodedId}`;
 };
 
-const DataKramaPersonal = () => {
-  const [kramaList, setKramaList] = useState([]);
+const PengajuanPerkawinan = () => {
+  const [perkawinanList, setPerkawinanList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-
+  
   // State alert notifikasi global
-  const [alert, setAlert] = useState({
-    show: false,
-    type: '',
-    message: ''
-  });
-
-  // State menampilkan modal konfirmasi
-  const [modal, setModal] = useState({ 
+  const [alert, setAlert] = useState({ 
     show: false, 
-    id: null 
+    type: '', 
+    message: '' 
   });
 
-  // Effect: Mengambil data krama bali yang diinputkan
-  const fetchData = async () => {
+  // Helper: Fungsi mengambil data perkawinan
+  const fetchDataPerkawinan = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get('/krama-bali?mode=personal');
-      setKramaList(response.data.data || []);
+      const response = await axiosInstance.get('/perkawinan?mode=verification');
+      setPerkawinanList(response.data.data || []);
     } catch (error) {
       console.log(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: 'Gagal memuat data krama.'
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: "Gagal memuat data perkawinan." 
       });
     } finally {
       setIsLoading(false);
@@ -112,21 +69,21 @@ const DataKramaPersonal = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchDataPerkawinan();
   }, []);
-  
-  // Effect: Alert Diteruskan ke alert halaman lain
+
+  // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
-      setAlert({
-        show: true,
-        type: 'success',
-        message: location.state.successMessage
+      setAlert({ 
+        show: true, 
+        type: 'success', 
+        message: location.state.successMessage 
       });
       window.history.replaceState({}, document.title);
     }
   }, [location]);
-  
+
   // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
@@ -136,47 +93,31 @@ const DataKramaPersonal = () => {
       return () => clearTimeout(timer);
     }
   }, [alert.show, alert.type]);
-  
-  // Helper: Menghapus data krama bali
-  const handleDelete = async () => {
-    if (!modal.id) return;
-    setIsDeleting(true);
-    try {
-      await axiosInstance.delete(`/krama-bali/${modal.id}`);
-      setAlert({
-        show: true,
-        type: 'success',
-        message: 'Data krama bali berhasil dihapus.'
-      });
-      fetchData();
-      setModal({ 
-        show: false, 
-        id: null 
-      });
-    } catch (error) {
-      console.error(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: error.response?.data?.message || 'Gagal menghapus data krama bali.'
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+
+  // Helper: Menangani input pencarian
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
   };
 
-  // Helper: Fungsi search filter krama bali
-  const filteredKrama = useMemo(() => {
-    return kramaList.filter(krama => 
-      krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [kramaList, searchTerm]);
+  // Helper: Fungsi search filter krama
+  const filteredKawin = useMemo(() => {
+    if (!searchTerm.trim()) return perkawinanList;
+    const term = searchTerm.toLowerCase();
+    return perkawinanList.filter((r) => {
+      const namaSuami = r.suami?.nama_lengkap?.toLowerCase() || '';
+      const namaIstri = r.istri?.nama_lengkap?.toLowerCase() || '';
+      const statusKawin = r.status_perkawinan?.toLowerCase() || '';
+      const jenisKawin = r.jenis_perkawinan?.toLowerCase() || '';
+      return namaSuami.includes(term) || namaIstri.includes(term) || statusKawin.includes(term) || jenisKawin.includes(term);
+    });
+  }, [perkawinanList, searchTerm]);
 
   // HANDLE PAGINATION
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredKrama.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredKrama.length / itemsPerPage);
+  const currentItems = filteredKawin.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredKawin.length / itemsPerPage);
 
   // Effect: Setting current page aktif default 1
   useEffect(() => {
@@ -230,16 +171,32 @@ const DataKramaPersonal = () => {
     });
   };
 
+  // Halper: Style badge status permohonan
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'Disetujui': 
+        return styles.badgeSuccess;
+      case 'Ditolak': 
+        return styles.badgeDanger;
+      case 'Draft': 
+        return styles.badgeWarning;
+      case 'Dibatalkan': 
+        return styles.badgeGray;
+      default: 
+        return styles.badgeAmber;
+    }
+  };
+  
   return (
     <div className={styles.mainContainer}>
       {/* Navbar Section */}
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Data Krama Bali Saya
+            Verifikasi Data Perkawinan
           </h2>
           <p className={styles.navSubtitle}>
-            Berikut adalah data krama bali yang telah terdaftar dan diverifikasi
+            Berikut adalah data perkawinan dan perceraian yang didaftarkan
           </p>
         </div>
         <div className={styles.navRight}>
@@ -255,18 +212,9 @@ const DataKramaPersonal = () => {
           </div>
         </div>
       </nav>
-      {/* Modal Konfirmasi */}
-      <ConfirmationModal 
-        isOpen={modal.show}
-        onClose={() => setModal({ show: false, id: null })}
-        onConfirm={handleDelete}
-        isProcessing={isDeleting}
-        title="Konfirmasi Menghapus"
-        message="Apakah Anda yakin ingin menghapus data krama ini secara permanen beserta seluruh riwayatnya?"
-      />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -315,48 +263,41 @@ const DataKramaPersonal = () => {
           )}
         </div>
       )}
-      {/* List Krama Bali Content */}
+      {/* List Krama Bali */}
       <div className={styles.contentArea}>
-        {/* Search Bar */}
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
             <input 
               type="text" 
-              placeholder="Cari nama krama..." 
+              placeholder="Search..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className={styles.searchInput}
             />
           </div>
-          <div className={styles.buttonGroup}>
-            <button className={styles.btnBackRed} onClick={() => navigate('/krama-bali')} title="Kembali ke Data Publik">
-              <FaArrowLeft />
-              <span>Kembali</span>
-            </button>
-            <button className={styles.btnAddData} onClick={() => navigate('/krama-bali/my-data/add')}>
-              <FaPlus size={12} />
-              <span>Krama Baru</span>
-            </button>
-          </div>
+          <button className={styles.btnBackRed} onClick={() => navigate('/verifikasi-data')}>
+            <FaArrowLeft size={12} />
+            <span>Kembali ke Dashboard</span>
+          </button>
         </div>
-        {/* Tabel Krama Bali */}
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
               <tr>
                 <th className="text-center w-16">No</th>
-                <th>Nama Lengkap</th>
-                <th className="text-center">Jenis Kelamin</th>
-                <th className="text-center">Status Hidup</th>
-                <th className="text-center">Tipe Data</th>
+                <th className="text-left">Nama Suami</th>
+                <th className="text-left">Nama Istri</th>
+                <th className="text-center">Status Perkawinan</th>
+                <th className="text-center">Jenis Perkawinan</th>
+                <th className="text-center">Status Verifikasi</th>
                 <th className="text-center"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-12">
+                  <td colSpan="7" className="text-center py-12">
                     <div className={styles.loadContainer}>
                       <div className={`${styles.loadSpinner} animate-spin`}></div>
                       <span>Memuat data...</span>
@@ -365,64 +306,82 @@ const DataKramaPersonal = () => {
                 </tr>
               ) : currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-16 text-gray-500">
+                  <td colSpan="7" className="text-center py-16 text-gray-500">
                     <div className={styles.infoDataContent}>
                       <FaInfoCircle className={styles.infoDataIcon} />
                       <p className="text-sm font-medium">
-                        {searchTerm ? `Data "${searchTerm}" tidak ditemukan` : "Tidak ada data krama"}
+                        {searchTerm ? `Data "${searchTerm}" tidak ditemukan` : "Tidak ada data perkawinan"}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                currentItems.map((krama, index) => (
-                  <tr key={krama.id}>
-                    <td className="text-center text-gray-400">
-                      {indexOfFirstItem + index + 1}
-                    </td>
-                    <td className="font-bold text-gray-800">
-                      {krama.nama_lengkap}
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.jenis_kelamin}
-                    </td>
-                    <td className="text-center">
-                      <span className={`${styles.badge} ${
-                        krama.status_hidup === 'Hidup' ? styles.badgeSuccess : 
-                        krama.status_hidup === 'Meninggal' ? styles.badgeDanger :
-                        styles.badgeGray
-                      }`}>
-                        {krama.status_hidup}
-                      </span>
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.tipe_data}
-                    </td>
-                    <td className="text-center">
-                    <div className={styles.actionContainer}>
-                      <button 
-                        className={styles.btnDetail} 
-                        onClick={() => {
-                          const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
-                          navigate(`/krama-bali/my-data/detail/${slug}`, { state: { fromPersonal: true } });
-                        }}
-                      >
-                        <FaInfoCircle /> Detail
-                      </button>
-                      <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: krama.id })}>
-                        <FaTrash /> <span>Hapus</span>
-                      </button>
-                    </div>
-                    </td>
-                  </tr>
-                ))
+                currentItems.map((kawin, index) => {
+                  const kramaUtama = kawin.jenis_perkawinan === 'Nyentana' 
+                    ? (kawin.istri || kawin.suami) 
+                    : (kawin.suami || kawin.istri);
+                    
+                  return (
+                    <tr key={kawin.id}>
+                      <td className="text-center text-gray-400">
+                        {indexOfFirstItem + index + 1}
+                      </td>
+                      <td className="font-bold text-gray-800">
+                        <div className="flex items-center gap-2">
+                          <span>{kawin.suami?.nama_lengkap}</span>
+                          {kawin.is_pending_update && (
+                            <span className={styles.warnUpdate}title="Relasi ini memiliki draft usulan perubahan data">
+                              <FaExclamationTriangle className="mr-2 mb-0.5" /> 
+                              <span>Ada Update</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="font-bold text-gray-800">
+                        {kawin.istri?.nama_lengkap}
+                      </td>
+                      <td className="text-gray-800 text-center font-medium">
+                        {kawin.status_perkawinan}
+                      </td>
+                      <td className="text-gray-800 text-center font-medium">
+                        {kawin.jenis_perkawinan}
+                      </td>
+                      <td className="text-center">
+                        <span className={`${styles.badge} ${getStatusClass(kawin.status_verifikasi)}`}>
+                          {kawin.status_verifikasi}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <button 
+                          className={styles.btnDetail} 
+                          onClick={() => {
+                            if (kramaUtama) {
+                              const safeName = kramaUtama.nama_lengkap || 'krama';
+                              const safeType = kramaUtama.tipe_data || 'keturunan';
+                              const slugKrama = createSlug(safeName, safeType, kramaUtama.id);
+                              navigate(`/verifikasi-data/perkawinan/detail/${slugKrama}`, { state: { fromPerkawinan: true } });
+                            } else {
+                              setAlert({
+                                show: true,
+                                type: 'error',
+                                message: 'Gagal memproses informasi detail. Data perkawinan tidak termuat dari server.'
+                              });
+                            }
+                          }}
+                        >
+                          <FaInfoCircle /> Detail
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
         {/* PAGINATION */}
         <div className={styles.pagination}>
-          <p>Menampilkan {currentItems.length} dari {filteredKrama.length} data</p>
+          <p>Menampilkan {currentItems.length} dari {filteredKawin.length} data</p>
           <div className={styles.pageButtons}>
             {renderPageNumbers()}
           </div>
@@ -433,4 +392,4 @@ const DataKramaPersonal = () => {
   );
 };
 
-export default DataKramaPersonal;
+export default PengajuanPerkawinan;

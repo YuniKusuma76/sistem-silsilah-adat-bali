@@ -92,26 +92,19 @@ const SIDEBAR_MENU = {
       path: "/home", 
       label: "HOME", 
       icon: <FaHome size={20} /> 
-    },
-    { 
-      path: "/silsilah-bali", 
-      label: "SILSILAH ADAT BALI", 
-      icon: <LuNetwork size={20} /> 
-    },
-    { 
-      path: "/keluarga", 
-      label: "KELUARGA", 
-      icon: <FaUsers size={20} /> 
-    },
-    { 
-      type: "divider" 
-    },
-    { 
-      path: "/permohonan-peran/riwayat", 
-      label: "PERMOHONAN PERAN", 
-      icon: <FaUsers size={20} /> 
-    },
-    { 
+    },{ 
+      path: "/krama-bali", 
+      label: "Data Krama Bali", 
+      icon: <FaUsers size={18} /> 
+    },{ 
+      path: "/pengajuan-role/my-data", 
+      label: "Pengajuan Role", 
+      icon: <LuUserPen size={20} /> 
+    },{ 
+      path: "/pengajuan-desa-adat/my-data", 
+      label: "Pengajuan Desa Adat", 
+      icon: <MdOutlineEditLocationAlt size={20} /> 
+    },{ 
       path: "/kontak", 
       label: "KONTAK", 
       icon: <FaEnvelope size={20} /> 
@@ -120,43 +113,36 @@ const SIDEBAR_MENU = {
 
   "Admin Desa": [
     { 
-      path: "/home", 
-      label: "HOME", 
-      icon: <FaHome size={20} /> 
-    },
-    { 
-      path: "/silsilah-bali", 
-      label: "SILSILAH ADAT BALI", 
-      icon: <LuNetwork size={20} /> 
-    },
-    { 
-      path: "/keluarga", 
-      label: "KELUARGA", 
-      icon: <FaUsers size={20} /> 
-    },
-    { 
+      path: "/dashboard", 
+      label: "Dashboard", 
+      icon: <MdDashboard size={18} /> 
+    },{ 
       type: "divider" 
-    },
-    { 
-      path: "/aturan-adat/list", 
-      label: "ATURAN ADAT BALI", 
+    },{ 
+      path: "/krama-bali", 
+      label: "Data Krama Bali", 
+      icon: <FaUsers size={18} /> 
+    },{ 
+      path: "/aturan-adat-bali", 
+      label: "Aturan Adat Bali", 
       icon: <GrDocumentConfig size={20} /> 
-    },
-    { 
+    },{ 
+      path: "/wilayah-adat-bali", 
+      label: "Wilayah Adat Bali", 
+      icon: <FaMapLocationDot size={18} /> 
+    },{ 
       type: "divider" 
-    },
-    { 
-      path: "/permohonan-peran/list", 
-      label: "PERMOHONAN PERAN", 
-      icon: <GrDocumentUser size={20} /> 
-    },
-    { 
-      path: "/users", 
-      label: "USER", 
-      icon: <FaUser size={20} /> 
-    },
-    { path: "/kontak/inbox", 
-      label: "KONTAK", 
+    },{ 
+      path: "/user-pengguna", 
+      label: "Data Akun Pengguna", 
+      icon: <FaUserCog size={18} /> 
+    },{ 
+      path: "/verifikasi-data", 
+      label: "Verifikasi Data", 
+      icon: <MdApproval size={18} /> 
+    },{ 
+      path: "/kontak", 
+      label: "Kontak", 
       icon: <FaEnvelope size={20} /> 
     }
   ],

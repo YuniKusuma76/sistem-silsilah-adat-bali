@@ -9,6 +9,182 @@ import {
 } from "../models/associations.js";
 import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 
+export const eksekusiRollbackRelasi = async (relasi, t) => {
+  const { 
+    id: relasi_id,
+    anak_id, 
+    ayah_id, 
+    ibu_id, 
+    status_hubungan, 
+    tanggal_pengangkatan 
+  } = relasi;
+
+  // Validasi ketersediaan data anak
+  const anak = await KramaBali.findByPk(anak_id, { 
+    transaction: t 
+  });
+
+  if (!anak) {
+    throw new Error("Data anak tidak ditemukan.");
+  }
+
+  const orangTuaIds = [ayah_id, ibu_id].filter(Boolean);
+  
+  const keluargaLama = await Keluarga.findOne({
+    where: {
+      [Op.or]: [
+        { kepala_keluarga_id: { [Op.in]: orangTuaIds } },
+      ]
+    },
+    transaction: t
+  });
+
+  const targetKeluargaId = keluargaLama ? keluargaLama.id : null;
+  const kepala_keluarga_id = ayah_id || ibu_id;
+
+  // PEMBALIKAN REKONSILIASI DATA MANDIRI
+  const riwayatAsalMandiri = await RiwayatKeluarga.findOne({
+    where: {
+      krama_id: anak_id,
+      dasar_keputusan: { [Op.like]: "%dikembalikan ke keluarga%" },
+      akhir_masuk: null
+    },
+    transaction: t
+  });
+
+  if (riwayatAsalMandiri) {
+    const idKeluargaLama = riwayatAsalMandiri.keluarga_id;
+
+    await riwayatAsalMandiri.update({
+      kedudukan: "Kepala Keluarga",
+      dasar_keputusan: "Kedudukan dipulihkan kembali karena hubungan relasi krama dengan orang tuanya telah dibatalkan."
+    }, { 
+      transaction: t 
+    });
+
+    if (idKeluargaLama) {
+      await Keluarga.update(
+        { status_keluarga: "Aktif" },
+        { 
+          where: { id: idKeluargaLama }, 
+          transaction: t 
+        }
+      );
+    }
+  }
+
+  // KONDISI 1: Rollback Dampak Anak Kandung
+  if (status_hubungan === "Anak Kandung") {
+    await RiwayatKeluarga.destroy({
+      where: {
+        krama_id: anak_id,
+        awal_masuk: anak.tanggal_lahir,
+        kedudukan: "Anggota",
+        ...(targetKeluargaId && { keluarga_id: targetKeluargaId })
+      },
+      transaction: t
+    });
+
+    await hitungUrutanLahir({
+      ayah_id,
+      ibu_id,
+      mode: "CAMPUR"
+    }, t);
+  }
+
+  // KONDISI 2: Rollback Dampak Anak Angkat
+  if (status_hubungan === "Anak Angkat") {
+    if (!tanggal_pengangkatan) {
+      throw new Error("Tanggal pengangkatan tidak ditemukan.");
+    }
+
+    await RiwayatKeluarga.destroy({
+      where: {
+        krama_id: anak_id,
+        kedudukan: "Anggota",
+        ...(targetKeluargaId && { keluarga_id: targetKeluargaId })
+      },
+      transaction: t
+    });
+
+    // Backward Stitching Reversal: Membuka kembali linimasa keluarga sebelum adopsi
+    await RiwayatKeluarga.update(
+      { akhir_masuk: null }, 
+      {
+        where: {
+          krama_id: anak_id,
+          akhir_masuk: tanggal_pengangkatan
+        },
+        transaction: t
+      }
+    );
+
+    const sisaAnakAngkat = await RelasiKrama.count({
+      where: {
+        id: { [Op.ne]: relasi.id },
+        status_hubungan: "Anak Angkat",
+        status_verifikasi: "Disetujui",
+        [Op.or]: [
+          { ayah_id: kepala_keluarga_id },
+          { ibu_id: kepala_keluarga_id }
+        ]
+      },
+      transaction: t
+    });
+
+    // Rollback status peran adat orang tua angkat
+    if (kepala_keluarga_id) {
+      await RiwayatPeranAdat.destroy({
+        where: {
+          krama_id: kepala_keluarga_id,
+          mulai_tanggal: tanggal_pengangkatan
+        },
+        transaction: t
+      });
+      await RiwayatPeranAdat.update(
+        { selesai_tanggal: null },
+        {
+          where: {
+            krama_id: kepala_keluarga_id,
+            selesai_tanggal: tanggal_pengangkatan
+          },
+          transaction: t
+        }
+      );
+    }
+
+    if (sisaAnakAngkat === 0 && kepala_keluarga_id) {
+      const keluargaAngkat = await Keluarga.findOne({
+        where: {
+          kepala_keluarga_id: kepala_keluarga_id,
+          jenis_keluarga: "Keluarga Angkat"
+        },
+        transaction: t
+      });
+
+      if (keluargaAngkat) {
+        await RiwayatKeluarga.destroy({
+          where: {
+            krama_id: kepala_keluarga_id,
+            keluarga_id: keluargaAngkat.id
+          },
+          transaction: t
+        });
+        await keluargaAngkat.destroy({ transaction: t });
+      }
+    }
+
+    if (sisaAnakAngkat > 0) {
+      await hitungUrutanLahir({
+        ayah_id,
+        ibu_id,
+        kepala_keluarga_id, 
+        mode: "ANGKAT"
+      }, t);
+    }
+  }
+};
+
 export const batalkanRelasiKrama = async (relasiId) => {
   // Mulai transaksi database
   const t = await db.transaction();
@@ -23,150 +199,15 @@ export const batalkanRelasiKrama = async (relasiId) => {
       throw new Error("Data relasi krama tidak ditemukan.");
     }
 
-    const { 
-      anak_id, 
-      ayah_id, 
-      ibu_id, 
-      status_hubungan, 
-      tanggal_pengangkatan 
-    } = relasi;
+    await eksekusiRollbackRelasi(relasi, t);
+    await relasi.destroy({ transaction: t });
 
-    // Validasi ketersediaan data anak
-    const anak = await KramaBali.findByPk(anak_id, {
-      transaction: t
-    });
-
-    if (!anak) {
-      throw new Error("Data anak tidak ditemukan.");
-    }
-
-    // ==========================================
-    // KONDISI 1: BATAL RELASI ANAK KANDUNG
-    // ==========================================
-    if (status_hubungan === "Anak Kandung") {
-      await RiwayatKeluarga.destroy({
-        where: {
-          krama_id: anak_id,
-          awal_masuk: anak.tanggal_lahir,
-        },
-        transaction: t
-      });
-
-      await relasi.destroy({ transaction: t });
-
-      await hitungUrutanLahir({
-        ayah_id,
-        ibu_id,
-        mode: "CAMPUR"
-      }, t);
-
-      await t.commit();
-    }
-
-    // ==========================================
-    // KONDISI 2: BATAL RELASI ANAK ANGKAT
-    // ==========================================
-    if (status_hubungan === "Anak Angkat") {
-      if (!tanggal_pengangkatan) {
-        throw new Error("Tanggal pengangkatan tidak ditemukan.");
-      }
-
-      const kepala_keluarga_id = ayah_id || ibu_id;
-
-      // Menghapus riwayat keluarga baru
-      await RiwayatKeluarga.destroy({
-        where: {
-          krama_id: anak_id,
-          awal_masuk: tanggal_pengangkatan
-        },
-        transaction: t
-      });
-
-      // Membuka kembali riwayat keluarga lama
-      await RiwayatKeluarga.update(
-        { akhir_masuk: null }, 
-        {
-          where: {
-            krama_id: anak_id,
-            akhir_masuk: tanggal_pengangkatan
-          },
-          transaction: t
-        }
-      );
-
-      await relasi.destroy({ transaction: t });
-
-      const sisaAnakAngkat = await RelasiKrama.count({
-        where: {
-          status_hubungan: "Anak Angkat",
-          [Op.or]: [
-            { ayah_id: kepala_keluarga_id },
-            { ibu_id: kepala_keluarga_id }
-          ]
-        },
-        transaction: t
-      });
-
-      // Rollback status peran adat orang tua karena pengangkatan ini
-      if (kepala_keluarga_id) {
-        await RiwayatPeranAdat.destroy({
-          where: {
-            krama_id: kepala_keluarga_id,
-            mulai_tanggal: tanggal_pengangkatan
-          },
-          transaction: t
-        });
-
-        // Mengaktifkan kembali status peran adat sebelumnya
-        await RiwayatPeranAdat.update(
-          { selesai_tanggal: null },
-          {
-            where: {
-              krama_id: kepala_keluarga_id,
-              selesai_tanggal: tanggal_pengangkatan
-            },
-            transaction: t
-          }
-        );
-      }
-
-      // Cleanup keluarga angkat, jika anak terakhir dibatalkan
-      if (sisaAnakAngkat === 0) {
-        const keluargaAngkat = await Keluarga.findOne({
-          where: {
-            kepala_keluarga_id: kepala_keluarga_id,
-            jenis_keluarga: "Keluarga Angkat"
-          },
-          transaction: t
-        });
-
-        if (keluargaAngkat) {
-          await RiwayatKeluarga.destroy({
-            where: {
-              krama_id: kepala_keluarga_id,
-              keluarga_id: keluargaAngkat.id
-            },
-            transaction: t
-          });
-
-          await keluargaAngkat.destroy({ transaction: t });
-        }
-      }
-
-      // Menghitung ulang urutan lahir anak
-      if (sisaAnakAngkat > 0) {
-        await hitungUrutanLahir({
-          ayah_id,
-          ibu_id,
-          kepala_keluarga_id, 
-          mode: "ANGKAT"
-        }, t);
-      }
-
-      await t.commit();
-    }
+    await t.commit();
+    return true;
   } catch (error) {
-    await t.rollback();
+    if (t && !t.finished) {
+      await t.rollback();
+    }
     throw error;
   }
 };

@@ -3,49 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
   FaSearch, 
-  FaTrash, 
+  FaArrowLeft, 
   FaInfoCircle,
-  FaPlus,
-  FaArrowLeft,
+  FaSpinner,
   FaExclamationTriangle
 } from 'react-icons/fa';
-import axiosInstance from '../../api/axiosInstance.js';
-import Footer from '../../components/Footer/Footer.jsx';
-import styles from './DataKramaPersonal.module.css';
-
-// Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
-  if (!isOpen) return null;
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={`${styles.modalContainer} animate-fade-in`}>
-        <div className="p-6">
-          <div className="flex justify-center mb-5">
-            <div className={styles.elipsis}>
-              <FaExclamationTriangle className="text-red-600 text-2xl" />
-            </div>
-          </div>
-          <div className="text-center">
-            <h3 className="text-lg font-bold text-black mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {message}
-            </p>
-          </div>
-          <div className="mt-10 flex gap-3 justify-center">
-            <button onClick={onClose} disabled={isProcessing} className={styles.btnCancel}>
-              Kembali
-            </button>
-            <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Hapus'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import axiosInstance from '../../api/axiosInstance';
+import Footer from '../../components/Footer/Footer';
+import styles from './PengajuanKrama.module.css';
 
 // Helper: Membuat slug url
 const createSlug = (namaLengkap, tipeData, id) => {
@@ -68,43 +33,68 @@ const createSlug = (namaLengkap, tipeData, id) => {
   return `${safeName}-${safeType}-${encodedId}`;
 };
 
-const DataKramaPersonal = () => {
+const PengajuanKrama = ({ user }) => {
   const [kramaList, setKramaList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [desaAdatMap, setDesaAdatMap] = useState({});
+  const [daftarDesaRaw, setDaftarDesaRaw] = useState([]);
+  const [daftarKecamatan, setDaftarKecamatan] = useState([]);
+  const [daftarKabupaten, setDaftarKabupaten] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-
+  
   // State alert notifikasi global
-  const [alert, setAlert] = useState({
-    show: false,
-    type: '',
-    message: ''
-  });
-
-  // State menampilkan modal konfirmasi
-  const [modal, setModal] = useState({ 
+  const [alert, setAlert] = useState({ 
     show: false, 
-    id: null 
+    type: '', 
+    message: '' 
   });
 
-  // Effect: Mengambil data krama bali yang diinputkan
-  const fetchData = async () => {
+  const isAdminDesa = user?.role === 'Admin Desa';
+  const isSuperAdmin = user?.role === 'Super Admin';
+
+  // Helper: Mengambil wilayah adat
+  const fetchWilayahDanDesa = async () => {
+    try {
+      const [resDesa, resKec, resKab] = await Promise.all([
+        axiosInstance.get('/desa-adat'),
+        axiosInstance.get('/kecamatan'),
+        axiosInstance.get('/kabupaten')
+      ]);
+
+      const desaData = resDesa.data?.data || [];
+      setDaftarDesaRaw(desaData);
+      setDaftarKecamatan(resKec.data?.data || []);
+      setDaftarKabupaten(resKab.data?.data || []);
+
+      const map = {};
+      desaData.forEach(desa => { 
+        map[desa.id] = desa.nama_desa_adat; 
+      });
+      setDesaAdatMap(map);
+    } catch (error) {
+      console.error("Gagal memuat data wilayah adat:", error);
+    }
+  };
+
+  // Helper: Fungsi mengambil data krama bali
+  const fetchDataKrama = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get('/krama-bali?mode=personal');
+      const response = await axiosInstance.get('/krama-bali?mode=verification');
       setKramaList(response.data.data || []);
     } catch (error) {
       console.log(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: 'Gagal memuat data krama.'
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: "Gagal memuat data krama bali." 
       });
     } finally {
       setIsLoading(false);
@@ -112,21 +102,36 @@ const DataKramaPersonal = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchWilayahDanDesa();
+    fetchDataKrama();
   }, []);
-  
-  // Effect: Alert Diteruskan ke alert halaman lain
+
+  // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
-      setAlert({
-        show: true,
-        type: 'success',
-        message: location.state.successMessage
+      setAlert({ 
+        show: true, 
+        type: 'success', 
+        message: location.state.successMessage 
       });
       window.history.replaceState({}, document.title);
     }
   }, [location]);
-  
+
+  // Helper: Fungsi mengambil detail wilayah berdasarkan desa adat id
+  const getWilayahLengkap = (desaId) => {
+    const desa = daftarDesaRaw.find(d => String(d.id) === String(desaId));
+    if (!desa) return null;
+
+    const kec = daftarKecamatan.find(k => String(k.id) === String(desa.kecamatan_id));
+    const kab = daftarKabupaten.find(kb => String(kb.id) === String(kec?.kabupaten_id));
+
+    return {
+      kecamatan: kec ? kec.nama_kecamatan : '-',
+      kabupaten: kab ? kab.nama_kabupaten : '-',
+    };
+  };
+
   // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
@@ -136,36 +141,14 @@ const DataKramaPersonal = () => {
       return () => clearTimeout(timer);
     }
   }, [alert.show, alert.type]);
-  
-  // Helper: Menghapus data krama bali
-  const handleDelete = async () => {
-    if (!modal.id) return;
-    setIsDeleting(true);
-    try {
-      await axiosInstance.delete(`/krama-bali/${modal.id}`);
-      setAlert({
-        show: true,
-        type: 'success',
-        message: 'Data krama bali berhasil dihapus.'
-      });
-      fetchData();
-      setModal({ 
-        show: false, 
-        id: null 
-      });
-    } catch (error) {
-      console.error(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: error.response?.data?.message || 'Gagal menghapus data krama bali.'
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
-  // Helper: Fungsi search filter krama bali
+  // Helper: Menangani input pencarian
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  };
+  
+  // Helper: Fungsi search filter krama
   const filteredKrama = useMemo(() => {
     return kramaList.filter(krama => 
       krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -230,16 +213,32 @@ const DataKramaPersonal = () => {
     });
   };
 
+  // Halper: Style badge status permohonan
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'Disetujui': 
+        return styles.badgeSuccess;
+      case 'Ditolak': 
+        return styles.badgeDanger;
+      case 'Draft': 
+        return styles.badgeWarning;
+      case 'Dibatalkan': 
+        return styles.badgeGray;
+      default: 
+        return styles.badgeAmber;
+    }
+  };
+  
   return (
     <div className={styles.mainContainer}>
       {/* Navbar Section */}
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Data Krama Bali Saya
+            Verifikasi Data Krama Bali
           </h2>
           <p className={styles.navSubtitle}>
-            Berikut adalah data krama bali yang telah terdaftar dan diverifikasi
+            Berikut adalah data krama bali yang didaftarkan
           </p>
         </div>
         <div className={styles.navRight}>
@@ -255,18 +254,9 @@ const DataKramaPersonal = () => {
           </div>
         </div>
       </nav>
-      {/* Modal Konfirmasi */}
-      <ConfirmationModal 
-        isOpen={modal.show}
-        onClose={() => setModal({ show: false, id: null })}
-        onConfirm={handleDelete}
-        isProcessing={isDeleting}
-        title="Konfirmasi Menghapus"
-        message="Apakah Anda yakin ingin menghapus data krama ini secara permanen beserta seluruh riwayatnya?"
-      />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -315,9 +305,8 @@ const DataKramaPersonal = () => {
           )}
         </div>
       )}
-      {/* List Krama Bali Content */}
+      {/* List Krama Bali */}
       <div className={styles.contentArea}>
-        {/* Search Bar */}
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
@@ -325,31 +314,26 @@ const DataKramaPersonal = () => {
               type="text" 
               placeholder="Cari nama krama..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className={styles.searchInput}
             />
           </div>
-          <div className={styles.buttonGroup}>
-            <button className={styles.btnBackRed} onClick={() => navigate('/krama-bali')} title="Kembali ke Data Publik">
-              <FaArrowLeft />
-              <span>Kembali</span>
-            </button>
-            <button className={styles.btnAddData} onClick={() => navigate('/krama-bali/my-data/add')}>
-              <FaPlus size={12} />
-              <span>Krama Baru</span>
-            </button>
-          </div>
+          <button className={styles.btnBackRed} onClick={() => navigate('/verifikasi-data')}>
+            <FaArrowLeft size={12} />
+            <span>Kembali ke Dashboard</span>
+          </button>
         </div>
-        {/* Tabel Krama Bali */}
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
               <tr>
                 <th className="text-center w-16">No</th>
-                <th>Nama Lengkap</th>
+                <th className="text-left">Nama Lengkap</th>
+                {isAdminDesa && <th className="text-left">Nama Panggilan</th>}
                 <th className="text-center">Jenis Kelamin</th>
-                <th className="text-center">Status Hidup</th>
+                {isSuperAdmin && <th className="text-center">Desa Adat/Alamat Asal</th>}
                 <th className="text-center">Tipe Data</th>
+                <th className="text-center">Status Verifikasi</th>
                 <th className="text-center"></th>
               </tr>
             </thead>
@@ -375,47 +359,74 @@ const DataKramaPersonal = () => {
                   </td>
                 </tr>
               ) : (
-                currentItems.map((krama, index) => (
-                  <tr key={krama.id}>
-                    <td className="text-center text-gray-400">
-                      {indexOfFirstItem + index + 1}
-                    </td>
-                    <td className="font-bold text-gray-800">
-                      {krama.nama_lengkap}
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.jenis_kelamin}
-                    </td>
-                    <td className="text-center">
-                      <span className={`${styles.badge} ${
-                        krama.status_hidup === 'Hidup' ? styles.badgeSuccess : 
-                        krama.status_hidup === 'Meninggal' ? styles.badgeDanger :
-                        styles.badgeGray
-                      }`}>
-                        {krama.status_hidup}
-                      </span>
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.tipe_data}
-                    </td>
-                    <td className="text-center">
-                    <div className={styles.actionContainer}>
-                      <button 
-                        className={styles.btnDetail} 
-                        onClick={() => {
-                          const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
-                          navigate(`/krama-bali/my-data/detail/${slug}`, { state: { fromPersonal: true } });
-                        }}
-                      >
-                        <FaInfoCircle /> Detail
-                      </button>
-                      <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: krama.id })}>
-                        <FaTrash /> <span>Hapus</span>
-                      </button>
-                    </div>
-                    </td>
-                  </tr>
-                ))
+                currentItems.map((krama, index) => {
+                  const namaDesa = desaAdatMap[krama.desa_adat_id] 
+                    || krama.alamat_luar || krama.tempat_asal_khusus
+                    || "Alamat Asal Tidak Diketahui";
+                  const infoWilayah = krama.desa_adat_id 
+                    ? getWilayahLengkap(krama.desa_adat_id) 
+                    : null;
+
+                  return (
+                    <tr key={krama.id}>
+                      <td className="text-center text-gray-400">
+                        {indexOfFirstItem + index + 1}
+                      </td>
+                      <td className="font-bold text-gray-800">
+                        <div className="flex items-center gap-2">
+                          <span>{krama.nama_lengkap}</span>
+                          {krama.is_pending_update && (
+                            <span className={styles.warnUpdate}title="Krama ini memiliki draft usulan perubahan data">
+                              <FaExclamationTriangle className="mr-2 mb-0.5" /> 
+                              <span>Ada Update</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      {isAdminDesa && (
+                        <td className="font-bold text-gray-800">
+                          {krama.nama_panggilan}
+                        </td>
+                      )}
+                      <td className="text-center font-medium">
+                        {krama.jenis_kelamin}
+                      </td>
+                      {isSuperAdmin && (
+                        <td className="text-center">
+                          <div className="flex flex-col">
+                            <span className="font-semibold">
+                              {namaDesa}
+                            </span>
+                            {infoWilayah && (
+                              <span className={styles.detailWilayah}>
+                                {infoWilayah.kecamatan} • {infoWilayah.kabupaten}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      <td className="text-center font-medium">
+                        {krama.tipe_data}
+                      </td>
+                      <td className="text-center">
+                        <span className={`${styles.badge} ${getStatusClass(krama.status_verifikasi)}`}>
+                          {krama.status_verifikasi}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <button 
+                          className={styles.btnDetail} 
+                          onClick={() => {
+                            const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
+                            navigate(`/verifikasi-data/krama-bali/detail/${slug}`);
+                          }}
+                        >
+                          <FaInfoCircle /> Detail
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -433,4 +444,4 @@ const DataKramaPersonal = () => {
   );
 };
 
-export default DataKramaPersonal;
+export default PengajuanKrama;

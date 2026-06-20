@@ -1,13 +1,125 @@
+.labelChange {
+  @apply p-3 font-semibold text-gray-500 border-r border-gray-100 whitespace-nowrap;
+}
+
+.oldValue {
+  @apply bg-red-50 text-red-700 px-2.5 py-1 rounded border border-red-100/50 line-through font-medium inline-block max-w-[180px] truncate align-middle;
+}
+
+.arrows {
+  @apply text-amber-500 text-[9px] flex-shrink-0;
+}
+
+.newValue {
+  @apply bg-green-50 text-green-700 px-2.5 py-1 rounded border border-green-100/50 font-bold inline-block max-w-[180px] truncate align-middle;
+}
+
+.cardAreaChange {
+  @apply border border-amber-200 rounded-xl p-5 bg-amber-50/40 shadow-sm mt-7;
+}
+
+.cardTitle {
+  @apply font-bold text-amber-900 mb-4 flex items-center gap-2 text-xs border-b border-amber-200 pb-2.5 uppercase tracking-wider;
+}
+
+.cardIcon {
+  @apply text-amber-600 mb-0.5 text-sm animate-pulse;
+}
+
+.cardTable {
+  @apply bg-white rounded-lg border border-amber-100 shadow-inner overflow-x-auto;
+}
+
+.table {
+  @apply w-full text-left border-collapse min-w-[450px];
+}
+
+.tableHeader {
+  @apply border-b border-amber-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider;
+}
+
+.tableBody {
+  @apply divide-y divide-gray-100 text-[11px];
+}
+
+.noteBtnGroup {
+  @apply flex items-start gap-1.5 mt-4 bg-amber-100/60 p-2.5 rounded-md text-[10px] text-amber-800 leading-relaxed;
+}
+
 .modalOverlay {
   @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
 }
 
-.modalContainer {
-  @apply bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border-t-4 border-red-700;
+.modalContent {
+  @apply bg-white w-full max-w-2xl rounded-3xl p-8 shadow-2xl animate-fade-in border-t-4 border-amber-700;
 }
 
-.elipsis {
-  @apply h-16 w-16 flex items-center justify-center bg-red-50 rounded-full;
+.headerModal {
+  @apply flex-1 flex justify-between items-center mb-6 border-b pb-4;
+}
+
+.headerModal h3 {
+  @apply flex flex-1 font-black text-[#3A2000] uppercase text-base;
+}
+
+.iconClose {
+  @apply text-gray-400 hover:rotate-90 transition-transform duration-300;
+}
+
+.cardVerification {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100 shadow-inner;
+}
+
+.labelColumn {
+  @apply text-[11px] font-bold text-stone-400/80 uppercase tracking-wider block mb-1;
+}
+
+.badge {
+  @apply inline-flex items-center gap-1 font-bold px-2.5 py-1 rounded-md text-[10px] uppercase;
+}
+
+.badgeSuccess {
+  @apply bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded-md text-[10px] uppercase inline-flex items-center gap-1.5;
+}
+
+.badgePending {
+  @apply bg-amber-500 text-white font-bold px-2.5 py-1 rounded-md text-[10px] uppercase inline-flex items-center gap-1.5 animate-pulse;
+}
+
+.noteColumn {
+  @apply md:col-span-2 border-t border-gray-200 pt-2 mt-1;
+}
+
+.choise {
+  @apply flex-1 py-2 text-xs font-bold rounded-lg border transition-all;
+}
+
+.choiseApproved {
+  @apply bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm;
+}
+
+.choiseReject {
+  @apply bg-rose-50 border-rose-500 text-rose-700 shadow-sm;
+}
+
+.choiseDefault {
+  @apply bg-stone-50 text-stone-400 border-stone-200;
+}
+
+.label {
+  @apply text-[11px] font-bold text-stone-500 uppercase tracking-wider;
+}
+
+.inputForm {
+  @apply w-full text-sm p-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-gray-700;
+}
+
+.btnSaveModal {
+  @apply bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
+}
+
+.btnRejectModal {
+  @apply bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
 }
 
 .btnCancel {
@@ -208,142 +320,6 @@
 
 .labelRow {
   @apply text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-none mb-1;
-}
-
-.labelChange {
-  @apply p-3 font-semibold text-gray-500 border-r border-gray-100 whitespace-nowrap;
-}
-
-.oldValue {
-  @apply bg-red-50 text-red-700 px-2.5 py-1 rounded border border-red-100/50 line-through font-medium inline-block max-w-[180px] truncate align-middle;
-}
-
-.arrows {
-  @apply text-amber-500 text-[9px] flex-shrink-0;
-}
-
-.newValue {
-  @apply bg-green-50 text-green-700 px-2.5 py-1 rounded border border-green-100/50 font-bold inline-block max-w-[180px] truncate align-middle;
-}
-
-.modalContent {
-  @apply bg-white w-full max-w-2xl rounded-3xl p-8 shadow-2xl animate-fade-in border-t-4 border-amber-700;
-}
-
-.headerModal {
-  @apply flex-1 flex justify-between items-center mb-6 border-b pb-4;
-}
-
-.headerModal h3 {
-  @apply flex flex-1 font-black text-[#3A2000] uppercase text-base;
-}
-
-.iconClose {
-  @apply text-gray-400 hover:rotate-90 transition-transform duration-300;
-}
-
-.iconModalEmpty {
-  @apply w-16 h-16 bg-gray-100 border border-gray-200/60 rounded-full flex items-center justify-center mx-auto shadow-sm;
-}
-
-.titleModalEmpty {
-  @apply text-xs font-bold text-gray-800 uppercase tracking-wider;
-}
-
-.descModalEmpty {
-  @apply text-[11px] text-gray-500 max-w-xs mx-auto leading-relaxed;
-}
-
-.btnAddGreen {
-  @apply bg-emerald-500 hover:bg-emerald-600 text-gray-800 text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150 inline-flex items-center;
-}
-
-.cardVerification {
-  @apply grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100 shadow-inner;
-}
-
-.labelColumn {
-  @apply text-[11px] font-bold text-stone-400/80 uppercase tracking-wider block mb-1;
-}
-
-.badge {
-  @apply inline-flex items-center gap-1 font-bold px-2.5 py-1 rounded-md text-[10px] uppercase;
-}
-
-.badgeSuccess {
-  @apply bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded-md text-[10px] uppercase inline-flex items-center gap-1.5;
-}
-
-.badgePending {
-  @apply bg-amber-500 text-white font-bold px-2.5 py-1 rounded-md text-[10px] uppercase inline-flex items-center gap-1.5 animate-pulse;
-}
-
-.noteColumn {
-  @apply md:col-span-2 border-t border-gray-200 pt-2 mt-1;
-}
-
-.choise {
-  @apply flex-1 py-2 text-xs font-bold rounded-lg border transition-all;
-}
-
-.choiseApproved {
-  @apply bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm;
-}
-
-.choiseReject {
-  @apply bg-rose-50 border-rose-500 text-rose-700 shadow-sm;
-}
-
-.choiseDefault {
-  @apply bg-stone-50 text-stone-400 border-stone-200;
-}
-
-.label {
-  @apply text-[11px] font-bold text-stone-500 uppercase tracking-wider;
-}
-
-.inputForm {
-  @apply w-full text-sm p-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-gray-700;
-}
-
-.btnEditModal {
-  @apply bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150 inline-flex items-center;
-}
-
-.btnRejectModal {
-  @apply bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150 inline-flex items-center;
-}
-
-.cardAreaChange {
-  @apply border border-amber-200 rounded-xl p-5 bg-amber-50/40 shadow-sm;
-}
-
-.cardTitle {
-  @apply font-bold text-amber-900 mb-4 flex items-center gap-2 text-xs border-b border-amber-200 pb-2.5 uppercase tracking-wider;
-}
-
-.cardIcon {
-  @apply text-amber-600 mb-0.5 text-sm animate-pulse;
-}
-
-.cardTable {
-  @apply bg-white rounded-lg border border-amber-100 shadow-inner overflow-x-auto;
-}
-
-.table {
-  @apply w-full text-left border-collapse min-w-[450px];
-}
-
-.tableHeader {
-  @apply border-b border-amber-100 text-[10px] font-bold text-gray-500 uppercase tracking-wider;
-}
-
-.tableBody {
-  @apply divide-y divide-gray-100 text-[11px];
-}
-
-.noteBtnGroup {
-  @apply flex items-start gap-1.5 mt-4 bg-amber-100/60 p-2.5 rounded-md text-[10px] text-amber-800 leading-relaxed;
 }
 
 .animate-fade-in {

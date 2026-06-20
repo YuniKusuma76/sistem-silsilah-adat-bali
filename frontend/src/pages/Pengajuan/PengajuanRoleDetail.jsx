@@ -4,7 +4,6 @@ import { MdNotificationsNone } from 'react-icons/md';
 import { 
   FaArrowLeft, 
   FaFilePdf, 
-  FaFileImage, 
   FaCheckCircle, 
   FaClock, 
   FaTimesCircle, 
@@ -16,7 +15,9 @@ import {
   FaCalendarAlt, 
   FaMapMarkerAlt,
   FaTrash,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaSpinner,
+  FaTimes
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -35,12 +36,8 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProce
             </div>
           </div>
           <div className="text-center">
-            <h3 className="text-lg font-bold text-black mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {message}
-            </p>
+            <h3 className="text-lg font-bold text-black mb-2">{title}</h3>
+            <p className="text-sm text-gray-600">{message}</p>
           </div>
           <div className="mt-10 flex gap-3 justify-center">
             <button onClick={onClose} disabled={isProcessing} className={styles.btnCancel}>
@@ -56,23 +53,23 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProce
   );
 };
 
-const PengajuanRoleDetail = () => {
+const PengajuanRoleDetail = ({ user }) => {
   const { id: slug } = useParams();
   const navigate = useNavigate();
 
+  const isSuperAdmin = user?.role === 'Super Admin';
+
   // Helper: Decode slug id ke id asli
-  const getActualId = () => {
+  const actualId = React.useMemo(() => {
     try {
       const parts = slug.split('-');
       const encodedId = parts[parts.length - 1];
       return atob(encodedId);
     } catch (error) {
-      console.error(error);
+      console.error("Format slug tidak valid:", error);
       return slug; 
     }
-  };
-
-  const actualId = getActualId();
+  }, [slug]);
 
   const [data, setData] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
@@ -81,6 +78,10 @@ const PengajuanRoleDetail = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyAction, setVerifyAction] = useState('');
+  const [catatanValidator, setCatatanValidator] = useState('');
   
   // State alert notifikasi global
   const [alert, setAlert] = useState({ 
@@ -95,57 +96,32 @@ const PengajuanRoleDetail = () => {
     id: null 
   });
 
-  // Helper: Fungsi mengambil detail data permohonan
+  // Helper: Fungsi menyusun string alamat lengkap dari object
+  const susunAlamatWilayah = (objDesa) => {
+    if (!objDesa) return '-';
+    const namaDesa = `Desa Adat ${objDesa.nama_desa_adat || '-'}`;
+    const namaKec = objDesa.kecamatan ? `, Kec. ${objDesa.kecamatan.nama_kecamatan}` : '';
+    const namaKab = objDesa.kecamatan?.kabupaten ? `, Kab. ${objDesa.kecamatan.kabupaten.nama_kabupaten}` : '';
+    const namaProv = objDesa.kecamatan?.kabupaten?.provinsi ? `, Prov. ${objDesa.kecamatan.kabupaten.provinsi.nama_provinsi}` : '';
+    return `${namaDesa}${namaKec}${namaKab}${namaProv}`;
+  };
+
+  // Helper: Fungsi mengambil detail data permohonan perubahan role
   const fetchDetailDanWilayah = async () => {
     try {
       setLoading(true);
-
       const response = await axiosInstance.get(`/permohonan-role/${actualId}`);
-      const permohonanData = response.data.data;
+      const permohonanData = response.data?.data || response.data;
       setData(permohonanData);
 
       if (permohonanData.desa_adat_id_tujuan) {
-        try {
-          const [resDesa, resKec, resKab, resProv] = await Promise.all([
-            axiosInstance.get('/desa-adat'),
-            axiosInstance.get('/kecamatan'),
-            axiosInstance.get('/kabupaten'),
-            axiosInstance.get('/provinsi')
-          ]);
-
-          const daftarDesa = resDesa.data.data || [];
-          const daftarKec = resKec.data.data || [];
-          const daftarKab = resKab.data.data || [];
-          const daftarProv = resProv.data.data || [];
-
-          // Mencari objek desa adat yang sesuai
-          const targetDesa = daftarDesa.find(d => d.id === permohonanData.desa_adat_id_tujuan);
-
-          if (targetDesa) {
-            const targetKec = daftarKec.find(k => k.id === targetDesa.kecamatan_id || k.id === targetDesa.kecamatan_id_adat);
-            const targetKab = targetKec ? daftarKab.find(kb => kb.id === targetKec.kabupaten_id) : null;
-            const targetProv = targetKab ? daftarProv.find(p => p.id === targetKab.provinsi_id) : null;
-
-            // Menyusun string alamat lengkap
-            const namaDesa = `Desa Adat ${targetDesa.nama_desa_adat}`;
-            const namaKec = targetKec ? `, Kec. ${targetKec.nama_kecamatan}` : '';
-            const namaKab = targetKab ? `, Kab. ${targetKab.nama_kabupaten}` : '';
-            const namaProv = targetProv ? `, Prov. ${targetProv.nama_provinsi}` : '';
-            
-            setAlamatLengkapDesa(`${namaDesa}${namaKec}${namaKab}${namaProv}`);
-          } else {
-            setAlamatLengkapDesa(`${permohonanData.desa_adat_id_tujuan}`);
-          }
-        } catch (errorWilayah) {
-          console.error("Gagal memetakan hierarki wilayah adat:", errorWilayah);
-          setAlamatLengkapDesa(`${permohonanData.desa_adat_id_tujuan}`);
-        }
+        setAlamatLengkapDesa(susunAlamatWilayah(permohonanData.desa_adat_id_tujuan));
       }
     } catch (error) {
       setAlert({
         show: true, 
         type: 'error',
-        message: error.response?.data?.message || "Gagal memuat detail data permohonan."
+        message: error.response?.data?.message || "Gagal memuat detail data permohonan perubahan role."
       });
     } finally {
       setLoading(false);
@@ -153,7 +129,9 @@ const PengajuanRoleDetail = () => {
   };
 
   useEffect(() => {
-    fetchDetailDanWilayah();
+    if (actualId) {
+      fetchDetailDanWilayah();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actualId]);
 
@@ -166,7 +144,7 @@ const PengajuanRoleDetail = () => {
       setAlert({ 
         show: true, 
         type: 'success', 
-        message: 'Permohonan role berhasil dibatalkan.' 
+        message: 'Permohonan perubahan role berhasil dibatalkan.' 
       });
       setModal({ 
         show: false, 
@@ -177,7 +155,43 @@ const PengajuanRoleDetail = () => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || "Gagal membatalkan permohonan role." 
+        message: error.response?.data?.message || "Gagal membatalkan permohonan perubahan role." 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Helper: Fungsi memverifikasi permohonan perubahan role
+  const handleVerification = async () => {
+    if (verifyAction === 'Ditolak' && !catatanValidator.trim()) {
+      setAlert({
+        show: true,
+        type: 'warning',
+        message: 'Wajib mengisi catatan/alasan ketika permohonan perubahan role ditolak!'
+      });
+      return; 
+    }
+    setIsSubmitting(true);
+    try {
+      await axiosInstance.patch(`/permohonan-role/verifikasi/${actualId}`, {
+        status_permohonan: verifyAction === 'Disetujui' ? 'Disetujui' : 'Ditolak',
+        catatan_super_admin: catatanValidator
+      });
+
+      setAlert({ 
+        show: true, 
+        type: 'success', 
+        message: `Permohonan perubahan role berhasil di${verifyAction === 'Disetujui' ? 'setujui' : 'tolak'}.` 
+      });
+      setShowVerifyModal(false);
+      setCatatanValidator('');
+      fetchDetailDanWilayah();
+    } catch (error) {
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: error.response?.data?.message || "Gagal memverifikasi permohonan perubahan role." 
       });
     } finally {
       setIsSubmitting(false);
@@ -186,24 +200,33 @@ const PengajuanRoleDetail = () => {
 
   // Helper: Menampilkan preview dokumen pendukung
   useEffect(() => {
+    let isMounted = true;
+    let localUrl = null;
+
     if (data?.dokumen_pendukung && data.dokumen_pendukung.match(/\.(jpeg|jpg|png)$/i)) {
       const fetchImage = async () => {
         try {
           const response = await axiosInstance.get(`/permohonan-role/document/${actualId}`, {
             responseType: 'blob' 
           });
-          const url = URL.createObjectURL(response.data);
-          setImagePreviewUrl(url);
+          if (isMounted) {
+            localUrl = URL.createObjectURL(response.data);
+            setImagePreviewUrl(localUrl);
+          }
         } catch (error) { 
-          console.error(error); 
+          console.error("Gagal memuat preview dokumen:", error); 
         }
       };
       fetchImage();
     }
-    return () => { 
-      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl); 
+
+    return () => {
+      isMounted = false;
+      if (localUrl) {
+        URL.revokeObjectURL(localUrl);
+      }
     };
-  }, [data, actualId, imagePreviewUrl]);
+  }, [data?.dokumen_pendukung, actualId]);
 
   // Helper: Mengunduh atau melihat dokumen pendukung
   const downloadOrViewFile = async (mode) => {
@@ -221,6 +244,7 @@ const PengajuanRoleDetail = () => {
 
       if (mode === 'view') {
         window.open(fileURL, '_blank');
+        setTimeout(() => URL.revokeObjectURL(fileURL), 1000);
       } else {
         const link = document.createElement('a');
         link.href = fileURL;
@@ -228,13 +252,14 @@ const PengajuanRoleDetail = () => {
         document.body.appendChild(link);
         link.click();
         link.remove();
+        URL.revokeObjectURL(fileURL);
       }
     } catch (error) {
       console.error(error);
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: "Gagal memproses file." 
+        message: "Gagal memproses file dokumen pendukung." 
       });
     } finally {
       setIsDownloading(false);
@@ -272,16 +297,15 @@ const PengajuanRoleDetail = () => {
     }
   };
 
-  // Effect: Auto-close alert
+  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert(prev => ({ 
-        ...prev, 
-        show: false 
-      })), 3000);
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [alert.show]);
+  }, [alert.show, alert.type]);
 
   if (loading) {
     return (
@@ -293,6 +317,7 @@ const PengajuanRoleDetail = () => {
   }
 
   if (!data) return null;
+
   const statusStyle = getStatusBadge(data.status_permohonan);
   const isImage = data.dokumen_pendukung && data.dokumen_pendukung.match(/\.(jpeg|jpg|png)$/i);
 
@@ -302,7 +327,7 @@ const PengajuanRoleDetail = () => {
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Detail Pengajuan Role
+            Detail Permohonan Perubahan Role
           </h2>
           <p className={styles.navSubtitle}>
             Rincian data permohonan perubahan role yang diajukan
@@ -328,34 +353,55 @@ const PengajuanRoleDetail = () => {
         onConfirm={handleConfirmBatalkan}
         isProcessing={isSubmitting}
         title="Batalkan Permohonan?"
-        message="Permohonan yang dibatalkan tidak akan diproses oleh admin."
+        message="Permohonan perubahan role yang dibatalkan bersifat permanen dan tidak akan diproses oleh admin."
       />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-section 
-          ${alert.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+        <div className={`alert-section
+          ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
+            : alert.type === 'error' ? 'border-red-500 bg-red-50'
+            : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
+            : 'border-blue-500 bg-blue-50'}`
+          }>
           <div className="flex items-start p-4">
-            <div className="flex-shrink-0 mr-3 mt-2 text-2xl">
-              {alert.type === 'success' ? '✅' : '⚠️'}
+            {/* Icon */}
+            <div className="flex-shrink-0 mr-3 text-2xl">
+              {alert.type === 'success' && '✅'}
+              {alert.type === 'error' && '❌'}
+              {alert.type === 'warning' && '⚠️'}
+              {alert.type === 'loading' && '⏳'}
             </div>
+            {/* Content */}
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${alert.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                {alert.type === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan.'}
+              <h4 className={`font-bold text-sm 
+                ${alert.type === 'success' ? 'text-green-800' 
+                  : alert.type === 'error' ? 'text-red-800' 
+                  : alert.type === 'warning' ? 'text-amber-800'
+                  : 'text-blue-800'}`
+                }>
+                {alert.type === 'success' ? 'Berhasil!' 
+                  : alert.type === 'error' ? 'Terjadi Kesalahan!' 
+                  : alert.type === 'warning' ? 'Perhatian Adat!'
+                  : 'Mohon Tunggu...'
+                }
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {alert.message}
               </p>
             </div>
+            {/* Close Button */}
             <button onClick={() => setAlert(prev => ({ ...prev, show: false }))} className="alert-button">
-              &times;
+              <span className="text-2xl leading-none">&times;</span>
             </button>
           </div>
-          {(alert.type === 'success' || alert.type === 'error') && (
+          {/* Progress Bar Line */}
+          {(alert.type === 'success' || alert.type === 'error' || alert.type === 'warning') && (
             <div className="h-1.5 w-full bg-gray-200">
-              <div className={`h-full animate-shrink ${alert.type === 'success' 
-                ? 'bg-green-500' 
-                : 'bg-red-500'}`}>
-              </div>
+              <div className={`h-full animate-shrink ${
+                alert.type === 'success' ? 'bg-green-500' : 
+                alert.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+                }`
+              }></div>
             </div>
           )}
         </div>
@@ -363,31 +409,38 @@ const PengajuanRoleDetail = () => {
       {/* Content Area */}
       <div className={`${styles.contentArea} mb-10`}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Kolom Kiri */}
           <div className="lg:col-span-2 space-y-6">
             <div className={styles.cardContainer}>
-              {/* Role dan Status Permohonan */}
               <div className={styles.roleStatus}>
                 <div>
                   <p className={`${styles.labelColumn} tracking-widest`}>
                     Permohonan Role
                   </p>
                   <h3 className={styles.roleContent}>
-                    <FaUserCheck className="text-amber-700" /> {data.role_yang_diminta}
+                    <FaUserCheck size={25} className="text-amber-700 mr-2 flex-shrink-0" /> 
+                    <span className="text-stone-800 font-bold">
+                      {data.role_yang_diminta}
+                    </span>
                   </h3>
                 </div>
-                <div className={`${styles.badge} ${statusStyle.className}`}>
-                  {statusStyle.icon} <span>{data.status_permohonan}</span>
+                <div className={`${styles.badge} ${statusStyle.className} w-fit`}>
+                  {statusStyle.icon} 
+                  <span className="whitespace-nowrap">
+                    {data.status_permohonan}
+                  </span>
                 </div>
               </div>
-              {/* Desa Adat dan Tanggal */}
               <div className={styles.desaWaktu}>
                 <div>
                   <p className={styles.labelColumn}>
                     Desa Adat Tujuan
                   </p>
                   <p className={styles.contentColumn}>
-                    <FaMapMarkerAlt className="text-amber-700 mr-2" /> 
-                    <span>{alamatLengkapDesa}</span>
+                    <FaMapMarkerAlt size={22} className="text-amber-700 mr-2 flex-shrink-0" /> 
+                    <span className="text-stone-700 font-semibold">
+                      {alamatLengkapDesa}
+                    </span>
                   </p>
                 </div>
                 <div>
@@ -395,19 +448,19 @@ const PengajuanRoleDetail = () => {
                     Waktu Pengajuan
                   </p>
                   <p className={styles.contentColumn}>
-                    <FaCalendarAlt className="text-amber-700" /> 
+                    <FaCalendarAlt className="text-amber-700 mr-1" /> 
                     <span>
                       {`${new Date(data.tanggal_pengajuan).toLocaleDateString('id-ID', { 
                         dateStyle: 'full' 
                       })} • ${new Date(data.tanggal_pengajuan).toLocaleTimeString('id-ID', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
+                        hour: '2-digit', minute: '2-digit' 
                       }).replace('.', ':')} WITA`}
                     </span>
                   </p>
                 </div>
               </div>
             </div>
+            {/* Alasan Perubahan Role */}
             <div className={`${styles.cardContainer} space-y-8`}>
               <div>
                 <h4 className={styles.labelReason}>
@@ -417,22 +470,21 @@ const PengajuanRoleDetail = () => {
                   {data.alasan_permohonan}
                 </div>
               </div>
-              {/* Catatan verifikasi */}
+              {/* Catatan verifikasi Validator */}
               {(data.catatan_super_admin || data.status_permohonan !== 'Menunggu') && (
                 <div className={`${styles.noteArea} ${
                   data.status_permohonan === 'Ditolak' ? 'bg-red-50 border-red-500' : 
-                  data.status_permohonan === 'Dibatalkan' ? 'bg-gray-50 border-gray-400' : 
-                  'bg-green-50 border-green-500'}`
+                  data.status_permohonan === 'Dibatalkan' ? 'bg-gray-50 border-gray-400' : 'bg-green-50 border-green-500'}`
                 }>
                   <h4 className={styles.labelNote}>
-                    {data.status_permohonan === 'Dibatalkan' ? 'Keterangan Pembatalan:' : 'Catatan Validator:'}
+                    {data.status_permohonan === 'Dibatalkan' ? 'Keterangan Pembatalan' : 'Catatan Validator'}
                   </h4>
                   <p className="text-xs italic text-gray-600">
                     {data.catatan_super_admin}
                   </p>
                   {data.tanggal_verifikasi && (
                     <div className={styles.noteTanggal}>
-                      <FaClock className="mb-0.5" /> Diverifikasi pada: {
+                      <FaClock className="mb-0.5" /> Ditinjau pada: {
                         new Date(data.tanggal_verifikasi).toLocaleString('id-ID')
                       }
                     </div>
@@ -441,8 +493,8 @@ const PengajuanRoleDetail = () => {
               )}
             </div>
           </div>
+          {/* Kolom Kanan */}
           <div className="space-y-6">
-            {/* Dokumen Pendukung */}
             <div className={styles.cardDokumen}>
               <h4 className={styles.labelCardDokumen}>
                 Dokumen Pendukung
@@ -458,19 +510,19 @@ const PengajuanRoleDetail = () => {
                 <div className="space-y-4">
                   <div className={styles.areaFile}>
                     {isImage && imagePreviewUrl ? (
-                      <img src={imagePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <img src={imagePreviewUrl} alt="Preview Berkas" className="w-full h-full object-cover rounded-lg" />
                     ) : (
-                      <div className="text-center text-red-500">
-                        <FaFilePdf size={50} className="ml-2" />
+                      <div className={styles.file}>
+                        <FaFilePdf size={48} className="text-rose-600 mb-2" />
                         <p className={styles.labelFile}>
-                          Dokumen PDF
+                          {data.dokumen_pendukung.split('.').pop().toUpperCase()} Document
                         </p>
                       </div>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => downloadOrViewFile('view')} disabled={isDownloading} className={styles.btnLihatFile}>
-                      <FaEye /> <span>Lihat</span>
+                      {isDownloading ? <FaSpinner className="animate-spin" /> : <FaEye />} <span>Buka</span>
                     </button>
                     <button onClick={() => downloadOrViewFile('download')} disabled={isDownloading} className={styles.btnUnduhFile}>
                       <FaDownload /> <span>Unduh</span>
@@ -480,20 +532,103 @@ const PengajuanRoleDetail = () => {
               )}
             </div>
             {/* Button Kembali */}
-            <div className="pt-2">
-              {data.status_permohonan === 'Menunggu' && (
-                <button onClick={() => setModal({ show: true, id: actualId })} className={styles.btnHapusRed}>
-                  <FaTrash /> Batalkan
+            <div className="pt-2 flex flex-col gap-2">
+              {isSuperAdmin && data.status_permohonan === 'Menunggu' && (
+                <button 
+                  onClick={() => {
+                    setVerifyAction('Disetujui');
+                    setShowVerifyModal(true);
+                  }} 
+                  className={styles.btnApproveGold}
+                >
+                  <FaUserCheck /> Verifikasi Permohonan
                 </button>
               )}
-              <button onClick={() => navigate('/pengajuan-role/my-data')} className={styles.btnBackNetral}>
-                <FaArrowLeft /> Kembali ke Riwayat
+              {!isSuperAdmin && data.status_permohonan === 'Menunggu' && (
+                <button onClick={() => setModal({ show: true, id: actualId })} className={styles.btnHapusRed}>
+                  <FaTrash /> Batalkan Permohonan
+                </button>
+              )}
+              <button 
+                onClick={() => navigate(isSuperAdmin ? '/verifikasi-data/pengajuan-role' : '/pengajuan-role/my-data')} 
+                className={styles.btnBackNetral}
+              >
+                <FaArrowLeft /> Kembali
               </button>
             </div>
           </div>
         </div>
       </div>
       <Footer />
+      {/* MODAL VERIFIKASI */}
+      {showVerifyModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <div className={styles.headerModal}>
+              <h3>
+                <FaUserCheck size={21} className="text-amber-700 mr-2" /> Verifikasi Permohonan Perubahan Role
+              </h3>
+              <button onClick={() => setShowVerifyModal(false)}>
+                <FaTimes className={styles.iconClose} />
+              </button>
+            </div>
+            <div>
+              <div className="flex gap-2 my-4">
+                <button 
+                  type="button"
+                  onClick={() => setVerifyAction('Disetujui')}
+                  className={`${styles.choise} ${
+                    verifyAction === 'Disetujui' ? styles.choiseApproved : styles.choiseDefault
+                  }`}
+                >
+                  ✅ Setujui Permohonan
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setVerifyAction('Ditolak')}
+                  className={`${styles.choise} ${
+                    verifyAction === 'Ditolak' ? styles.choiseReject : styles.choiseDefault
+                  }`}
+                >
+                  ❌ Tolak Permohonan
+                </button>
+              </div>
+              <div className="space-y-1 text-left">
+                <label className={styles.label}>
+                  Catatan Tambahan / Alasan Penolakan {verifyAction === "Ditolak" && <span className="text-red-500">*</span>}
+                </label>
+                <textarea
+                  className={styles.inputForm}
+                  rows="5"
+                  placeholder="Masukkan catatan keputusan untuk pemohon..."
+                  value={catatanValidator}
+                  onChange={(e) => setCatatanValidator(e.target.value)}
+                  required={verifyAction === 'Ditolak'}
+                ></textarea>
+              </div>
+              <div className="mt-6 flex gap-2 justify-end pt-3">
+                <button 
+                  onClick={() => {
+                    setShowVerifyModal(false);
+                    setCatatanValidator('');
+                  }} 
+                  disabled={isSubmitting} 
+                  className={styles.btnCancel}
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleVerification} 
+                  disabled={isSubmitting}
+                  className={verifyAction === 'Disetujui' ? styles.btnSaveModal : styles.btnRejectModal}
+                >
+                  {isSubmitting ? 'Memproses...' : 'Konfirmasi Keputusan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -3,108 +3,82 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
   FaSearch, 
-  FaTrash, 
+  FaArrowLeft, 
   FaInfoCircle,
-  FaPlus,
-  FaArrowLeft,
-  FaExclamationTriangle
+  FaSpinner
 } from 'react-icons/fa';
-import axiosInstance from '../../api/axiosInstance.js';
-import Footer from '../../components/Footer/Footer.jsx';
-import styles from './DataKramaPersonal.module.css';
-
-// Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
-  if (!isOpen) return null;
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={`${styles.modalContainer} animate-fade-in`}>
-        <div className="p-6">
-          <div className="flex justify-center mb-5">
-            <div className={styles.elipsis}>
-              <FaExclamationTriangle className="text-red-600 text-2xl" />
-            </div>
-          </div>
-          <div className="text-center">
-            <h3 className="text-lg font-bold text-black mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {message}
-            </p>
-          </div>
-          <div className="mt-10 flex gap-3 justify-center">
-            <button onClick={onClose} disabled={isProcessing} className={styles.btnCancel}>
-              Kembali
-            </button>
-            <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Hapus'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import axiosInstance from '../../api/axiosInstance';
+import Footer from '../../components/Footer/Footer';
+import styles from './PengajuanRole.module.css';
 
 // Helper: Membuat slug url
-const createSlug = (namaLengkap, tipeData, id) => {
-  const baseName = namaLengkap ? namaLengkap : 'krama';
-  const baseType = tipeData ? tipeData : 'keturunan';
-
-  const safeName = baseName
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]+/g, '')
-    .trim()
-    .replace(/\s+/g, '-');
-
-  const safeType = baseType
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]+/g, '')
-    .trim()
-    .replace(/\s+/g, '-');
-
+const createSlug = (role, date, id) => {
+  if (!role) return id;
+  const roleSlug = role.toLowerCase().replace(/ /g, '-');
+  const dateFormatted = new Date(date).toISOString().split('T')[0];
   const encodedId = btoa(id.toString()).replace(/=/g, '');
-  return `${safeName}-${safeType}-${encodedId}`;
+  return `${roleSlug}-${dateFormatted}-${encodedId}`;
 };
 
-const DataKramaPersonal = () => {
-  const [kramaList, setKramaList] = useState([]);
+const PengajuanRole = () => {
+  const [dataPengajuan, setDataPengajuan] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [desaAdatMap, setDesaAdatMap] = useState({});
+  const [daftarDesaRaw, setDaftarDesaRaw] = useState([]);
+  const [daftarKecamatan, setDaftarKecamatan] = useState([]);
+  const [daftarKabupaten, setDaftarKabupaten] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
   // State alert notifikasi global
-  const [alert, setAlert] = useState({
-    show: false,
-    type: '',
-    message: ''
-  });
-
-  // State menampilkan modal konfirmasi
-  const [modal, setModal] = useState({ 
+  const [alert, setAlert] = useState({ 
     show: false, 
-    id: null 
+    type: '', 
+    message: '' 
   });
 
-  // Effect: Mengambil data krama bali yang diinputkan
+  // Helper: Mengambil wilayah adat
+  const fetchWilayahDanDesa = async () => {
+    try {
+      const [resDesa, resKec, resKab] = await Promise.all([
+        axiosInstance.get('/desa-adat'),
+        axiosInstance.get('/kecamatan'),
+        axiosInstance.get('/kabupaten')
+      ]);
+
+      const desaData = resDesa.data?.data || [];
+      setDaftarDesaRaw(desaData);
+      setDaftarKecamatan(resKec.data?.data || []);
+      setDaftarKabupaten(resKab.data?.data || []);
+
+      const map = {};
+      desaData.forEach(desa => { 
+        map[desa.id] = desa.nama_desa_adat; 
+      });
+      setDesaAdatMap(map);
+    } catch (error) {
+      console.error("Gagal memuat data wilayah adat:", error);
+    }
+  };
+
+  // Helper: Fungsi mengambil data permohonan perubahan role
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get('/krama-bali?mode=personal');
-      setKramaList(response.data.data || []);
+      const response = await axiosInstance.get('/permohonan-role');
+      setDataPengajuan(response.data?.data || []);
     } catch (error) {
-      console.log(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: 'Gagal memuat data krama.'
+      console.error(error);
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: "Gagal memuat data permohonan perubahan role." 
       });
     } finally {
       setIsLoading(false);
@@ -112,21 +86,36 @@ const DataKramaPersonal = () => {
   };
 
   useEffect(() => {
+    fetchWilayahDanDesa();
     fetchData();
   }, []);
-  
-  // Effect: Alert Diteruskan ke alert halaman lain
+
+  // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
-      setAlert({
-        show: true,
-        type: 'success',
-        message: location.state.successMessage
+      setAlert({ 
+        show: true, 
+        type: 'success', 
+        message: location.state.successMessage 
       });
       window.history.replaceState({}, document.title);
     }
   }, [location]);
-  
+
+  // Helper: Fungsi mengambil detail wilayah berdasarkan desa adat id
+  const getWilayahLengkap = (desaId) => {
+    const desa = daftarDesaRaw.find(d => String(d.id) === String(desaId));
+    if (!desa) return null;
+
+    const kec = daftarKecamatan.find(k => String(k.id) === String(desa.kecamatan_id));
+    const kab = daftarKabupaten.find(kb => String(kb.id) === String(kec?.kabupaten_id));
+
+    return {
+      kecamatan: kec ? kec.nama_kecamatan : '-',
+      kabupaten: kab ? kab.nama_kabupaten : '-',
+    };
+  };
+
   // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
@@ -136,54 +125,29 @@ const DataKramaPersonal = () => {
       return () => clearTimeout(timer);
     }
   }, [alert.show, alert.type]);
-  
-  // Helper: Menghapus data krama bali
-  const handleDelete = async () => {
-    if (!modal.id) return;
-    setIsDeleting(true);
-    try {
-      await axiosInstance.delete(`/krama-bali/${modal.id}`);
-      setAlert({
-        show: true,
-        type: 'success',
-        message: 'Data krama bali berhasil dihapus.'
-      });
-      fetchData();
-      setModal({ 
-        show: false, 
-        id: null 
-      });
-    } catch (error) {
-      console.error(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: error.response?.data?.message || 'Gagal menghapus data krama bali.'
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
-  // Helper: Fungsi search filter krama bali
-  const filteredKrama = useMemo(() => {
-    return kramaList.filter(krama => 
-      krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [kramaList, searchTerm]);
+  // Helper: Fungsi search filter riwayat
+  const filteredRiwayat = useMemo(() => {
+    return dataPengajuan.filter(item => {
+      const role = item.role_yang_diminta?.toLowerCase() || "";
+      const status = item.status_permohonan?.toLowerCase() || "";
+      const search = searchTerm.toLowerCase();
+      return role.includes(search) || status.includes(search);
+    });
+  }, [dataPengajuan, searchTerm]);
 
   // HANDLE PAGINATION
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredKrama.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredKrama.length / itemsPerPage);
+  const currentItems = filteredRiwayat.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredRiwayat.length / itemsPerPage);
 
   // Effect: Setting current page aktif default 1
-  useEffect(() => {
-    setCurrentPage(1);
+  useEffect(() => { 
+    setCurrentPage(1); 
   }, [searchTerm]);
 
-  // Fungsi pergi ke next page
+    // Fungsi pergi ke next page
   const goToPage = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
@@ -230,16 +194,32 @@ const DataKramaPersonal = () => {
     });
   };
 
+  // Halper: Style badge status permohonan
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'Disetujui': 
+        return styles.badgeSuccess;
+      case 'Ditolak': 
+        return styles.badgeDanger;
+      case 'Menunggu': 
+        return styles.badgeWarning;
+      case 'Dibatalkan': 
+        return styles.badgeGray;
+      default: 
+        return styles.badgeAmber;
+    }
+  };
+
   return (
     <div className={styles.mainContainer}>
       {/* Navbar Section */}
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Data Krama Bali Saya
+            Verifikasi Permohonan Perubahan Role
           </h2>
           <p className={styles.navSubtitle}>
-            Berikut adalah data krama bali yang telah terdaftar dan diverifikasi
+            Berikut adalah data permohonan perubahan role yang diajukan
           </p>
         </div>
         <div className={styles.navRight}>
@@ -255,18 +235,9 @@ const DataKramaPersonal = () => {
           </div>
         </div>
       </nav>
-      {/* Modal Konfirmasi */}
-      <ConfirmationModal 
-        isOpen={modal.show}
-        onClose={() => setModal({ show: false, id: null })}
-        onConfirm={handleDelete}
-        isProcessing={isDeleting}
-        title="Konfirmasi Menghapus"
-        message="Apakah Anda yakin ingin menghapus data krama ini secara permanen beserta seluruh riwayatnya?"
-      />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -315,48 +286,40 @@ const DataKramaPersonal = () => {
           )}
         </div>
       )}
-      {/* List Krama Bali Content */}
+      {/* List Permohonan Role */}
       <div className={styles.contentArea}>
-        {/* Search Bar */}
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
             <input 
               type="text" 
-              placeholder="Cari nama krama..." 
+              placeholder="Cari role atau status..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={styles.searchInput}
             />
           </div>
-          <div className={styles.buttonGroup}>
-            <button className={styles.btnBackRed} onClick={() => navigate('/krama-bali')} title="Kembali ke Data Publik">
-              <FaArrowLeft />
-              <span>Kembali</span>
-            </button>
-            <button className={styles.btnAddData} onClick={() => navigate('/krama-bali/my-data/add')}>
-              <FaPlus size={12} />
-              <span>Krama Baru</span>
-            </button>
-          </div>
+          <button className={styles.btnBackRed} onClick={() => navigate('/verifikasi-data')}>
+            <FaArrowLeft size={12} />
+            <span>Kembali ke Dashboard</span>
+          </button>
         </div>
-        {/* Tabel Krama Bali */}
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
               <tr>
                 <th className="text-center w-16">No</th>
-                <th>Nama Lengkap</th>
-                <th className="text-center">Jenis Kelamin</th>
-                <th className="text-center">Status Hidup</th>
-                <th className="text-center">Tipe Data</th>
+                <th className="text-center">Tanggal Pengajuan</th>
+                <th className="text-center">Permohonan Role</th>
+                <th className="text-center">Desa Adat Tujuan</th>
+                <th className="text-center">Status Permohonan</th>
                 <th className="text-center"></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-12">
+                  <td colSpan="6" className="text-center py-20">
                     <div className={styles.loadContainer}>
                       <div className={`${styles.loadSpinner} animate-spin`}></div>
                       <span>Memuat data...</span>
@@ -369,60 +332,71 @@ const DataKramaPersonal = () => {
                     <div className={styles.infoDataContent}>
                       <FaInfoCircle className={styles.infoDataIcon} />
                       <p className="text-sm font-medium">
-                        {searchTerm ? `Data "${searchTerm}" tidak ditemukan` : "Tidak ada data krama"}
+                        {searchTerm ? `Data "${searchTerm}" tidak ditemukan` : "Tidak ada data permohonan"}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                currentItems.map((krama, index) => (
-                  <tr key={krama.id}>
-                    <td className="text-center text-gray-400">
-                      {indexOfFirstItem + index + 1}
-                    </td>
-                    <td className="font-bold text-gray-800">
-                      {krama.nama_lengkap}
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.jenis_kelamin}
-                    </td>
-                    <td className="text-center">
-                      <span className={`${styles.badge} ${
-                        krama.status_hidup === 'Hidup' ? styles.badgeSuccess : 
-                        krama.status_hidup === 'Meninggal' ? styles.badgeDanger :
-                        styles.badgeGray
-                      }`}>
-                        {krama.status_hidup}
-                      </span>
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.tipe_data}
-                    </td>
-                    <td className="text-center">
-                    <div className={styles.actionContainer}>
-                      <button 
-                        className={styles.btnDetail} 
-                        onClick={() => {
-                          const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
-                          navigate(`/krama-bali/my-data/detail/${slug}`, { state: { fromPersonal: true } });
-                        }}
-                      >
-                        <FaInfoCircle /> Detail
-                      </button>
-                      <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: krama.id })}>
-                        <FaTrash /> <span>Hapus</span>
-                      </button>
-                    </div>
-                    </td>
-                  </tr>
-                ))
+                currentItems.map((item, index) => {
+                  const namaDesa = desaAdatMap[item.desa_adat_id_tujuan] || "-";
+                  const infoWilayah = item.desa_adat_id_tujuan 
+                    ? getWilayahLengkap(item.desa_adat_id_tujuan) 
+                    : null;
+
+                  return (
+                    <tr key={item.id}>
+                      <td className="text-center text-gray-400">
+                        {indexOfFirstItem + index + 1}
+                      </td>
+                      <td className="text-center">
+                        {new Date(item.tanggal_pengajuan).toLocaleDateString('id-ID', { 
+                          day: 'numeric', month: 'long', year: 'numeric' 
+                        })}
+                      </td>
+                      <td className="text-center font-bold">
+                        {item.role_yang_diminta}
+                      </td>
+                      <td className="text-center">
+                        <div className="flex flex-col">
+                          <span className="font-semibold">
+                            {namaDesa}
+                          </span>
+                          {infoWilayah && (
+                            <span className={styles.detailWilayah}>
+                              {infoWilayah.kecamatan} • {infoWilayah.kabupaten}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="text-center">
+                        <span className={`${styles.badge} ${getStatusClass(item.status_permohonan)}`}>
+                          {item.status_permohonan}
+                        </span>
+                      </td>
+                      <td className="text-center">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            className={styles.btnDetail} 
+                            onClick={() => {
+                              const slug = createSlug(item.role_yang_diminta, item.tanggal_pengajuan, item.id);
+                              navigate(`/verifikasi-data/pengajuan-role/detail/${slug}`);
+                            }}
+                          >
+                            <FaInfoCircle /> Detail
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
         {/* PAGINATION */}
         <div className={styles.pagination}>
-          <p>Menampilkan {currentItems.length} dari {filteredKrama.length} data</p>
+          <p>Menampilkan {currentItems.length} dari {filteredRiwayat.length} data</p>
           <div className={styles.pageButtons}>
             {renderPageNumbers()}
           </div>
@@ -433,4 +407,4 @@ const DataKramaPersonal = () => {
   );
 };
 
-export default DataKramaPersonal;
+export default PengajuanRole;

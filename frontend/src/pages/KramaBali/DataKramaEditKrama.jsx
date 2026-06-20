@@ -16,11 +16,12 @@ import Footer from '../../components/Footer/Footer.jsx';
 import styles from './DataKramaBaru.module.css';
 
 const DataKramaEditKrama = () => {
-  const navigate = useNavigate();
   const { id: slugParam } = useParams();
+
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-
+  
   // STATE WILAYAH ADAT:
   const [desaList, setDesaList] = useState([]);
   const [kecamatanList, setKecamatanList] = useState([]);
@@ -61,7 +62,7 @@ const DataKramaEditKrama = () => {
       const encodedId = parts[parts.length - 1];
       return atob(encodedId);
     } catch (error) {
-      console.error("Gagal melakukan decode ID dari slug URL:", error);
+      console.error("Format slug tidak valid:", error);
       return null;
     }
   }, [slugParam]);
@@ -231,7 +232,7 @@ const DataKramaEditKrama = () => {
 
       await axiosInstance.put(`/krama-bali/${realId}`, payloadKrama);
 
-      navigate(`/krama-bali/detail/${slugParam}`, { 
+      navigate(`/krama-bali/my-data/detail/${slugParam}`, { 
         state: { successMessage: 'Perubahan data krama bali berhasil disimpan!' } 
       });
     } catch (error) {
@@ -252,7 +253,7 @@ const DataKramaEditKrama = () => {
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Memperbarui Data Krama Bali
+            Perbarui Data Krama Bali
           </h2>
           <p className={styles.navSubtitle}>
             Perbaiki data lama krama bali dengan data baru yang sebenarnya dan sah
@@ -651,7 +652,7 @@ const DataKramaEditKrama = () => {
                 <button 
                   onClick={() => {
                     setShowCancelModal(false);
-                    navigate(`/krama-bali/detail/${slugParam}`);
+                    navigate(`/krama-bali/my-data/detail/${slugParam}`);
                   }}
                   className={styles.btnDelete}>
                   <FaTimes size={15} /> {isLoading ? 'Memproses...' : 'Ya, Batalkan'}

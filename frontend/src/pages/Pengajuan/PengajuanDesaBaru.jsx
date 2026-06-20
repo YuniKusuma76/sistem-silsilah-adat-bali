@@ -72,11 +72,11 @@ const PengajuanDesaBaru = () => {
           setNamaDesaAsal('Tidak Terikat Desa Adat');
         }
       } catch (error) {
-        console.error("Gagal memuat data awal formulir:", error);
+        console.error(error);
         setAlert({
           show: true,
           type: 'error',
-          message: 'Gagal memuat data profil atau data wilayah adat.'
+          message: 'Gagal memuat data wilayah adat pengguna.'
         });
       } finally {
         setIsLoading(false);
@@ -122,14 +122,13 @@ const PengajuanDesaBaru = () => {
   
   // Effect: Auto-close alert
   useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert(prev => ({ 
-        ...prev, 
-        show: false 
-      })), 3000);
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [alert.show]);
+  }, [alert.show, alert.type]);
 
   // Helper: Fungsi upload file dokumen pendukung
   const handleFileChange = (e) => {
@@ -148,24 +147,25 @@ const PengajuanDesaBaru = () => {
     }
   };
 
-  // SUBMIT DATA
+  // SUBMIT DATA PERMOHONAN
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Validasi Form
+
+    // Validasi desa adat tujuan
     if (!desaAdatIdTujuan) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Silakan pilih desa adat yang diajukan!' 
+        message: 'Silakan pilih desa adat tujuan yang ingin diajukan!' 
       });
       return;
     }
-
+    // Validasi alasan mutasi
     if (!alasanPindah.trim() || !fileDokumen) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Alasan dan dokumen pendukung wajib diisi!' 
+        message: 'Alasan permohona dan dokumen pendukung wajib diisi!' 
       });
       window.scrollTo(0, 0);
       return;
@@ -175,7 +175,6 @@ const PengajuanDesaBaru = () => {
     formData.append('desa_adat_id_tujuan', desaAdatIdTujuan);
     formData.append('alasan_pindah', alasanPindah);
     formData.append('dokumen_pendukung', fileDokumen);
-
     setIsLoading(true);
 
     try {
@@ -184,14 +183,14 @@ const PengajuanDesaBaru = () => {
       });
       navigate('/pengajuan-desa-adat/my-data', { 
         state: { 
-          successMessage: 'Permohonan berhasil dikirim! Mohon tunggu verifikasi.' 
+          successMessage: 'Permohonan mutasi desa adat berhasil dikirim! Menunggu verifikasi dari admin...' 
         } 
       });
     } catch (error) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || 'Gagal mengirim permohonan desa adat.' 
+        message: error.response?.data?.message || 'Gagal mengirim permohonan mutasi desa adat.' 
       });
       window.scrollTo(0, 0);
     } finally {
@@ -205,10 +204,10 @@ const PengajuanDesaBaru = () => {
         <nav className={styles.navbar}>
           <div className={styles.navLeft}>
             <h2 className={styles.navTitle}>
-              Pengajuan Desa Adat Baru
+              Pengajuan Permohonan Mutasi Desa Adat
             </h2>
             <p className={styles.navSubtitle}>
-              Lengkapi formulir pengajuan perubahan desa adat dengan data yang valid dan sah
+              Lengkapi formulir pengajuan permohonan mutasi desa adat dengan data yang valid dan sah
             </p>
           </div>
           <div className={styles.navRight}>
@@ -226,35 +225,56 @@ const PengajuanDesaBaru = () => {
         </nav>
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-section 
-          ${alert.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+        <div className={`alert-section
+          ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
+            : alert.type === 'error' ? 'border-red-500 bg-red-50'
+            : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
+            : 'border-blue-500 bg-blue-50'}`
+          }>
           <div className="flex items-start p-4">
-            <div className="flex-shrink-0 mr-3 mt-2 text-2xl">
-              {alert.type === 'success' ? '✅' : '⚠️'}
+            {/* Icon */}
+            <div className="flex-shrink-0 mr-3 text-2xl">
+              {alert.type === 'success' && '✅'}
+              {alert.type === 'error' && '❌'}
+              {alert.type === 'warning' && '⚠️'}
+              {alert.type === 'loading' && '⏳'}
             </div>
+            {/* Content */}
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${alert.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                {alert.type === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan.'}
+              <h4 className={`font-bold text-sm 
+                ${alert.type === 'success' ? 'text-green-800' 
+                  : alert.type === 'error' ? 'text-red-800' 
+                  : alert.type === 'warning' ? 'text-amber-800'
+                  : 'text-blue-800'}`
+                }>
+                {alert.type === 'success' ? 'Berhasil!' 
+                  : alert.type === 'error' ? 'Terjadi Kesalahan!' 
+                  : alert.type === 'warning' ? 'Perhatian Adat!'
+                  : 'Mohon Tunggu...'
+                }
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {alert.message}
               </p>
             </div>
+            {/* Close Button */}
             <button onClick={() => setAlert(prev => ({ ...prev, show: false }))} className="alert-button">
-              &times;
+              <span className="text-2xl leading-none">&times;</span>
             </button>
           </div>
-          {(alert.type === 'success' || alert.type === 'error') && (
+          {/* Progress Bar Line */}
+          {(alert.type === 'success' || alert.type === 'error' || alert.type === 'warning') && (
             <div className="h-1.5 w-full bg-gray-200">
-              <div className={`h-full animate-shrink ${alert.type === 'success' 
-                ? 'bg-green-500' 
-                : 'bg-red-500'}`}>
-              </div>
+              <div className={`h-full animate-shrink ${
+                alert.type === 'success' ? 'bg-green-500' : 
+                alert.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+                }`
+              }></div>
             </div>
           )}
         </div>
       )}
-      {/* Form Permohonan */}
+      {/* Form Permohonan Desa Adat */}
       <div className={styles.contentArea}>
         <div className={styles.cardContainer}>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -315,6 +335,7 @@ const PengajuanDesaBaru = () => {
                   </div>
                 )}
               </div>
+              {/* Desa Adat Tujuan */}
               <div ref={dropdownRef} className="space-y-4 animate-fade-in">
                 <div>
                   <label className={styles.labelInputSelect}>
@@ -414,7 +435,7 @@ const PengajuanDesaBaru = () => {
               </label>
               <textarea 
                 className={styles.inputText}
-                placeholder="Jelaskan alasan pengajuan perubahan desa adat..."
+                placeholder="Jelaskan alasan pengajuan permohonan mutasi desa adat..."
                 value={alasanPindah}
                 onChange={(e) => setAlasanPindah(e.target.value)}
                 disabled={isLoading}
@@ -460,7 +481,7 @@ const PengajuanDesaBaru = () => {
                       </p>
                     </div>
                     <p className="text-xs text-gray-500">
-                      PNG, JPG, PDF, Max 5MB
+                      PNG, JPG, JPEG, PDF, Max 5MB
                     </p>
                   </>
                 )}

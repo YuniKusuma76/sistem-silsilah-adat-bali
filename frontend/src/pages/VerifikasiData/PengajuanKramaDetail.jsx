@@ -8,6 +8,7 @@ import {
 import { 
   FaArrowLeft, 
   FaEdit, 
+  FaUserCheck,
   FaSitemap, 
   FaUser, 
   FaVenusMars, 
@@ -22,51 +23,15 @@ import {
   FaTrash,
   FaList,
   FaCalendarAlt,
-  FaExclamationTriangle,
-  FaUserCog,
   FaTimes,
-  FaCheck,
-  FaArrowRight,
   FaHourglassHalf,
-  FaPlusCircle  
+  FaExclamationTriangle,
+  FaCheck,
+  FaArrowRight 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
-import styles from './DataKramaDetail.module.css';
-
-// Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
-  if (!isOpen) return null;
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={`${styles.modalContainer} animate-fade-in`}>
-        <div className="p-6">
-          <div className="flex justify-center mb-5 mt-6">
-            <div className={styles.elipsis}>
-              <FaExclamationTriangle className="text-red-600 text-2xl" />
-            </div>
-          </div>
-          <div className="text-center">
-            <h3 className="text-base font-bold text-black mb-2">
-              {title}
-            </h3>
-            <p className="text-xs text-gray-600">
-              {message}
-            </p>
-          </div>
-          <div className="mt-10 flex gap-3 justify-center">
-            <button onClick={onClose} disabled={isProcessing} className={styles.btnCancel}>
-              Kembali
-            </button>
-            <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Hapus'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+import styles from './PengajuanKramaDetail.module.css';
 
 // Helper: Membuat format tanggal indonesia
 const formatDate = (dateString) => {
@@ -116,10 +81,9 @@ const createSlug = (namaLengkap, tipeData, id) => {
   return `${safeName}-${safeType}-${encodedId}`;
 };
 
-const DataKramaDetail = ({ user }) => {
+const PengajuanKramaDetail = ({ user }) => {
   const { id: slugParam } = useParams();
   const [isLoading, setIsLoading] = useState(true);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const [krama, setKrama] = useState(null);
   const [relasiList, setRelasiList] = useState([]);
@@ -129,10 +93,17 @@ const DataKramaDetail = ({ user }) => {
 
   const [keluargaMap, setKeluargaMap] = useState({});
   const [masterDesaMap, setMasterDesaMap] = useState({});
-  const [isOpenModalKrama, setIsOpenModalKrama] = useState(false);
-  const [isOpenModalRelasi, setIsOpenModalRelasi] = useState(false); 
-  const [modalRelasiData, setModalRelasiData] = useState(null);
-  const [isProcessingAction, setIsProcessingAction] = useState(false);
+
+  const [isOpenModalKelola, setIsOpenModalKelola] = useState(false); 
+  const [verifyAction, setVerifyAction] = useState('Disetujui');
+  const [catatanValidator, setCatatanValidator] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [isOpenModalRelasi, setIsOpenModalRelasi] = useState(false);
+  const [selectedRelasi, setSelectedRelasi] = useState(null); 
+  const [verifyRelasiAction, setVerifyRelasiAction] = useState('Disetujui');
+  const [catatanRelasiValidator, setCatatanRelasiValidator] = useState('');
+  const [isSubmittingRelasi, setIsSubmittingRelasi] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -143,16 +114,7 @@ const DataKramaDetail = ({ user }) => {
     type: '',
     message: ''
   });
-
-  // State menampilkan modal konfirmasi
-  const [modalDelete, setModalDelete] = useState({ 
-    isOpen: false,
-    type: '',       
-    targetId: null,  
-    title: '',
-    message: ''
-  });
-
+  
   // Helper: Decode slug url menjadi id asli
   const realId = useMemo(() => {
     if (!slugParam) return null;
@@ -167,60 +129,49 @@ const DataKramaDetail = ({ user }) => {
     }
   }, [slugParam]);
 
+  // Helper: Fungsi hak akses manajemen data krama
+  const hasAccess = useMemo(() => {
+    if (!user || !krama) return false;
+    if (user.role === 'Super Admin') return true;
+    if (user.role === 'Admin Desa') {
+      const userDesaId = String(user.desa_adat_id || user.desaAdatId || user.desa_adat?.id);
+      const kramaDesaId = String(krama.desa_adat_id || krama.desaAdatId || krama.desa_id);
+      if (String(user.id || user.userId) === String(krama.user_id)) return true;
+
+      if (userDesaId === kramaDesaId) return true;
+      const isDesaTujuan = relasiList.some(r => {
+        const tujuanId = String(r.desa_adat_id_tujuan || r.data_perubahan?.desa_adat_id_tujuan || "");
+        return tujuanId === userDesaId;
+      });
+
+      return isDesaTujuan;
+    }
+    if (user.role === 'Krama') {
+      return String(user.id || user.userId) === String(krama.user_id);
+    }
+    return false;
+  }, [user, krama, relasiList]);
+
   // Effect: Mengambil data master krama bali
-  const fetchAllData = async () => {
+  const fetchDetailData = async () => {
     if (!realId) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
     try {
-      const resKrama = await axiosInstance.get(`/krama-bali/${realId}`);
-      const kramaData = resKrama.data.data;
-      setKrama(kramaData);
-
-      const isOwner = user && kramaData && (
-        (String(user.id) === String(kramaData.user_id) || 
-        String(user.userId) === String(kramaData.user_id))
-        && kramaData.user_id !== null 
-        && kramaData.user_id !== undefined
-      );
-
-      let relasiQueryMode = 'public'; 
-
-      if (user?.role === 'Super Admin') {
-        relasiQueryMode = 'verification';
-      } else if (user?.role === 'Admin Desa') {
-        const userDesaId = user.desa_adat_id || user.desaAdatId || user.desa_adat?.id;
-        const kramaDesaId = kramaData?.desa_adat_id || kramaData?.desaAdatId || kramaData?.desa_id;
-        
-        if (kramaData && String(userDesaId) === String(kramaDesaId)) {
-          relasiQueryMode = 'verification';
-        } else {
-          relasiQueryMode = 'public';
-        }
-      } else if (user?.role === 'Krama') {
-        if (isOwner) {
-          relasiQueryMode = 'personal';
-        } else {
-          relasiQueryMode = 'public';
-        }
-      } else {
-        relasiQueryMode = 'public';
-      }
-
-      console.log("Mengirim relasiQueryMode ke backend:", relasiQueryMode);
-
+      setIsLoading(true);
       const [
-        resRelasi,
-        resPerkawinan,
-        resRiwayatKeluarga,
-        resPeranAdat,
-        resKeluarga,
+        resKrama, 
+        resRelasi, 
+        resPerkawinan, 
+        resRiwayatKeluarga, 
+        resPeranAdat, 
+        resKeluarga, 
         resDesaAdat
       ] = await Promise.allSettled([
-        axiosInstance.get(`/relasi-krama?anak_id=${realId}&mode=${relasiQueryMode}`),
-        axiosInstance.get('/perkawinan?mode=public'),
+        axiosInstance.get(`/krama-bali/${realId}`),
+        axiosInstance.get(`/relasi-krama?anak_id=${realId}&mode=verification`),
+        axiosInstance.get('/perkawinan'),
         axiosInstance.get('/riwayat-keluarga'),
         axiosInstance.get('/riwayat-peran-adat'),
         axiosInstance.get('/keluarga'),
@@ -283,7 +234,7 @@ const DataKramaDetail = ({ user }) => {
       setAlert({
         show: true,
         type: 'error',
-        message: 'Gagal memuat detail data krama bali.'
+        message: 'Gagal memuat detail data verifikasi krama bali.'
       });
     } finally {
       setIsLoading(false);
@@ -291,32 +242,87 @@ const DataKramaDetail = ({ user }) => {
   };
 
   useEffect(() => {
-    fetchAllData();
+    fetchDetailData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realId]);
 
-  // Helper: Hak akses manajemen data
-  const hasAccess = useMemo(() => {
-    if (!user || !krama) return false;
-    if (user.role === 'Super Admin') return true;
-    if (user.role === 'Admin Desa') {
-      const currentUserId = user.id || user.userId;
-      const creatorId = krama.user_id || krama.userId;
-      if (currentUserId && creatorId && String(currentUserId) === String(creatorId)) {
-        return true;
-      }
-      const userDesaId = user.desa_adat_id || user.desaAdatId || user.desa_adat?.id;
-      const kramaDesaId = krama.desa_adat_id || krama.desaAdatId || krama.desa_id;
-      return String(userDesaId) === String(kramaDesaId);
+  // Helper: Fungsi verifikasi data krama bali
+  const handleVerifyKrama = async () => {
+    if (verifyAction === 'Ditolak' && !catatanValidator.trim()) {
+      setAlert({
+        show: true,
+        type: 'warning',
+        message: 'Wajib mengisi catatan/alasan ketika pengajuan pendaftaran data krama bali ditolak!'
+      });
+      return;
     }
-    if (user.role === 'Krama') {
-      return user.id === krama.user_id || user.userId === krama.user_id;
+    setIsSubmitting(true);
+    try {
+      await axiosInstance.patch(`/krama-bali/verifikasi/${realId}`, {
+        status_verifikasi: verifyAction,
+        catatan_admin_desa: catatanValidator
+      });
+
+      setAlert({
+        show: true,
+        type: 'success',
+        message: `Pengajuan data krama bali berhasil diproses dengan status: ${verifyAction}.`
+      });
+      
+      setIsOpenModalKelola(false); 
+      setCatatanValidator(''); 
+      fetchDetailData();
+    } catch (error) {
+      console.error(error);
+      setAlert({
+        show: true,
+        type: 'error',
+        message: error.response?.data?.message || 'Gagal menyimpan keputusan verifikasi data krama bali.'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-    if (user.role === 'Pakar' || user.role === 'Viewer') {
-      return false;
+  };
+
+  // Helper: Fungsi verifikasi data relasi krama
+  const handleVerifyRelasi = async () => {
+    if (!selectedRelasi?.id) return;
+    if (verifyRelasiAction === 'Ditolak' && !catatanRelasiValidator.trim()) {
+      setAlert({
+        show: true,
+        type: 'warning',
+        message: 'Wajib mengisi catatan/alasan ketika pengajuan pendaftaran data relasi krama ditolak!'
+      });
+      return;
     }
-    return false;
-  }, [user, krama]);
+    setIsSubmittingRelasi(true);
+    try {
+      await axiosInstance.patch(`/relasi-krama/verifikasi/${selectedRelasi.id}`, {
+        status_verifikasi: verifyRelasiAction,
+        catatan_admin_desa: catatanRelasiValidator 
+      });
+
+      setAlert({
+        show: true,
+        type: 'success',
+        message: `Pengajuan data relasi krama berhasil diproses dengan status: ${verifyRelasiAction}.`
+      });
+      
+      setIsOpenModalRelasi(false);
+      setCatatanRelasiValidator('');
+      setSelectedRelasi(null);
+      fetchDetailData();
+    } catch (error) {
+      console.error(error);
+      setAlert({
+        show: true,
+        type: 'error',
+        message: error.response?.data?.message || 'Gagal menyimpan keputusan verifikasi data relasi krama.'
+      });
+    } finally {
+      setIsSubmittingRelasi(false);
+    }
+  };
 
   // Effect: Alert Diteruskan ke alert halaman lain
   useEffect(() => {
@@ -329,7 +335,7 @@ const DataKramaDetail = ({ user }) => {
       window.history.replaceState({}, document.title);
     }
   }, [location]);
-  
+
   // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
@@ -342,201 +348,37 @@ const DataKramaDetail = ({ user }) => {
 
   // Effect: Menangani scroll ketika modal ditampilkan
   useEffect(() => {
-    if (isOpenModalKrama) {
+    if (isOpenModalKelola || isOpenModalRelasi) {
       document.body.classList.add("no-scroll");
-      return () => {
-        document.body.classList.remove("no-scroll");
-      };
+    } else {
+      document.body.classList.remove("no-scroll");
     }
-  }, [isOpenModalKrama]);
+    return () => {
+      document.body.classList.remove("no-scroll");
+    };
+  }, [isOpenModalKelola, isOpenModalRelasi]);
 
-  // Helper: Membatalkan perubahan data krama bali
-  const handleCancelUpdateKrama = async () => {
-    setIsProcessingAction(true);
-    try {
-      await axiosInstance.patch(`/krama-bali/cancel-update/${realId}`);
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: 'Draft usulan perubahan data krama bali berhasil dibatalkan!' 
-      });
-      setIsOpenModalKrama(false);
-      fetchAllData();
-    } catch (error) {
-      setAlert({ 
-        show: true, 
-        type: 'error', 
-        message: error.response?.data?.message || 'Gagal membatalkan draft usulan perubahan data krama bali.' 
-      });
-    } finally {
-      setIsProcessingAction(false);
-    }
-  };
-
-  // Helper: Mengambil detail data relasi krama
-  const fetchDetailRelasi = async (relasiId) => {
-    setIsProcessingAction(true);
-    try {
-      const cleanId = String(relasiId).trim();
-      let relasiQueryMode = 'public';
-
-      if (user?.role === 'Super Admin' || user?.role === 'Admin Desa') {
-        relasiQueryMode = 'verification';
-      } else if (user?.role === 'Krama') {
-        const isOwner = krama && (user?.id === krama.user_id || user?.userId === krama.user_id);
-        relasiQueryMode = isOwner ? 'personal' : 'public';
-      } else if (user?.role === 'Pakar' || user?.role === 'Viewer') {
-        relasiQueryMode = 'public';
+  // Effect: Mengotomatiskan pilihan tombol verifikasi relasi mengikuti data yang dibuka
+  useEffect(() => {
+    if (selectedRelasi) {
+      const statusSistem = selectedRelasi.status_verifikasi;
+      if (statusSistem === 'Draft' || statusSistem === 'Menunggu Penerimaan' || statusSistem === 'Menunggu Pelepasan' || !statusSistem) {
+        setVerifyRelasiAction('Disetujui');
+      } else {
+        setVerifyRelasiAction(statusSistem);
       }
-      
-      const response = await axiosInstance.get(`/relasi-krama/${cleanId}?mode=${relasiQueryMode}`);
-      const rawResponseData = response.data?.data || response.data;
-      const dataRelasi = Array.isArray(rawResponseData) ? rawResponseData[0] : rawResponseData;
-      
-      setModalRelasiData(dataRelasi); 
-      setIsOpenModalRelasi(true); 
-    } catch (error) {
-      console.error(error);
-      setAlert({ 
-        show: true, 
-        type: 'error', 
-        message: 'Gagal memuat detail perubahan data relasi krama.' 
-      });
-    } finally {
-      setIsProcessingAction(false);
     }
-  };
-
-  // Helper: Membatalkan perubahan data relasi krama
-  const handleCancelUpdateRelasi = async (relasiId) => {
-    setIsProcessingAction(true);
-    try {
-      await axiosInstance.patch(`/relasi-krama/cancel-update/${relasiId}`);
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: 'Draft usulan perubahan data relasi krama berhasil dibatalkan!' 
-      });
-      setIsOpenModalRelasi(false);
-      fetchAllData();
-    } catch (error) {
-      setAlert({ 
-        show: true, 
-        type: 'error', 
-        message: error.response?.data?.message || 'Gagal membatalkan draft usulan perubahan data relasi krama.' 
-      });
-    } finally {
-      setIsProcessingAction(false);
-    }
-  };
-
-  // Helper: Menampilkan modal konfirmasi
-  const handleConfirmDelete = async () => {
-    const { type, targetId } = modalDelete;
-    if (!targetId) return;
-    setModalDelete(prev => ({ 
-      ...prev, 
-      isOpen: false 
-    }));
-    if (type === 'relasi') {
-      await handleDeleteRelasi(targetId);
-    } 
-    else if (type === 'krama') {
-      await handleDelete(); 
-    }
-  };
-
-  // Helper: Menghapus data krama bali
-  const handleDelete = async () => {
-    if (!realId) return;
-    setIsDeleting(true);
-    try {
-      await axiosInstance.delete(`/krama-bali/${realId}`);
-      const targetRoute = location.state?.fromPersonal ? '/krama-bali/my-data' : '/krama-bali';
-      navigate(targetRoute, { 
-        state: { successMessage: 'Data krama bali berhasil dihapus secara permanen!' } 
-      });
-    } catch (error) {
-      console.error(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: error.response?.data?.message || 'Gagal menghapus data krama bali.'
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // Helper: Menghapus data krama bali
-  const handleDeleteRelasi = async (relasiId) => {
-    if (!relasiId) return;
-    setIsDeleting(true);
-    try {
-      await axiosInstance.delete(`/relasi-krama/${relasiId}`);
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: 'Data relasi krama berhasil dihapus secara permanen!' 
-      });
-      fetchAllData();
-    } catch (error) {
-      console.error(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: error.response?.data?.message || 'Gagal menghapus data relasi krama.'
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // Helper: Navigasi ke form mengedit data krama bali
-  const handleEditRedirect = () => {
-    setIsOpenModalKrama(false);
-    const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
-    navigate(`/krama-bali/detail/edit-krama/${slug}`);
-  };
-
-  // Helper: Navigasi ke form mengedit data relasi krama
-  const handleEditRelasiRedirect = () => {
-    if (!modalRelasiData || !modalRelasiData.id) return;
-    
-    setIsOpenModalRelasi(false);
-    const tipeDataAsli = krama?.tipe_data || 'keturunan';
-    const slugRelasi = createSlug(krama?.nama_lengkap, tipeDataAsli, modalRelasiData.id);
-    navigate(`/krama-bali/detail/edit-relasi/${slugRelasi}`);
-  };
-
-  // Helper: Navigasi ke form menambahkan data relasi krama
-  const handleAddRelasiRedirect = () => {
-    if (!krama || !krama.id) {
-      console.warn("Data objek krama utama tidak ditemukan.");
-      return;
-    }
-    setIsOpenModalRelasi(false);
-    const tipeDataAsli = krama?.tipe_data || 'keturunan';
-    const slugRelasi = createSlug(krama?.nama_lengkap, tipeDataAsli, krama.id);
-    navigate(`/krama-bali/detail/add-relasi/${slugRelasi}`);
-  };
-
-  // Helper: Menampilkan modal konfirmasi menghapus data krama bali
-  const handleTriggerDelete = () => {
-    setIsOpenModalKrama(false);
-    setModalDelete({
-      isOpen: true,
-      type: 'krama',
-      targetId: realId,
-      title: 'Konfirmasi Menghapus Data Krama Bali',
-      message: 'Apakah Anda yakin ingin menghapus data krama bali ini secara permanen beserta seluruh riwayatnya?'
-    });
-  };
+  }, [selectedRelasi]);
 
   // Helper: Menangani tombol kembali
   const handleBack = () => {
-    const targetRoute = location.state?.fromPersonal ? '/krama-bali/my-data' : '/krama-bali';
-    navigate(targetRoute);
+    if (location.state?.fromPerkawinan) {
+      navigate('/verifikasi-data/perkawinan');
+    } else if (location.state?.fromRelasi) {
+      navigate('/verifikasi-data/relasi-krama');
+    } else {
+      navigate('/verifikasi-data/krama-bali');
+    }
   };
 
   // Helper: Menangani filter data master
@@ -604,11 +446,9 @@ const DataKramaDetail = ({ user }) => {
   }, [krama, relasiList, perkawinanList, riwayatKeluargaList, peranAdatList]);
 
   // Ekstraksi data krama aktif
-  const { 
-    status_verifikasi, 
-    catatan_admin_desa, 
-    is_pending_update, 
+  const {
     data_perubahan,
+    is_pending_update,
     nama_lengkap,
     nama_panggilan,
     jenis_kelamin,
@@ -682,16 +522,32 @@ const DataKramaDetail = ({ user }) => {
     );
   };
 
-  const renderPerubahanRelasiRow = (label, nilaiLama, namaField, type = 'text') => {
-    let data_perubahan_relasi = modalRelasiData?.data_perubahan;
-    if (data_perubahan_relasi && data_perubahan_relasi.data_perubahan) {
-      data_perubahan_relasi = data_perubahan_relasi.data_perubahan;
-    }
+  const renderLivePerubahanRelasi = (label, nilaiLama, namaField, relasiObj, type = 'text') => {
+    const dataPerubahan = relasiObj?.data_perubahan || {};
 
-    if (!data_perubahan_relasi || data_perubahan_relasi[namaField] === undefined) return null;
+    let nilaiBaru = dataPerubahan[namaField] !== undefined 
+      ? dataPerubahan[namaField] 
+      : relasiObj[namaField]; 
 
-    let nilaiBaru = data_perubahan_relasi[namaField];
+    if (namaField === 'status_hubungan') nilaiBaru = dataPerubahan.status_hubungan;
+
     let nilaiLamaDiformat = nilaiLama;
+
+    if (type === 'desa_adat') {
+      const idLamaStr = String(nilaiLama);
+      if (masterDesaMap && masterDesaMap[idLamaStr]) {
+        nilaiLamaDiformat = `Desa Adat ${masterDesaMap[idLamaStr].trim()}`;
+      } else {
+        nilaiLamaDiformat = nilaiLama && String(nilaiLama) !== "null" ? `Desa Adat ID ${nilaiLama}` : '-';
+      }
+
+      const idBaruStr = String(nilaiBaru);
+      if (masterDesaMap && masterDesaMap[idBaruStr]) {
+        nilaiBaru = `Desa Adat ${masterDesaMap[idBaruStr].trim()}`;
+      } else {
+        nilaiBaru = nilaiBaru && String(nilaiBaru) !== "null" ? `Desa Adat ID ${nilaiBaru}` : '-';
+      }
+    }
 
     if (type === 'date') {
       nilaiLamaDiformat = formatDate(nilaiLama);
@@ -701,30 +557,28 @@ const DataKramaDetail = ({ user }) => {
     if (type === 'krama') {
       nilaiLamaDiformat = nilaiLama && String(nilaiLama).trim() !== "null" ? nilaiLama : 'Tidak Diketahui';
       if (namaField === 'ayah_id') {
-        const namaAyah = data_perubahan_relasi?.nama_ayah_baru || modalRelasiData?.ayah?.nama_lengkap;
+        const namaAyah = dataPerubahan?.nama_ayah_baru || relasiObj?.ayah?.nama_lengkap;
         nilaiBaru = (namaAyah && String(namaAyah).trim() !== "null") ? namaAyah : 'Tidak Diketahui';
       } else if (namaField === 'ibu_id') {
-        const namaIbu = data_perubahan_relasi?.nama_ibu_baru || modalRelasiData?.ibu?.nama_lengkap;
+        const namaIbu = dataPerubahan?.nama_ibu_baru || relasiObj?.ibu?.nama_lengkap;
         nilaiBaru = (namaIbu && String(namaIbu).trim() !== "null") ? namaIbu : 'Tidak Diketahui';
       }
     }
 
-    if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim()) return null;
+    if (String(nilaiLamaDiformat || '').trim() === String(nilaiBaru || '').trim()) return null;
 
     return (
-      <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
-        <td className={styles.labelChange}>
+      <tr className="hover:bg-gray-50 transition-colors text-xs" key={namaField}>
+        <td className={styles.labelChange + " p-2 font-medium text-gray-500"}>
           {label}
         </td>
-        <td className="p-3 border-r border-gray-100">
-          <span className={styles.oldValue}>
-            {nilaiLamaDiformat ?? '-'}
-          </span>
+        <td className="p-2 border-r border-gray-100 text-gray-600 font-semibold">
+          {nilaiLamaDiformat ?? '-'}
         </td>
-        <td className="p-3">
-          <div className="flex items-center gap-2">
-            <FaArrowRight className={styles.arrows} />
-            <span className={styles.newValue}>
+        <td className="p-2">
+          <div className="flex items-center gap-1.5">
+            <FaArrowRight className="text-amber-600 text-[10px]" />
+            <span className="font-bold text-amber-700">
               {nilaiBaru ?? '-'}
             </span>
           </div>
@@ -760,7 +614,7 @@ const DataKramaDetail = ({ user }) => {
     wilayahAdatLengkap,
     alamatAsalLuar
   } = processedData;
-
+  
   return (
     <div className={styles.detailContainer}>
       {/* Navbar Section */}
@@ -786,15 +640,6 @@ const DataKramaDetail = ({ user }) => {
           </div>
         </div>
       </nav>
-      {/* Modal Konfirmasi */}
-      <ConfirmationModal 
-        isOpen={modalDelete.isOpen}
-        title={modalDelete.title}
-        message={modalDelete.message}
-        onClose={() => setModalDelete(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={handleConfirmDelete}
-        isProcessing={isDeleting || isProcessingAction}
-      />
       {/* Alert Section */}
       {alert.show && (
         <div className={`alert-section
@@ -923,10 +768,48 @@ const DataKramaDetail = ({ user }) => {
                   )}
                 </div>
               </div>
+              {/* Data Perubahan */}
+              {is_pending_update && data_perubahan && (
+                <div className={styles.cardAreaChange}>
+                  <div className={styles.cardTitle}>
+                    <FaExclamationTriangle className={styles.cardIcon} />
+                    Draft Usulan Perubahan Data Krama Bali
+                  </div>
+                  <div className={styles.cardTable}>
+                    <table className={styles.table}>
+                      <thead>
+                        <tr className={styles.tableHeader}>
+                          <th className="p-3 w-1/4">Kategori</th>
+                          <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
+                          <th className="p-3 w-3/8">Usulan Perubahan</th>
+                        </tr>
+                      </thead>
+                      <tbody className={styles.tableBody}>
+                        {renderPerubahanRow("Nama Lengkap", nama_lengkap, "nama_lengkap")}
+                        {renderPerubahanRow("Nama Panggilan", nama_panggilan, "nama_panggilan")}
+                        {renderPerubahanRow("Jenis Kelamin", jenis_kelamin, "jenis_kelamin")}
+                        {renderPerubahanRow("Tanggal Lahir", tanggal_lahir, "tanggal_lahir", "date")}
+                        {renderPerubahanRow("Status Hidup", status_hidup, "status_hidup")}
+                        {renderPerubahanRow("Asal Wilayah", is_bali, "is_bali", "boolean")}
+                        {renderPerubahanRow("Desa Adat", krama.desa_adat_id, "desa_adat_id", "desa_adat")}
+                        {renderPerubahanRow("Tempat Asal Khusus", tempat_asal_khusus, "tempat_asal_khusus")}
+                        {renderPerubahanRow("Alamat Luar", alamat_luar, "alamat_luar")}
+                        {renderPerubahanRow("Tipe Data", tipe_data, "tipe_data")}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               {hasAccess && (
                 <div className="flex justify-end mt-3 border-t border-gray-100">
-                  <button onClick={() => setIsOpenModalKrama(true)} className={styles.btnInfoDetail}>
-                    <FaEdit className="mb-0.5"/> Kelola Data
+                  <button 
+                    onClick={() => {
+                      setCatatanValidator('');
+                      setIsOpenModalKelola(true);
+                    }}
+                    className={styles.btnInfoDetail}
+                  >
+                    <FaUserCheck className="mb-0.5"/> Kelola Data
                   </button>
                 </div>
               )}
@@ -976,16 +859,44 @@ const DataKramaDetail = ({ user }) => {
                         )}
                       </div>
                     </div>
-                    {hasAccess && orangTuaKandung.id && (
-                      <div className="flex justify-end mt-3 border-t border-gray-100/50 pt-2">
+                    {/* Data Perubahan */}
+                    {orangTuaKandung.is_pending_update && orangTuaKandung.data_perubahan && (
+                      <div className={styles.cardAreaChange}>
+                        <div className={styles.cardTitle}>
+                          <FaExclamationTriangle className={styles.cardIcon} />
+                          Draft Usulan Perubahan Data Relasi Krama
+                        </div>
+                        <div className={styles.cardTable}>
+                          <table className={styles.table}>
+                            <thead>
+                              <tr className={styles.tableHeader}>
+                                <th className="p-3 w-1/4">Kategori</th>
+                                <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
+                                <th className="p-3 w-3/8">Usulan Perubahan</th>
+                              </tr>
+                            </thead>
+                            <tbody className={styles.tableBody}>
+                              {renderLivePerubahanRelasi("Ayah Kandung", orangTuaKandung.ayah?.nama_lengkap || 'Tidak Diketahui', "ayah_id", orangTuaKandung, "krama")}
+                              {renderLivePerubahanRelasi("Ibu Kandung", orangTuaKandung.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", orangTuaKandung, "krama")}
+                              {renderLivePerubahanRelasi("Status Hubungan", orangTuaKandung.status_hubungan, "status_hubungan", orangTuaKandung)}
+                              {renderLivePerubahanRelasi("Urutan Lahir (Anak Ke)", orangTuaKandung.urutan_lahir, "urutan_lahir", orangTuaKandung)}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {hasAccess && (
+                      <div className="flex justify-end mt-3 border-t border-gray-100">
                         <button 
                           onClick={() => {
-                            setModalRelasiData(null);
-                            fetchDetailRelasi(orangTuaKandung.id);
+                            setSelectedRelasi(orangTuaKandung);
+                            setVerifyRelasiAction(orangTuaKandung.status_verifikasi || 'Draft');
+                            setCatatanRelasiValidator('');
+                            setIsOpenModalRelasi(true);
                           }}
                           className={styles.btnInfoDetail}
                         >
-                          <FaEdit className="mb-0.5 mr-1"/> Kelola Ortu Kandung
+                          <FaUserCheck className="mb-0.5 mr-1"/> Kelola Relasi Kandung
                         </button>
                       </div>
                     )}
@@ -1034,16 +945,46 @@ const DataKramaDetail = ({ user }) => {
                         )}
                       </div>
                     </div>
-                    {hasAccess && angkat.id && (
-                      <div className="flex justify-end mt-3 border-t border-gray-100/50 pt-2">
+                    {/* Data Perubahan */}
+                    {angkat.is_pending_update && angkat.data_perubahan && (
+                      <div className={styles.cardAreaChange}>
+                        <div className={styles.cardTitle}>
+                          <FaExclamationTriangle className={styles.cardIcon} />
+                          Draft Usulan Perubahan Data Relasi Krama
+                        </div>
+                        <div className={styles.cardTable}>
+                          <table className={styles.table}>
+                            <thead>
+                              <tr className={styles.tableHeader}>
+                                <th className="p-3 w-1/4">Kategori</th>
+                                <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
+                                <th className="p-3 w-3/8">Usulan Perubahan</th>
+                              </tr>
+                            </thead>
+                            <tbody className={styles.tableBody}>
+                              {renderLivePerubahanRelasi("Ayah Angkat", angkat.ayah?.nama_lengkap || 'Tidak Diketahui', "ayah_id", angkat, "krama")}
+                              {renderLivePerubahanRelasi("Ibu Angkat", angkat.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", angkat, "krama")}
+                              {renderLivePerubahanRelasi("Status Hubungan", angkat.status_hubungan, "status_hubungan", angkat)}
+                              {renderLivePerubahanRelasi("Urutan Lahir (Anak Ke)", angkat.urutan_lahir, "urutan_lahir", angkat)}
+                              {renderLivePerubahanRelasi("Tanggal Pengangkatan Anak", angkat.tanggal_pengangkatan, "tanggal_pengangkatan", angkat, "date")}
+                              {renderLivePerubahanRelasi("Desa Adat Tujuan", krama?.desa_adat_id, "desa_adat_id_tujuan", angkat, 'desa_adat')}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {hasAccess && (
+                      <div className="flex justify-end mt-3 border-t border-gray-100">
                         <button 
                           onClick={() => {
-                            setModalRelasiData(null);
-                            fetchDetailRelasi(angkat.id);
+                            setSelectedRelasi(angkat);
+                            setVerifyRelasiAction(angkat.status_verifikasi || 'Draft');
+                            setCatatanRelasiValidator('');
+                            setIsOpenModalRelasi(true);
                           }}
                           className={styles.btnInfoDetail}
                         >
-                          <FaEdit className="mb-0.5 mr-1"/> Kelola Ortu Angkat
+                          <FaUserCheck className="mb-0.5 mr-1"/> Kelola Relasi Angkat
                         </button>
                       </div>
                     )}
@@ -1053,20 +994,6 @@ const DataKramaDetail = ({ user }) => {
                   <p className="text-gray-400 text-xs italic text-center py-2">
                     Data orang tua belum terdaftar.
                   </p>
-                )}
-                {hasAccess && !orangTuaKandung && orangTuaAngkatList.length === 0 && (
-                  <div className="flex justify-end mt-3 border-t border-gray-100">
-                    <button 
-                      onClick={() => {
-                        setModalRelasiData(null);
-                        setIsOpenModalRelasi(true);
-                      }}
-                      className={styles.btnInfoDetail}
-                    >
-                      <FaEdit className="mb-0.5"/> 
-                      <span>Hubungkan Relasi Baru</span>
-                    </button>
-                  </div>
                 )}
               </div>
             </div>
@@ -1132,12 +1059,12 @@ const DataKramaDetail = ({ user }) => {
                   )}
                 </div>
                 {hasAccess && (
-                <div className="flex justify-end mt-3 border-t border-gray-100">
-                  <button className={styles.btnInfoDetail}>
-                    <FaEdit className="mb-0.5"/> Kelola Data
-                  </button>
-                </div>
-              )}
+                  <div className="flex justify-end mt-3 border-t border-gray-100">
+                    <button className={styles.btnInfoDetail}>
+                      <FaEdit className="mb-0.5"/> Kelola Data
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1209,6 +1136,7 @@ const DataKramaDetail = ({ user }) => {
                 )}
               </div>
             </div>
+            {/* Button Action */}
             <div className={styles.btnGroup}>
               <button 
                 onClick={() => {
@@ -1227,40 +1155,46 @@ const DataKramaDetail = ({ user }) => {
         </div>
       </div>
       <Footer />
-      {/* MODAL DETAIL VERIFIKASI DATA KRAMA BALI */}
-      {isOpenModalKrama && krama && (
+      {/* MODAL VERIFIKASI KRAMA */}
+      {isOpenModalKelola && krama && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
             <div className={styles.headerModal}>
-              <h3>
-                <FaUserCog size={21} className="text-amber-700 mr-2" /> 
-                <span>Status & Pengelolaan Krama Bali</span>
+              <h3 >
+                <FaUserCheck size={21} className="text-amber-700 mr-2" /> 
+                <span>Status & Verifikasi Data Krama Bali</span>
               </h3>
-              <button onClick={() => setIsOpenModalKrama(false)}>
-                <FaTimes size={15} className={styles.iconClose} />
+              <button onClick={() => setIsOpenModalKelola(false)}>
+                <FaTimes className={styles.iconClose} />
               </button>
             </div>
+            {/* Status Verifikasi Terkini */}
             <div className="space-y-2 text-[11px]">
+              <div className="flex items-center gap-2 text-stone-700">
+                <h4 className="font-bold text-sm uppercase tracking-wide">
+                  Status & Sinkronisasi Data:
+                </h4>
+              </div>
               <div className={styles.cardVerification}>
                 <div className="text-center">
                   <span className={styles.labelColumn}>
                     Status Verifikasi
                   </span>
                   <span className={`${styles.badge} ${
-                    status_verifikasi === 'Disetujui' ? 'bg-green-100 text-green-700' :
-                    status_verifikasi === 'Ditolak' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                    krama.status_verifikasi === 'Disetujui' ? 'bg-green-100 text-green-700' :
+                    krama.status_verifikasi === 'Ditolak' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                   }`}>
-                    {status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
-                    {status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
-                    {status_verifikasi === 'Draft' && <FaHourglassHalf size={10} />}
+                    {krama.status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
+                    {krama.status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
+                    {krama.status_verifikasi === 'Draft' && <FaHourglassHalf size={10} />}
                     {krama.status_verifikasi || 'Draft'}
                   </span>
                 </div>
                 <div className="text-center">
                   <span className={styles.labelColumn}>
-                    Status Sinkronisasi
+                    Status Sinkronisasi Data
                   </span>
-                  {is_pending_update || status_verifikasi === "Draft" ? (
+                  {is_pending_update || krama.status_verifikasi === "Draft"  ? (
                     <span className={styles.badgePending}>
                       <FaExclamationTriangle size={11} className="mb-0.5" /> 
                       <span>Menunggu Verifikasi</span>
@@ -1272,260 +1206,224 @@ const DataKramaDetail = ({ user }) => {
                     </span>
                   )}
                 </div>
-                {catatan_admin_desa && (
+                {krama.catatan_admin_desa && (
                   <div className={styles.noteColumn}>
                     <span className={styles.labelColumn}>
-                      Catatan Validasi Admin Desa
+                      Catatan Sebelumnya
                     </span>
                     <p className="italic text-black p-1">
-                      {catatan_admin_desa}
+                      {krama.catatan_admin_desa}
                     </p>
                   </div>
                 )}
               </div>
-              {/* DATA PERUBAHAN */}
-              {is_pending_update && data_perubahan && (
-                <div className={styles.cardAreaChange}>
-                  <h4 className={styles.cardTitle}>
-                    <FaExclamationTriangle className={styles.cardIcon} /> 
-                    Draft Usulan Perubahan Data Krama Bali Anda
+            </div>
+            {/* VERIFIKASI */}
+            {(is_pending_update || krama.status_verifikasi === "Draft") && (
+              <div className="pt-7">
+                <div className="flex items-center gap-2 text-stone-700">
+                  <h4 className="font-bold text-sm uppercase tracking-wide">
+                    Verifikasi Data:
                   </h4>
-                  <div className={styles.cardTable}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr className={styles.tableHeader}>
-                          <th className="p-3 w-1/4">Kategori</th>
-                          <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
-                          <th className="p-3 w-3/8">Usulan Perubahan</th>
-                        </tr>
-                      </thead>
-                      <tbody className={styles.tableBody}>
-                        {renderPerubahanRow("Nama Lengkap", nama_lengkap, "nama_lengkap")}
-                        {renderPerubahanRow("Nama Panggilan", nama_panggilan, "nama_panggilan")}
-                        {renderPerubahanRow("Jenis Kelamin", jenis_kelamin, "jenis_kelamin")}
-                        {renderPerubahanRow("Tanggal Lahir", tanggal_lahir, "tanggal_lahir", "date")}
-                        {renderPerubahanRow("Status Hidup", status_hidup, "status_hidup")}
-                        {renderPerubahanRow("Asal Wilayah", is_bali, "is_bali", "boolean")}
-                        {renderPerubahanRow("Desa Adat", krama.desa_adat_id, "desa_adat_id", "desa_adat")}
-                        {renderPerubahanRow("Tempat Asal Khusus", tempat_asal_khusus, "tempat_asal_khusus")}
-                        {renderPerubahanRow("Alamat Luar", alamat_luar, "alamat_luar")}
-                        {renderPerubahanRow("Tipe Data", tipe_data, "tipe_data")}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className={styles.noteBtnGroup}>
-                    <span >💡</span>
-                    <p className="italic font-medium">
-                      Fitur modifikasi dan penghapusan data dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan di atas. Anda dapat membatalkan usulan ini jika ingin mengunci kembali data aktif.
-                    </p>
-                  </div>
                 </div>
-              )}
-            </div>
-            {/* Button Action */}
-            <div className="mt-6 flex gap-2 justify-end pt-3">
-              {is_pending_update ? (
-                <button 
-                  onClick={handleCancelUpdateKrama} 
-                  disabled={isProcessingAction}
-                  className={styles.btnRejectModal}
-                >
-                  <FaTimes className="mr-2" /> 
-                  {isProcessingAction ? 'Memproses...' : 'Batalkan Perubahan'}
-                </button>
-              ) : (
-                <>
+                <div className="flex gap-2 my-2">
                   <button 
-                    onClick={handleEditRedirect} 
-                    disabled={isProcessingAction}
-                    className={styles.btnEditModal}
+                    type="button"
+                    onClick={() => setVerifyAction('Disetujui')}
+                    className={`${styles.choise} ${
+                      verifyAction === 'Disetujui' ? styles.choiseApproved : styles.choiseDefault
+                    }`}
                   >
-                    <FaEdit size={12} className="mr-2 mb-0.5" /> Edit Identitas
+                    ✅ Setujui Data
                   </button>
                   <button 
-                    onClick={handleTriggerDelete} 
-                    disabled={isProcessingAction}
-                    className={styles.btnRejectModal}
+                    type="button"
+                    onClick={() => setVerifyAction('Ditolak')}
+                    className={`${styles.choise} ${
+                      verifyAction === 'Ditolak' ? styles.choiseReject : styles.choiseDefault
+                    }`}
                   >
-                    <FaTrash size={10} className="mr-2 mb-0.5" /> Hapus Data
+                    ❌ Tolak Data
                   </button>
-                </>
-              )}
-            </div>
+                </div>
+                <div className="space-y-1 pt-4 text-left">
+                  <label className={styles.label}>
+                    Catatan Tambahan / Alasan Penolakan {verifyAction === "Ditolak" && <span className="text-red-500">*</span>}
+                  </label>
+                  <textarea
+                    className={styles.inputForm}
+                    rows="5"
+                    placeholder="Masukkan catatan keputusan untuk pembuat..."
+                    value={catatanValidator}
+                    onChange={(e) => setCatatanValidator(e.target.value)}
+                    required={verifyAction === 'Ditolak'}
+                  ></textarea>
+                </div>
+                <div className="mt-6 flex gap-2 justify-end pt-3">
+                  <button 
+                    onClick={() => {
+                      setIsOpenModalKelola(false);
+                      setCatatanValidator('');
+                    }} 
+                    disabled={isSubmitting} 
+                    className={styles.btnCancel}
+                  >
+                    Kembali
+                  </button>
+                  <button 
+                    onClick={handleVerifyKrama} 
+                    disabled={isSubmitting}
+                    className={verifyAction === 'Disetujui' ? styles.btnSaveModal : styles.btnRejectModal}
+                  >
+                    {isSubmitting ? 'Memproses...' : 'Konfirmasi Keputusan'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
-      {/* MODAL DETAIL VERIFIKASI DATA RELASI KRAMA */}
-      {isOpenModalRelasi && (
+      {/* MODAL VERIFIKASI RELASI KRAMA */}
+      {isOpenModalRelasi && selectedRelasi && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
             <div className={styles.headerModal}>
               <h3>
-                <FaUsers size={21} className="text-amber-700 mr-2" /> 
-                {!modalRelasiData ? 'Hubungan Keluarga' : 'Status & Pengelolaan Relasi'}
+                <FaUserCheck size={21} className="text-amber-700 mr-2" /> 
+                <span>Status & Verifikasi Data Relasi Krama ({selectedRelasi.status_hubungan})</span>
               </h3>
-              <button onClick={() => { 
-                setIsOpenModalRelasi(false); 
-                setModalRelasiData(null); 
-              }}>
-                <FaTimes size={15} className={styles.iconClose} />
+              <button onClick={() => setIsOpenModalRelasi(false)}>
+                <FaTimes className={styles.iconClose} />
               </button>
             </div>
-            {/* Kondisi 1: Belum ada data relasi yang tercatat */}
-            {!modalRelasiData ? (
-              <>
-                <div className="p-8 text-center space-y-4">
-                  <div className={styles.iconModalEmpty}>
-                    <FaUsers className="text-gray-500 text-xl" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className={styles.titleModalEmpty}>
-                      Belum Ada Relasi Silsilah
-                    </h4>
-                    <p className={styles.descModalEmpty}>
-                      Krama ini belum terhubung dengan data silsilah orang tua (Ayah/Ibu) di dalam sistem desa adat.
+            {/* Status Verifikasi Terkini */}
+            <div className="space-y-2 text-[11px]">
+              <div className="flex items-center gap-2 text-stone-700">
+                <h4 className="font-bold text-sm uppercase tracking-wide">
+                  Status & Sinkronisasi Data:
+                </h4>
+              </div>
+              <div className={styles.cardVerification}>
+                <div className="text-center">
+                  <span className={styles.labelColumn}>
+                    Status Verifikasi
+                  </span>
+                  <span className={`${styles.badge} ${
+                    selectedRelasi.status_verifikasi === 'Disetujui' ? 'bg-green-100 text-green-700' :
+                    selectedRelasi.status_verifikasi === 'Ditolak' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {selectedRelasi.status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
+                    {selectedRelasi.status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
+                    {(
+                      selectedRelasi.status_verifikasi === 'Draft' || 
+                      selectedRelasi.status_verifikasi === 'Menunggu Penerimaan' || 
+                      selectedRelasi.status_verifikasi === 'Menunggu Pelepasan'
+                    ) && <FaHourglassHalf size={10} />}
+                    <span>
+                      {selectedRelasi.status_verifikasi || 'Draft'}
+                    </span>
+                  </span>
+                </div>
+                <div className="text-center">
+                  <span className={styles.labelColumn}>
+                    Status Sinkronisasi Data
+                  </span>
+                  {selectedRelasi.is_pending_update || selectedRelasi.status_verifikasi === "Draft" ||
+                  selectedRelasi.status_verifikasi === "Menunggu Penerimaan" ||
+                  selectedRelasi.status_verifikasi === "Menunggu Pelepasan"  ? (
+                    <span className={styles.badgePending}>
+                      <FaExclamationTriangle size={11} className="mb-0.5" /> 
+                      <span>Menunggu Verifikasi</span>
+                    </span>
+                  ) : (
+                    <span className={styles.badgeSuccess}>
+                      <FaCheck size={11} /> 
+                      <span>Data Aktif & Sinkron</span>
+                    </span>
+                  )}
+                </div>
+                {selectedRelasi.catatan_admin_desa && (
+                  <div className={styles.noteColumn}>
+                    <span className={styles.labelColumn}>
+                      Catatan Sebelumnya
+                    </span>
+                    <p className="italic text-black p-1">
+                      {selectedRelasi.catatan_admin_desa}
                     </p>
                   </div>
-                </div>
-                {hasAccess && (
-                  <div className="mt-6 flex gap-2 justify-end pt-3">
-                    <button onClick={handleAddRelasiRedirect} className={styles.btnAddGreen}>
-                      <FaPlusCircle size={12} className="mr-2" /> 
-                      <span>Ajukan Relasi Baru</span>
-                    </button>
-                  </div>
                 )}
-              </>
-            ) : (
-              /* Kondisi 2: Data relasi telah tercatat */
-              <>
-                <div className="space-y-2 text-[11px]">
-                  <div className={styles.cardVerification}>
-                    <div className="text-center">
-                      <span className={styles.labelColumn}>
-                        Status Verifikasi
-                      </span>
-                      <span className={`${styles.badge} ${
-                        modalRelasiData.status_verifikasi === 'Disetujui' ? 'bg-green-100 text-green-700' :
-                        modalRelasiData.status_verifikasi === 'Ditolak' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {modalRelasiData.status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
-                        {modalRelasiData.status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
-                        {(
-                          modalRelasiData.status_verifikasi === 'Draft' || 
-                          modalRelasiData.status_verifikasi === 'Menunggu Penerimaan' || 
-                          modalRelasiData.status_verifikasi === 'Menunggu Pelepasan'
-                        ) && <FaHourglassHalf size={10} />}
-                        <span>
-                          {modalRelasiData.status_verifikasi || 'Draft'}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="text-center">
-                      <span className={styles.labelColumn}>
-                        Status Sinkronisasi
-                      </span>
-                      {modalRelasiData.is_pending_update || modalRelasiData.status_verifikasi === 'Draft' ||
-                      modalRelasiData.status_verifikasi === 'Menunggu Penerimaan' ||
-                      modalRelasiData.status_verifikasi === 'Menunggu Pelepasan' ? (
-                        <span className={styles.badgePending}>
-                          <FaExclamationTriangle size={11} className="mb-0.5" /> 
-                          <span>Menunggu Verifikasi</span>
-                        </span>
-                      ) : (
-                        <span className={styles.badgeSuccess}>
-                          <FaCheck size={11} />
-                          <span>Data Aktif & Sinkron</span> 
-                        </span>
-                      )}
-                    </div>
-                    {modalRelasiData.catatan_admin_desa && (
-                      <div className={styles.noteColumn}>
-                        <span className={styles.labelColumn}>
-                          Catatan Validasi Admin Desa
-                        </span>
-                        <p className="italic text-black p-1">
-                          {modalRelasiData.catatan_admin_desa}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  {/* DATA PERUBAHAN */}
-                  {modalRelasiData.is_pending_update && modalRelasiData.data_perubahan && (
-                    <div className={styles.cardAreaChange}>
-                      <h4 className={styles.cardTitle}>
-                        <FaExclamationTriangle className={styles.cardIcon} /> 
-                        Draft Usulan Perubahan Data Relasi Krama Bali Anda
-                      </h4>
-                      <div className={styles.cardTable}>
-                        <table className={styles.table}>
-                          <thead>
-                            <tr className={styles.tableHeader}>
-                              <th className="p-3 w-1/4">Kategori</th>
-                              <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
-                              <th className="p-3 w-3/8">Usulan Perubahan</th>
-                            </tr>
-                          </thead>
-                          <tbody className={styles.tableBody}>
-                            {renderPerubahanRelasiRow("Ayah Kandung/Angkat", modalRelasiData.ayah?.nama_lengkap || 'Tidak Diketahui', "ayah_id", "krama")}
-                            {renderPerubahanRelasiRow("Ibu Kandung/Angkat", modalRelasiData.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", "krama")}
-                            {renderPerubahanRelasiRow("Status Hubungan", modalRelasiData.status_hubungan, "status_hubungan")}
-                            {renderPerubahanRelasiRow("Urutan Lahir (Anak Ke)", modalRelasiData.urutan_lahir, "urutan_lahir")}
-                            {renderPerubahanRelasiRow("Tanggal Pengangkatan Anak", modalRelasiData.tanggal_pengangkatan, "tanggal_pengangkatan", "date")}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className={styles.noteBtnGroup}>
-                        <span>💡</span>
-                        <p className="italic font-medium">
-                          Fitur modifikasi dan penghapusan hubungan dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan.
-                        </p>
-                      </div>
-                    </div>
-                  )}
+              </div>
+            </div>
+            {/* Verifikasi */}
+            {(selectedRelasi.is_pending_update || selectedRelasi.status_verifikasi === "Draft" ||
+              selectedRelasi.status_verifikasi === "Menunggu Penerimaan" ||
+              selectedRelasi.status_verifikasi === "Menunggu Pelepasan"
+            ) && (
+              <div className="pt-7">
+                <div className="flex items-center gap-2 text-stone-700">
+                  <h4 className="font-bold text-sm uppercase tracking-wide">
+                    Verifikasi Data:
+                  </h4>
                 </div>
-                {/* Button Action */}
-                <div className="mt-6 flex gap-2 justify-end pt-3">
-                  {modalRelasiData.is_pending_update ? (
-                    hasAccess && (
-                      <button onClick={() => handleCancelUpdateRelasi(modalRelasiData.id)} className={styles.btnRejectModal}>
-                        <FaTimes className="mr-2" /> Batalkan Perubahan
-                      </button>
-                    )
-                  ) : (
-                    hasAccess && (
-                      <>
-                        <button onClick={handleAddRelasiRedirect} className={styles.btnAddGreen}>
-                          <FaPlusCircle size={12} className="mr-2" /> 
-                          <span>Ajukan Relasi Baru</span>
-                        </button>
-                        <button onClick={handleEditRelasiRedirect} className={styles.btnEditModal}>
-                          <FaEdit size={12} className="mr-2 mb-0.5" /> Edit Relasi
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setIsOpenModalRelasi(false); 
-                            setModalDelete({
-                              isOpen: true,
-                              type: 'relasi',
-                              targetId: modalRelasiData?.id, 
-                              title: 'Konfirmasi Menghapus Data Relasi Krama',
-                              message: 'Apakah Anda yakin ingin menghapus permanen draft pengajuan data relasi silsilah pada krama bali ini?'
-                            });
-                          }} className={styles.btnRejectModal}>
-                          <FaTrash size={10} className="mr-2 mb-0.5" /> Hapus Relasi
-                        </button>
-                      </>
-                    )
-                  )}
+                <div className="flex gap-2 my-2">
+                  <button 
+                    type="button"
+                    onClick={() => setVerifyRelasiAction('Disetujui')}
+                    className={`${styles.choise} ${
+                      verifyRelasiAction === 'Disetujui' ? styles.choiseApproved : styles.choiseDefault
+                    }`}
+                  >
+                    ✅ Setujui Relasi
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setVerifyRelasiAction('Ditolak')}
+                    className={`${styles.choise} ${
+                      verifyRelasiAction === 'Ditolak' ? styles.choiseReject : styles.choiseDefault
+                    }`}
+                  >
+                    ❌ Tolak Relasi
+                  </button>
                 </div>
-              </>
+                <div className="space-y-1 pt-2 text-left">
+                  <label className={styles.label}>
+                    Catatan Tambahan / Alasan Penolakan {verifyRelasiAction === "Ditolak" && <span className="text-red-500">*</span>}
+                  </label>
+                  <textarea
+                    className={styles.inputForm}
+                    rows="3"
+                    placeholder="Masukkan catatan keputusan untuk pembuat..."
+                    value={catatanRelasiValidator}
+                    onChange={(e) => setCatatanRelasiValidator(e.target.value)}
+                    required={verifyRelasiAction === 'Ditolak'}
+                  ></textarea>
+                </div>
+                <div className="mt-3 flex gap-2 justify-end">
+                  <button 
+                    onClick={() => {
+                      setIsOpenModalRelasi(false);
+                      setSelectedRelasi(null);
+                    }} 
+                    disabled={isSubmittingRelasi} 
+                    className={styles.btnCancel}
+                  >
+                    Kembali
+                  </button>
+                  <button 
+                    onClick={handleVerifyRelasi} 
+                    disabled={isSubmittingRelasi}
+                    className={verifyRelasiAction === 'Disetujui' ? styles.btnSaveModal : styles.btnRejectModal}
+                  >
+                    {isSubmittingRelasi ? 'Memproses...' : 'Konfirmasi Keputusan'}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
     </div>
-  );
+  )
 };
 
 // Sub-komponen Dasar Dashboard Layout
@@ -1590,4 +1488,4 @@ const IconInfoRow = ({ icon, label, value }) => (
   </div>
 );
 
-export default DataKramaDetail;
+export default PengajuanKramaDetail;

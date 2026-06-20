@@ -9,6 +9,10 @@ const RelasiKrama = db.define("tb_relasi_krama", {
     primaryKey: true,
     autoIncrement: true
   },
+  anak_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   ayah_id: {
     type: DataTypes.INTEGER,
     allowNull: true
@@ -16,10 +20,6 @@ const RelasiKrama = db.define("tb_relasi_krama", {
   ibu_id: {
     type: DataTypes.INTEGER,
     allowNull: true
-  },
-  anak_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false
   },
   status_hubungan: {
     type: DataTypes.STRING,
@@ -51,6 +51,10 @@ const RelasiKrama = db.define("tb_relasi_krama", {
     allowNull: true,
     defaultValue: null
   },
+  desa_adat_id_tujuan: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   is_pending_update: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
@@ -61,6 +65,16 @@ const RelasiKrama = db.define("tb_relasi_krama", {
     type: DataTypes.JSONB,
     allowNull: true,
     comment: "Field untuk menyimpan data baru sementara sebelum di-approve"
+  },
+  approved_asal_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: "ID Admin Desa Asal Anak yang menyetujui pelepasan"
+  },
+  approved_tujuan_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: "ID Admin Desa Tujuan/Orang Tua yang menyetujui penerimaan"
   }
 }, {
   freezeTableName: true,
@@ -69,7 +83,10 @@ const RelasiKrama = db.define("tb_relasi_krama", {
     { fields: ["ayah_id"] },
     { fields: ["ibu_id"] },
     { fields: ["anak_id"] },
-    { fields: ["status_verifikasi"] }
+    { fields: ["status_verifikasi"] },
+    { fields: ["desa_adat_id_tujuan"] },
+    { fields: ["approved_asal_by"] },
+    { fields: ["approved_tujuan_by"] }
   ]
 });
 
