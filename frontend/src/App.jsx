@@ -22,6 +22,7 @@ import AturanAdatBaliBaru from './pages/AturanAdatBali/AturanAdatBaliBaru.jsx';
 import AturanAdatBaliEdit from './pages/AturanAdatBali/AturanAdatBaliEdit.jsx';
 import User from './pages/User/User.jsx';
 import UserDetail from './pages/User/UserDetail.jsx';
+import KontakPesan from './pages/PusatBantuan/KontakPesan.jsx';
 
 // Wilayah Adat Bali
 import WilayahAdatBali from './pages/WilayahAdatBali/WilayahAdatBali.jsx';
@@ -42,7 +43,6 @@ import PengajuanPerkawinan from './pages/VerifikasiData/PengajuanPerkawinan.jsx'
 // Verifikasi Data
 
 import DataKramaDetail from './pages/KramaBali/DataKramaDetail.jsx';
-import Kontak from './pages/Kontak.jsx';
 import SilsilahAdatBali from './pages/SilsilahAdatBali.jsx';
 import SilsilahAdatBaliDetail from './pages/SilsilahAdatBaliDetail.jsx';
 import SilsilahAdatBaliVisualisasi from './pages/SilsilahAdatBaliVisualisasi.jsx';
@@ -427,6 +427,11 @@ const App = () => {
             path="/verifikasi-data" 
             element={<VerifikasiData user={user} />} 
           />
+          {/* Kontak Pesan Route */}
+          <Route 
+            path="/pusat-bantuan" 
+            element={<KontakPesan user={user} />} 
+          />
 
 
           {/* WAITING ROOM */}
@@ -473,8 +478,7 @@ const App = () => {
           <Route path="/kontak/inbox" element={<ProtectedRoute user={user} allowedRoles={['Super Admin']}><AdminKontak /></ProtectedRoute>} />
           <Route path="/kontak/inbox/detail/:id" element={<AdminKontakDetail />} />
 
-          {/* Conditional Contact Page */}
-          <Route path="/kontak" element={isSuperAdmin ? <Navigate to="/home" replace /> : <Kontak user={user} />} />
+          
         </Routes>
       </div>
       {/* Show Modal Login dan Register */}

@@ -5,15 +5,15 @@ import DesaAdat from "./desa-adat.model.js";
 import User from "./user.model.js";
 import PermohonanRole from "./permohonan-role.model.js";
 import PermohonanDesa from "./permohonan-desa.model.js";
-
-import Kontak from "./kontak.model.js";
 import KramaBali from "./krama.model.js";
-import Keluarga from "./keluarga.model.js";
 import Perkawinan from "./perkawinan.model.js";
 import RelasiKrama from "./relasi.model.js";
+import Keluarga from "./keluarga.model.js";
 import RiwayatKeluarga from "./riwayat-keluarga.model.js";
-import RiwayatPeranAdat from "./riwayat-peran.model.js";
+import RiwayatPeranAdat from "./riwayat-peran-adat.model.js";
 import AturanAdatBali from "./aturan-adat.model.js";
+import KontakPesan from "./kontak-pesan.model.js";
+import Notifikasi from "./notifikasi.model.js";
 
 // RELASI MODEL WILAYAH 
 Provinsi.hasMany(Kabupaten, { 
@@ -297,25 +297,57 @@ RiwayatPeranAdat.belongsTo(KramaBali, {
   as: "krama_adat"
 });
 
-
-
-
-
-
-
-// RELASI MODEL USER
-User.hasMany(Kontak, {
+// RELASI MODEL KONTAK DAN NOTIFIKASI
+User.hasMany(KontakPesan, {
   foreignKey: "user_id",
-  as: "pesan_dari_user"
+  as: "pesan_pengaduan"
 });
-Kontak.belongsTo(User, {
+KontakPesan.belongsTo(User, {
   foreignKey: "user_id",
   as: "user_pengirim"
 });
 
+DesaAdat.hasMany(KontakPesan, {
+  foreignKey: "desa_adat_id",
+  as: "wilayah_adat_pesan"
+});
+KontakPesan.belongsTo(DesaAdat, {
+  foreignKey: "desa_adat_id",
+  as: "asal_pesan"
+});
+
+User.hasMany(Notifikasi, {
+  foreignKey: "sender_id",
+  as: "pesan_masuk"
+});
+Notifikasi.belongsTo(User, {
+  foreignKey: "sender_id",
+  as: "user_notifikasi"
+});
+
+DesaAdat.hasMany(Notifikasi, {
+  foreignKey: "desa_adat_id",
+  as: "wilayah_adat_notifikasi"
+});
+Notifikasi.belongsTo(DesaAdat, {
+  foreignKey: "desa_adat_id",
+  as: "asal_notifikasi"
+});
+
+KontakPesan.hasMany(Notifikasi, { 
+  foreignKey: 'kontak_pesan_id', 
+  as: 'notifikasi_pesan', 
+  onDelete: 'CASCADE' 
+});
+Notifikasi.belongsTo(KontakPesan, { 
+  foreignKey: 'kontak_pesan_id', 
+  as: 'sumber_pesan' 
+});
+
 export {
   User,
-  Kontak,
+  KontakPesan,
+  Notifikasi,
   PermohonanRole,
   PermohonanDesa,
   AturanAdatBali,

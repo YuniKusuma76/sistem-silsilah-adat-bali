@@ -27,12 +27,13 @@ const KramaBali = db.define("tb_krama_bali", {
   },
   status_hidup: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: true,
+    defaultValue: "Hidup"
   },
   is_bali: {
     type: DataTypes.BOOLEAN,
     allowNull: true,
-    defaultValue: null
+    defaultValue: true
   },
   desa_adat_id: {
     type: DataTypes.INTEGER,

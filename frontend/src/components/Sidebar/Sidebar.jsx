@@ -7,7 +7,8 @@ import { FaMapLocationDot } from "react-icons/fa6";
 import { 
   MdDashboard, 
   MdApproval,
-  MdOutlineEditLocationAlt  
+  MdOutlineEditLocationAlt,
+  MdLiveHelp
 } from "react-icons/md";
 import { 
   FaHome, 
@@ -33,9 +34,9 @@ const SIDEBAR_MENU = {
       icon: <LuNetwork size={18} /> 
     },
     { 
-      path: "/kontak", 
-      label: "Kontak", 
-      icon: <FaEnvelope size={18} /> 
+      path: "/pusat-bantuan", 
+      label: "Pusat Bantuan", 
+      icon: <MdLiveHelp size={18} /> 
     }
   ],
 

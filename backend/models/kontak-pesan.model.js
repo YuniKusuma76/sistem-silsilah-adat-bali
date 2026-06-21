@@ -3,7 +3,7 @@ import db from "../config/db.config.js";
 
 const { DataTypes } = Sequelize;
 
-const Kontak = db.define("tb_kontak", {
+const KontakPesan = db.define("tb_kontak_pesan", {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -20,6 +20,10 @@ const Kontak = db.define("tb_kontak", {
       isEmail: true
     }
   },
+  kategori_pesan: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
   pesan: {
     type: DataTypes.TEXT,
     allowNull: false
@@ -28,6 +32,10 @@ const Kontak = db.define("tb_kontak", {
     type: DataTypes.STRING,
     defaultValue: "Menunggu",
     allowNull: false
+  },
+  desa_adat_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
   user_id: {
     type: DataTypes.INTEGER,
@@ -38,4 +46,4 @@ const Kontak = db.define("tb_kontak", {
   timestamps: true
 });
 
-export default Kontak;
+export default KontakPesan;
