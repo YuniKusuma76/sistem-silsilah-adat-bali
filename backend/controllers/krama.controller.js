@@ -15,6 +15,7 @@ import {
 } from "../models/associations.js";
 import { mappingAturanAdatBali } from "../services/decision-tree.service.js";
 import { simpanRiwayatPeranAdat } from "../services/riwayat-peran-adat.service.js";
+import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
 
 // Validasi Input Valid
 const VALID_JENIS_KELAMIN = [
@@ -39,6 +40,13 @@ const VALID_STATUS_VERIFIKASI = [
   "Disetujui",
   "Ditolak"
 ];
+
+const BOBOT_EVENT = {
+  "LAHIR": 1, 
+  "PENGANGKATAN": 2, 
+  "KAWIN": 3, 
+  "CERAI": 4
+};
 
 // Data Krama Include
 const KRAMA_INCLUDE = [
@@ -94,10 +102,7 @@ const KRAMA_INCLUDE = [
 export const getLeluhurOnly = async (req, res) => {
   try {
     const { desa_adat_id } = req.query;
-
-    let filterCondition = {
-      status_verifikasi: "Disetujui"
-    };
+    let filterCondition = { status_verifikasi: "Disetujui" };
 
     // Logika filter wilayah adat leluhur
     if (desa_adat_id) {
@@ -114,28 +119,36 @@ export const getLeluhurOnly = async (req, res) => {
       };
     }
     
-    const leluhurList = await KramaBali.scope('leluhurOnly').findAll({
+    const leluhurListRaw = await KramaBali.scope('leluhurOnly').findAll({
       where: filterCondition,
       include: ["wilayah_adat"],
       order: [["id", "ASC"]]
     });
 
+    const leluhurList = leluhurListRaw.map(item => {
+      const plainItem = item.toJSON();
+      delete plainItem.data_perubahan;
+      delete plainItem.status_sebelum_draft;
+      return plainItem;
+    });
+
     let message = "Berhasil mengambil data seluruh leluhur secara global.";
-    
+
     if (desa_adat_id && leluhurList.length > 0) {
       const kramaDenganDesa = leluhurList.find(k => k.wilayah_adat !== null);
       const namaDesa = kramaDenganDesa?.wilayah_adat?.nama_desa_adat || desa_adat_id;
       message = `Berhasil mengambil data leluhur untuk wilayah desa adat ${namaDesa}.`;
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: message,
       count: leluhurList.length,
       data: leluhurList
     });
   } catch (error) {
-    res.status(500).json({
-      message: error.message
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan server saat mengambil data list leluhur."
     });
   }
 };
@@ -153,27 +166,28 @@ export const getLeluhurOnlyById = async (req, res) => {
     });
 
     if (!dataLeluhurRaw) {
-      return res.status(404).json({
-        message: "Data leluhur tidak ditemukan."
-      });
+      throw { 
+        status: 404, 
+        message: "Data leluhur tidak ditemukan." 
+      };
     }
 
     // Konversi ke plain object agar manipulasi data aman dan bersih
     const dataLeluhur = dataLeluhurRaw.toJSON();
 
-    // Memastikan data staging usulan perubahan data leluhur tidak ikut terlihat ke publik
     delete dataLeluhur.data_perubahan;
     delete dataLeluhur.status_sebelum_draft;
 
     const namaDesa = dataLeluhur.wilayah_adat?.nama_desa_adat || "Global";
 
-    res.status(200).json({
+    return res.status(200).json({
       message: `Berhasil mengambil detail leluhur: ${dataLeluhur.nama_lengkap} (${namaDesa})`,
       data: dataLeluhur
     });
   } catch (error) {
-    res.status(500).json({
-      message: error.message
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan server saat mengambil detail data leluhur."
     });
   }
 };
@@ -184,7 +198,7 @@ export const getAllKrama = async (req, res) => {
 
     const userRole = req.role;
     const currentUserId = req.userId;
-    const userDesaId = req.desaAdatId;
+    const userDesaId = req.desaAdatId
 
     // Proteksi mode: jika kosong, paksa ke public demi keamanan
     const validModes = ["public", "personal", "verification"];
@@ -209,9 +223,10 @@ export const getAllKrama = async (req, res) => {
       const isAdmin = userRole === "Admin Desa" || userRole === "Super Admin";
 
       if (!isAdmin) {
-        return res.status(403).json({ 
+        throw { 
+          status: 403, 
           message: "Otoritas mengakses data ditolak!" 
-        });
+        };
       }
       
       if (userRole === "Super Admin") {
@@ -251,7 +266,7 @@ export const getAllKrama = async (req, res) => {
       }
     }
 
-    // Filter berdasarkan tipe data Leluhur/Krama, jika ada
+    // Filter berdasarkan tipe data Leluhur/Keturunan, jika ada
     if (tipe && VALID_TIPE_DATA.includes(tipe)) {
       whereCondition.tipe_data = tipe;
     }
@@ -267,7 +282,7 @@ export const getAllKrama = async (req, res) => {
     // LOGIKA FILTER PRIVASI & BUFFER SANITIZATION (POST-PROCESSING)
     // ============================================================
     const kramaList = kramaRaw.map(instance => {
-      // Konversi ke plain object agar manipulasi properti bersih
+      // konversi ke plain object agar manipulasi properti bersih
       const krama = instance.toJSON(); 
 
       const isSatuDesa = krama.desa_adat_id === userDesaId;
@@ -299,14 +314,16 @@ export const getAllKrama = async (req, res) => {
       return krama;
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data krama bali!",
       count: kramaList.length,
       data: kramaList
     });
   } catch (error) {
-    res.status(500).json({
-      message: error.message
+    const statusCode = error.status || 500;
+    console.error("ERROR GET_KRAMA_BALI:", error);
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan server saat memuat data krama bali."
     });
   }
 };
@@ -324,9 +341,10 @@ export const getKramaById = async (req, res) => {
     });
 
     if (!dataKramaRaw) {
-      return res.status(404).json({
-        message: "Data krama bali tidak ditemukan."
-      });
+      throw { 
+        status: 404, 
+        message: "Data krama bali tidak ditemukan." 
+      };
     }
 
     // Validasi hak akses ruang lingkup data
@@ -338,21 +356,21 @@ export const getKramaById = async (req, res) => {
     // Menentukan desa yang berwenang
     const desaOtoritasId = (isPending && dataKramaRaw.data_perubahan?.desa_adat_id)
       ? parseInt(dataKramaRaw.data_perubahan.desa_adat_id)
-      : parseInt(dataKramaRaw.desa_adat_id);
+      : (dataKramaRaw.desa_adat_id ? parseInt(dataKramaRaw.desa_adat_id) : null);
 
-    const isAdminDesaBerwenang = userRole === "Admin Desa" && desaOtoritasId === parseInt(userDesaId);
+    const isAdminDesaBerwenang = userRole === "Admin Desa" && desaOtoritasId === userDesaId;
     
     if (isDraft && !isOwner && !isAdminDesaBerwenang && !isSuperAdmin) {
-      return res.status(403).json({
-        message: "Otoritas mengakses data ditolak! Data ini masih dalam proses verifikasi awal."
-      });
+      throw { 
+        status: 403, 
+        message: "Otoritas mengakses data ditolak! Data ini masih dalam proses verifikasi awal." 
+      };
     }
 
     // Konversi ke plain object agar manipulasi properti aman dan bersih
     const dataKrama = dataKramaRaw.toJSON();
 
-    // Logika filter privasi (post-processing)
-    const isSatuDesa = desaOtoritasId === parseInt(userDesaId);
+    const isSatuDesa = desaOtoritasId === userDesaId;
     const isAdmin = isAdminDesaBerwenang || isSuperAdmin;
 
     if (!isOwner && !isAdmin) {
@@ -360,13 +378,15 @@ export const getKramaById = async (req, res) => {
       delete dataKrama.status_sebelum_draft;
     }
 
-    res.status(200).json({
-      message: "Berhasil mengambil detail data krama bali!",
+    return res.status(200).json({
+      message: "Berhasil mengambil detail data krama bali secara penuh!",
       data: dataKrama
     });
+
   } catch (error) {
-    res.status(500).json({
-      message: error.message
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan server saat mengambil detail data krama bali."
     });
   }
 };
@@ -376,11 +396,9 @@ export const createKrama = async (req, res) => {
   let t;
 
   try {
-    // Mulai transaksi database
-    t = await db.transaction();
-
     const userRole = req.role;
     const userDesaId = req.desaAdatId;
+    const currentUserId = req.userId;
 
     const {
       nama_lengkap,
@@ -395,84 +413,84 @@ export const createKrama = async (req, res) => {
       tipe_data,
     } = req.body;
 
-    // Validasi tipe data
+    // Validasi input form
+    if (!nama_lengkap) {
+      throw { 
+        status: 400, 
+        message: "Nama lengkap wajib diisi!" 
+      };
+    }
     if (!VALID_TIPE_DATA.includes(tipe_data)) {
-      await t.rollback();
-      return res.status(400).json({ 
+      throw { 
+        status: 400, 
         message: "Tipe data tidak valid!" 
-      });
+      };
     }
 
-    // Logika validasi sanitasi data is_bali
-    let final_is_bali = is_bali;
+    // Mulai transaksi database
+    t = await db.transaction();
+
+    let final_is_bali = is_bali ?? true;
     let final_desa_adat_id = null;
-    let final_alamat_luar = null
+    let final_alamat_luar = null;
 
     if (tipe_data === "Keturunan") {
-      // Validasi jenis kelamin
       if (!jenis_kelamin || !VALID_JENIS_KELAMIN.includes(jenis_kelamin)) {
-        await t.rollback();
-        return res.status(400).json({ 
+        throw { 
+          status: 400, 
           message: "Jenis kelamin tidak valid!" 
-        });
+        };
       }
-      // Validasi status hidup
+
       if (!status_hidup || !VALID_STATUS_HIDUP.includes(status_hidup)) {
-        await t.rollback();
-        return res.status(400).json({ 
+        throw { 
+          status: 400, 
           message: "Status hidup tidak valid!" 
-        });
+        };
       }
-      // Validasi alamat asal
-      if (is_bali === undefined || is_bali === null) {
-        await t.rollback();
-        return res.status(400).json({
-          message: "Status asal krama wajib diisi!"
-        });
-      }
-      // Validasi input data berdasarkan wilayah adat
-      if (is_bali === true) {
+
+      // Validasi input wilayah asal
+      if (final_is_bali === true) {
         if (!desa_adat_id) {
-          await t.rollback();
-          return res.status(400).json({
-            message: "Krama bali wajib memilih desa adat asal!"
-          });
+          throw { 
+            status: 400, 
+            message: "Krama bali wajib memilih desa adat asal!" 
+          };
         }
         final_desa_adat_id = desa_adat_id;
-        final_alamat_luar = null;
       } else {
         if (!alamat_luar) {
-          await t.rollback();
-          return res.status(400).json({
-            message: "Krama luar bali wajib mengisi alamat asal!"
-          });
+          throw { 
+            status: 400, 
+            message: "Krama luar bali wajib mengisi alamat asal!" 
+          };
         }
-        final_desa_adat_id = null;
         final_alamat_luar = alamat_luar;
       }
     } else {
-      // Jika krama merupakan tipe data Leluhur
-      final_is_bali = is_bali ?? null;
-      final_desa_adat_id = (final_is_bali === true) ? desa_adat_id : null;
-      final_alamat_luar = (final_is_bali === false) ? alamat_luar : null;
+      if (final_is_bali === true && desa_adat_id) {
+        final_desa_adat_id = desa_adat_id;
+      } else if (final_is_bali === false && alamat_luar) {
+        final_alamat_luar = alamat_luar;
+      }
     }
 
-    // Logika auto-approval berdasarkan operator
+    // LOGIKA AUTO-APPROVAL DATA KRAMA BALI
     let statusVerifAwal = "Draft";
-    let catatanAdminDesa = "Menunggu verifikasi Admin Desa...";
+    let catatanAdminDesa = "Data krama bali berhasil disimpan! Menunggu verifikasi dari Admin Desa.";
 
     const isSuperAdmin = userRole === "Super Admin";
-    const isAdminDesaLokal = userRole === "Admin Desa" && Number(userDesaId) === Number(final_desa_adat_id);
+    const isAdminDesaLokal = userRole === "Admin Desa" && (final_desa_adat_id ? Number(userDesaId) === Number(final_desa_adat_id) : true);
     const isAuthedToApprove = isSuperAdmin || isAdminDesaLokal;
 
     if (isAuthedToApprove) {
       statusVerifAwal = "Disetujui";
-      catatanAdminDesa = `Data diverifikasi otomatis oleh sistem (Input by ${userRole}).`;
+      catatanAdminDesa = `Data krama bali diverifikasi otomatis oleh sistem (Input by ${userRole}).`;
     }
 
     const kramaBaru = await KramaBali.create({
       nama_lengkap,
-      nama_panggilan,
+      nama_panggilan: nama_panggilan || null,
       jenis_kelamin: jenis_kelamin || "Tidak Diketahui",
       tanggal_lahir: tanggal_lahir || null,
       status_hidup: tipe_data === "Leluhur" ? "Tidak Diketahui" : (status_hidup || "Hidup"),
@@ -481,48 +499,75 @@ export const createKrama = async (req, res) => {
       tempat_asal_khusus,
       alamat_luar: final_alamat_luar,
       tipe_data,
-      user_id: req.userId,
+      user_id: currentUserId,
       status_verifikasi: statusVerifAwal,
       catatan_admin_desa: catatanAdminDesa,
       is_pending_update: false,
       data_perubahan: null,
       status_sebelum_draft: null
-    }, { 
-      transaction: t 
-    });
+    }, { transaction: t });
 
     // ============================================================
     // EKSEKUSI DECISION TREE HANYA JIKA DATA DISETUJUI (Keturunan)
     // ============================================================
     if (tipe_data === "Keturunan" && isAuthedToApprove) {
-      // Menentukan status peran adat awal
       const keputusan = await mappingAturanAdatBali("LAHIR", {
         jenis_kelamin
       }, t);
+
+      const tglMulai = kramaBaru.tanggal_lahir || new Date();
 
       await simpanRiwayatPeranAdat({
         krama_id: kramaBaru.id,
         status_peran_adat: keputusan.status_peran_adat,
         garis_keturunan: keputusan.garis_keturunan,
-        dasar_keputusan: keputusan.dasar_keputusan,
-        event_date: kramaBaru.tanggal_lahir
+        dasar_keputusan: keputusan.dasar_keputusan + (!tanggal_lahir ? " (Tanggal lahir menggunakan tanggal input sistem)." : ""), 
+        kategori_event: "LAHIR",
+        bobot_event: BOBOT_EVENT["LAHIR"],
+        event_date: tglMulai
+      }, t);
+    }
+
+    // Setting notifikasi
+    if (isAuthedToApprove) {
+      await kirimNotifikasiSistem(req, {
+        judul: "Pendaftaran Data Krama Bali",
+        deskripsi: `Data krama bali baru atas nama ${kramaBaru.nama_lengkap} telah ditambahkan dan diverifikasi otomatis oleh sistem (Input by ${userRole}).`,
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/krama-bali",
+        desa_adat_id: kramaBaru.desa_adat_id || userDesaId,
+        sender_id: currentUserId,
+        kontak_pesan_id: null,
+        user_id: null
+      }, t)
+    } else {
+      await kirimNotifikasiSistem(req, {
+        judul: "Antrean Data Krama Bali Baru",
+        deskripsi: `Adanya pendaftaran data krama bali baru atas nama ${kramaBaru.nama_lengkap} oleh ${userRole}. Menunggu verifikasi dari Admin Desa Bersangkutan.`,
+        kategori: "VERIFIKASI",
+        tautan_fitur: "/verifikasi-data/krama-bali",
+        desa_adat_id: kramaBaru.desa_adat_id,
+        sender_id: currentUserId,
+        kontak_pesan_id: null,
+        user_id: null
       }, t);
     }
 
     await t.commit();
 
-    res.status(201).json({
+    return res.status(201).json({
       message: isAuthedToApprove
         ? "Data krama bali berhasil ditambahkan resmi ke sistem!"
-        : "Data krama bali berhasil diajukan! Menunggu proses verifikasi oleh Admin Desa.",
+        : "Data krama bali berhasil diajukan! Menunggu proses verifikasi dari Admin Desa.",
       data: kramaBaru
     });
   } catch (error) {
     if (t && !t.finished) {
       await t.rollback();
     }
-    res.status(500).json({
-      message: error.message
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan pada server saat menyimpan data krama bali."
     });
   }
 };
@@ -540,13 +585,13 @@ export const verifikasiKrama = async (req, res) => {
     const { 
       status_verifikasi, 
       catatan_admin_desa 
-    } = req.body
+    } = req.body;
 
     // Validasi status verifikasi
     const VALID_STATUS = ["Disetujui", "Ditolak"];
     if (!VALID_STATUS.includes(status_verifikasi)) {
-      return res.status(400).json({
-        message: "Status verifikasi tidak valid!"
+      return res.status(400).json({ 
+        message: "Status verifikasi tidak valid!" 
       });
     }
 
@@ -567,21 +612,23 @@ export const verifikasiKrama = async (req, res) => {
     });
 
     if (!krama) {
-      await t.rollback();
-      return res.status(404).json({ 
+      throw { 
+        status: 404, 
         message: "Data krama bali tidak ditemukan." 
-      });
+      };
     }
 
-    // VALIDASI VERIFIKASI GANDA
+    // VALIDASI ANTREAN PENGAJUAN AKTIF
     const statusSaatIni = krama.status_verifikasi;
-    const isTrueVerif = statusSaatIni === "Draft" || statusSaatIni === "Ditolak" ||(statusSaatIni === "Disetujui" && krama.is_pending_update === true);
+    const isTrueVerif = statusSaatIni === "Draft" || 
+      statusSaatIni === "Ditolak" || 
+      (statusSaatIni === "Disetujui" && krama.is_pending_update === true);
 
     if (!isTrueVerif) {
-      await t.rollback();
-      return res.status(400).json({
-        message: "Proses verifikasi dihentikan! Data ini tidak memiliki antrean pengajuan yang aktif."
-      });
+      throw { 
+        status: 400, 
+        message: "Proses verifikasi dihentikan! Data ini tidak memiliki antrean pengajuan yang aktif." 
+      };
     }
 
     // Identifikasi mutasi lintas desa adat
@@ -592,56 +639,64 @@ export const verifikasiKrama = async (req, res) => {
 
     const isMutasiLintasDesa = desaTujuanId && Number(desaAsalId) !== Number(desaTujuanId);
 
-    // Hak akses data oleh admin desa
     if (userRole === "Admin Desa") {
-      const desaOtoritasHak = isMutasiLintasDesa ? desaAsalId : (desaTujuanId || desaAsalId);
-
+      const desaOtoritasHak = isMutasiLintasDesa ? desaTujuanId : (desaAsalId || desaTujuanId);
       if (Number(desaOtoritasHak) !== Number(userDesaId)) {
-        await t.rollback();
-        return res.status(403).json({
+        throw { 
+          status: 403, 
           message: isMutasiLintasDesa 
-            ? "Otoritas mengakses data ditolak! Usulan mutasi keluar desa adat wajib diverifikasi terlebih dahulu oleh Admin Desa Asal krama bali."
+            ? "Otoritas mengakses data ditolak! Usulan mutasi krama bali masuk wajib diverifikasi oleh Admin Desa Adat Tujuan."
             : "Otoritas mengakses data ditolak! Wilayah desa adat berbeda."
-        });
+        };
       }
     }
 
-    // Menandai jenis pengajuan untuk logika peran adat nanti
+    // Mengambil status peran adat krama target
     const riwayatPeranLama = await RiwayatPeranAdat.findOne({
-      where: { krama_id: id },
+      where: { 
+        krama_id: id, 
+        kategori_event: "LAHIR" 
+      },
       transaction: t
     });
 
-    const isPendaftaranBaru = !riwayatPeranLama;
-
+    // =======================================================
     // CASE 1: VERIFIKASI DITOLAK
+    // =======================================================
     if (status_verifikasi === "Ditolak") {
       if (!catatan_admin_desa?.trim()) {
-        await t.rollback();
-        return res.status(400).json({ 
+        throw { 
+          status: 400, 
           message: "Catatan verifikasi wajib diisi jika pengajuan ditolak!" 
-        });
+        };
       }
 
       const statusKembali = krama.is_pending_update 
         ? krama.status_sebelum_draft 
         : "Ditolak";
-      
-      let labelPenolak = userRole;
-
-      if (userRole === "Admin Desa") {
-        labelPenolak = `Admin Desa ${krama.wilayah_adat?.nama_desa_adat || "Adat"}`;
-      }
+      const labelPenolak = userRole === "Admin Desa" 
+        ? `Admin Desa ${krama.wilayah_adat?.nama_desa_adat || "Adat"}` 
+        : userRole;
 
       await krama.update({
         status_verifikasi: statusKembali,
-        catatan_admin_desa: `Data krama bali telah ditolak oleh ${labelPenolak}. Alasan/Catatan Penolakan: ${catatan_admin_desa.trim()}`,
+        catatan_admin_desa: `Data krama bali telah ditolak oleh ${labelPenolak}. ${catatan_admin_desa.trim()}`,
         is_pending_update: false,
         data_perubahan: null,
         status_sebelum_draft: null
-      }, { 
-        transaction: t 
-      });
+      }, { transaction: t });
+
+      // Setting notifikasi
+      await kirimNotifikasiSistem(req, {
+        judul: "Data Krama Bali Ditolak",
+        deskripsi: catatan_admin_desa,
+        kategori: "PERINGATAN",
+        tautan_fitur: "/krama-bali/my-data",
+        desa_adat_id: null,
+        sender_id: currentUserId,
+        kontak_pesan_id: null,
+        user_id: krama.user_id
+      }, t);
 
       await t.commit();
 
@@ -655,25 +710,23 @@ export const verifikasiKrama = async (req, res) => {
       });
     }
 
+    // ======================================================
     // CASE 2: VERIFIKASI DISETUJUI
+    // ======================================================
     let finalUpdate = {
       status_verifikasi: "Disetujui",
-      catatan_admin_desa: catatan_admin_desa?.trim() 
-        ? catatan_admin_desa.trim() 
-        : (krama.is_pending_update 
-            ? `Usulan perubahan data krama bali resmi disahkan oleh ${userRole}.`
-            : `Pengajuan pendaftaran krama bali baru telah disetujui oleh ${userRole}.`
-          ),
+      catatan_admin_desa: catatan_admin_desa?.trim() || (krama.is_pending_update 
+        ? `Usulan perubahan data krama bali resmi disahkan oleh ${userRole}.`
+        : `Pengajuan pendaftaran krama bali baru telah disetujui oleh ${userRole}.`),
       is_pending_update: false,
       status_sebelum_draft: null,
       data_perubahan: null
     };
 
-    // BONGKAR JSONB: jika ada data di buffer, pindahkan ke kolom utama
+    // BONGKAR BUFFER JSONB: jika ada data di buffer, pindahkan ke kolom utama
     if (krama.is_pending_update && krama.data_perubahan) {
       const dataBaru = krama.data_perubahan;
-
-      // Marge data dari JSONB ke objek update
+      // marge data dari JSONB ke objek update
       finalUpdate = { 
         ...finalUpdate, 
         ...dataBaru 
@@ -682,34 +735,25 @@ export const verifikasiKrama = async (req, res) => {
       // Sinkronisasi kronologis jika ada perubahan tanggal lahir
       if (dataBaru.tanggal_lahir && krama.tipe_data === "Keturunan") {
         const tanggalBaru = dataBaru.tanggal_lahir;
+        if (riwayatPeranLama) {
+          await riwayatPeranLama.update({ 
+            mulai_tanggal: tanggalBaru 
+          }, { transaction: t });
+        }
 
-        await Promise.all([
-          RiwayatPeranAdat.findOne({
-            where: { krama_id: id },
-            order: [["mulai_tanggal", "ASC"], ["id", "ASC"]],
-            transaction: t
-          }).then(async (riwayat) => {
-            if (riwayat) await riwayat.update({ 
-              mulai_tanggal: tanggalBaru 
-            }, { 
-              transaction: t 
-            });
-          }),
-          RiwayatKeluarga.findOne({
-            where: { 
-              krama_id: id, 
-              dasar_keputusan: { [Op.like]: "%anak kandung%" } 
-            },
-            order: [["awal_masuk", "ASC"], ["id", "ASC"]],
-            transaction: t
-          }).then(async (riwayat) => {
-            if (riwayat) await riwayat.update({ 
-              awal_masuk: tanggalBaru 
-            }, { 
-              transaction: t 
-            });
-          })
-        ]);
+        // mengambil riwayat keluarga krama bali target
+        const riwayatKeluargaExist = await RiwayatKeluarga.findOne({
+          where: { 
+            krama_id: id, 
+            kategori_masuk: "LAHIR" 
+          },
+          transaction: t
+        });
+        if (riwayatKeluargaExist) {
+          await riwayatKeluargaExist.update({ 
+            awal_masuk: tanggalBaru 
+          }, { transaction: t });
+        }
       }
     }
 
@@ -721,21 +765,63 @@ export const verifikasiKrama = async (req, res) => {
     });
 
     // ===========================================================
-    // LOGIKA DECISION TREE UNTUK DATA BARU
+    // LOGIKA EVALUASI DECISION TREE UNTUK DATA BARU
     // ===========================================================
-    if (kramaRefreshed.tipe_data === "Keturunan" && isPendaftaranBaru) {
-      const keputusan = await mappingAturanAdatBali("LAHIR", {
-        jenis_kelamin: kramaRefreshed.jenis_kelamin
-      }, t);
+    if (kramaRefreshed.tipe_data === "Keturunan") {
+      const jenisKelaminAktif = kramaRefreshed.jenis_kelamin;
+      const tanggalLahirAktif = kramaRefreshed.tanggal_lahir;
 
-      await simpanRiwayatPeranAdat({
-        krama_id: kramaRefreshed.id,
-        status_peran_adat: keputusan.status_peran_adat,
-        garis_keturunan: keputusan.garis_keturunan,
-        dasar_keputusan: keputusan.dasar_keputusan,
-        event_date: kramaRefreshed.tanggal_lahir
-      }, t);
+      if (jenisKelaminAktif && jenisKelaminAktif !== "Tidak Diketahui") {
+        const keputusan = await mappingAturanAdatBali("LAHIR", {
+          jenis_kelamin: jenisKelaminAktif
+        }, t);
+
+        const tglMulai = tanggalLahirAktif || new Date();
+
+        if (riwayatPeranLama) {
+          await riwayatPeranLama.update({
+            status_peran_adat: keputusan.status_peran_adat,
+            garis_keturunan: keputusan.garis_keturunan,
+            dasar_keputusan: keputusan.dasar_keputusan + " (Riwayat peran adat diperbarui sesuai usulan perubahan data).",
+            mulai_tanggal: tglMulai
+          }, { transaction: t });
+        } else {
+          await simpanRiwayatPeranAdat({
+            krama_id: kramaRefreshed.id,
+            status_peran_adat: keputusan.status_peran_adat,
+            garis_keturunan: keputusan.garis_keturunan,
+            dasar_keputusan: keputusan.dasar_keputusan + " (Riwayat peran adat telah disahkan sesuai kelengkapan data).",
+            kategori_event: "LAHIR",
+            bobot_event: BOBOT_EVENT["LAHIR"],
+            event_date: tglMulai
+          }, t);
+        }
+      }
     }
+
+    // Setting multi-notifikasi
+    await Promise.all([
+      kirimNotifikasiSistem(req, {
+        judul: "Data Krama Bali Disetujui",
+        deskripsi: `Pengajuan data krama bali atas nama ${kramaRefreshed.nama_lengkap} telah disetujui resmi oleh ${userRole}.`,
+        kategori: "INFORMASI",
+        tautan_fitur: "/krama-bali/my-data",
+        desa_adat_id: null,
+        sender_id: currentUserId,
+        kontak_pesan_id: null,
+        user_id: kramaRefreshed.user_id
+      }, t),
+      kirimNotifikasiSistem(req, {
+        judul: "Penyetujuan Data Krama Bali",
+        deskripsi: `Pengajuan data krama bali atas nama ${kramaRefreshed.nama_lengkap} telah diverifikasi dan disetujui oleh ${userRole}.`,
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/krama-bali",
+        desa_adat_id: kramaRefreshed.desa_adat_id,
+        sender_id: currentUserId,
+        kontak_pesan_id: null,
+        user_id: null
+      }, t)
+    ]);
 
     await t.commit();
 
@@ -743,7 +829,7 @@ export const verifikasiKrama = async (req, res) => {
       include: KRAMA_INCLUDE
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: `Data krama bali atas nama ${krama.nama_lengkap} berhasil ${status_verifikasi}.`,
       data: kramaTerbaru
     });
@@ -751,8 +837,9 @@ export const verifikasiKrama = async (req, res) => {
     if (t && !t.finished) {
       await t.rollback();
     }
-    res.status(500).json({
-      message: error.message
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan pada server saat proses verifikasi krama bali."
     });
   }
 };
@@ -765,7 +852,22 @@ export const updateKramaById = async (req, res) => {
     const { id } = req.params;
     const userRole = req.role;
     const userDesaId = req.desaAdatId;
+    const currentUserId = req.userId;
     const payload = { ...req.body };
+
+    // Membersihkan string kosong
+    if (payload.desa_adat_id === "") {
+      payload.desa_adat_id = null;
+    }
+    if (payload.tanggal_lahir === "") {
+      payload.tanggal_lahir = null;
+    }
+    if (payload.jenis_kelamin === "") {
+      payload.jenis_kelamin = null;
+    }
+    if (payload.status_hidup === "") {
+      payload.status_hidup = null;
+    }
 
     // Mulai transaksi database
     t = await db.transaction();
@@ -776,87 +878,83 @@ export const updateKramaById = async (req, res) => {
     });
 
     if (!krama) {
-      await t.rollback();
-      return res.status(404).json({
-        message: "Data krama bali tidak ditemukan."
-      });
+      throw { 
+        status: 404, 
+        message: "Data krama bali tidak ditemukan." 
+      };
     }
 
-    // Validasi hak akses ruang lingkup data
-    if (userRole !== "Super Admin") {
-      if (req.userId !== krama.user_id) {
-        if (userRole === "Admin Desa") {
-          if (parseInt(krama.desa_adat_id) !== parseInt(userDesaId)) {
-            await t.rollback();
-            return res.status(403).json({ 
-              message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda." 
-            });
-          }
-        } else {
-          await t.rollback();
-          return res.status(403).json({
-            message: "Otoritas mengakses data ditolak!"
-          });
+    // VALIDASI HAK AKSES RUANG LINGKUP DATA
+    if (userRole !== "Super Admin" && req.userId !== krama.user_id) {
+      if (userRole === "Admin Desa") {
+        if (parseInt(krama.desa_adat_id) !== parseInt(userDesaId)) {
+          throw { 
+            status: 403, 
+            message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda." 
+          };
         }
+      } else {
+        throw { 
+          status: 403, 
+          message: "Otoritas mengakses data ditolak!" 
+        };
       }
     }
     
     if (krama.tipe_data === "Keturunan") {
-      // Validasi jenis kelamin
       if (payload.jenis_kelamin && !VALID_JENIS_KELAMIN.includes(payload.jenis_kelamin)) {
-        await t.rollback();
-        return res.status(400).json({ 
+        throw { 
+          status: 400, 
           message: "Jenis kelamin tidak valid!" 
-        });
+        };
       }
-      // Validasi status hidup
       if (payload.status_hidup && !VALID_STATUS_HIDUP.includes(payload.status_hidup)) {
-        await t.rollback();
-        return res.status(400).json({ 
+        throw { 
+          status: 400, 
           message: "Status hidup tidak valid!" 
-        });
+        };
       }
     }
     
-    // LOGIKA SINKRONISASI TEMPAT TANGGAL/DOMISILI
+    // LOGIKA SINKRONISASI WILAYAH ASAL
     if (payload.is_bali !== undefined) {
       if (payload.is_bali === true) {
         payload.alamat_luar = null;
       } else if (payload.is_bali === false) {
         payload.desa_adat_id = null;
         payload.tempat_asal_khusus = null;
-      } else {
-        payload.desa_adat_id = null;
-        payload.alamat_luar = null;
-        payload.tempat_asal_khusus = null;
       }
     }
-
-    // Menentukan target desa adat hasil kiriman user
-    const targetDesaAdatId = payload.desa_adat_id !== undefined 
-      ? payload.desa_adat_id 
-      : krama.desa_adat_id;
 
     // ============================================================
     // LOGIKA BUFFERING PERUBAHAN DATA BERDASARKAN OPERATOR
     // ============================================================
     const isSuperAdmin = userRole === "Super Admin";
-    const isAdminDesaLokal = userRole === "Admin Desa" && Number(userDesaId) === Number(krama.desa_adat_id);
+    const isAdminDesaLokal = userRole === "Admin Desa" && (krama.desa_adat_id ? Number(userDesaId) === Number(krama.desa_adat_id) : true);
     const isAuthedToApprove = isSuperAdmin || isAdminDesaLokal;
 
     if (!isAuthedToApprove) {
-      const statusSaatIni = krama.status_verifikasi;
-
       await krama.update({
-        status_sebelum_draft: statusSaatIni,
+        status_sebelum_draft: krama.status_verifikasi,
         is_pending_update: true,
         data_perubahan: payload,
-        catatan_admin_desa: `Adanya usulan perubahan data krama oleh ${userRole}. Menunggu verifikasi dari Admin Desa...`
-      }, { 
-        transaction: t 
-      });
+        catatan_admin_desa: `Adanya usulan perubahan data krama bali oleh ${userRole}. Menunggu verifikasi dari Admin Desa.`
+      }, { transaction: t });
+
+      // Setting notifikasi
+      await kirimNotifikasiSistem(req, {
+        judul: "Antrean Perubahan Data Krama Bali",
+        deskripsi: `Adanya perubahan data krama bali atas nama ${payload.nama_lengkap || krama.nama_lengkap} oleh ${userRole}. Menunggu verifikasi dari Admin Desa Bersangkutan.`,
+        kategori: "VERIFIKASI",
+        tautan_fitur: "/verifikasi-data/krama-bali",
+        desa_adat_id: krama.desa_adat_id || userDesaId,
+        sender_id: currentUserId,
+        kontak_pesan_id: null,
+        user_id: null
+      }, t);
 
       await t.commit();
+
       const updateKramaPersonal = await KramaBali.findByPk(id, {
         include: KRAMA_INCLUDE
       });
@@ -865,62 +963,125 @@ export const updateKramaById = async (req, res) => {
         message: "Usulan perubahan data krama bali berhasil diajukan! Data publik tetap menggunakan data lama hingga disetujui oleh Admin Desa.",
         data: updateKramaPersonal
       });
-    } else {
-      if (!isSuperAdmin && payload.desa_adat_id && Number(payload.desa_adat_id) !== Number(userDesaId)) {
-        await t.rollback();
-        return res.status(400).json({ 
-          message: "Proses memperbarui data ditolak! Untuk melakukan mutasi warga keluar dari desa adat Anda, silakan ajukan melalui usulan perubahan agar diverifikasi oleh desa tujuan." 
-        });
-      }
+    } 
 
-      await krama.update({
-        ...payload,
-        is_pending_update: false,
-        data_perubahan: null,
-        status_sebelum_draft: null,
-        status_verifikasi: "Disetujui",
-        catatan_admin_desa: `Data krama bali telah diperbarui secara resmi oleh ${userRole}.`
-      }, { 
-        transaction: t 
+    if (!isSuperAdmin && payload.desa_adat_id && Number(payload.desa_adat_id) !== Number(userDesaId)) {
+      throw { 
+        status: 400, 
+        message: "Proses memperbarui dihentikan! Untuk melakukan mutasi warga keluar dari desa adat Anda, silakan ajukan melalui usulan perubahan agar diverifikasi oleh Admin Desa Tujuan." 
+      };
+    }
+
+    await krama.update({
+      ...payload,
+      is_pending_update: false,
+      data_perubahan: null,
+      status_sebelum_draft: null,
+      status_verifikasi: "Disetujui",
+      catatan_admin_desa: `Data krama bali telah diperbarui secara resmi oleh ${userRole}.`
+    }, { transaction: t });
+
+    // PROSES EVALUASI DECISION TREE
+    const jenisKelaminAktif = payload.jenis_kelamin || krama.jenis_kelamin;
+    const tanggalLahirAktif = payload.tanggal_lahir || krama.tanggal_lahir;
+
+    if (krama.tipe_data === "Keturunan" && jenisKelaminAktif && jenisKelaminAktif !== "Tidak Diketahui") {
+      // mengambil riwayat adat dengan kategori "LAHIR"
+      const riwayatLahirExist = await RiwayatPeranAdat.findOne({
+        where: { 
+          krama_id: id, 
+          kategori_event: "LAHIR" 
+        },
+        transaction: t
       });
 
-      // Logika sinkronisasi kronologis tanggal lahir
-      if (payload.tanggal_lahir && krama.tipe_data === "Keturunan") {
-        const tanggalLahirBaru = payload.tanggal_lahir;
+      // mapping ulang decision tree berdasarkan jenis kelamin aktif
+      const keputusan = await mappingAturanAdatBali("LAHIR", { 
+        jenis_kelamin: jenisKelaminAktif 
+      }, t);
 
-        await Promise.all([
-          RiwayatPeranAdat.findOne({
-            where: { krama_id: id },
-            order: [["mulai_tanggal", "ASC"], ["id", "ASC"]],
-            transaction: t
-          }).then(async (riwayatPeranAwal) => {
-            if (riwayatPeranAwal) {
-              await riwayatPeranAwal.update({ 
-                mulai_tanggal: tanggalLahirBaru 
-              }, { 
-                transaction: t 
-              });
-            }
-          }),
-          RiwayatKeluarga.findOne({
-            where: { 
-              krama_id: id,
-              dasar_keputusan: { [Op.like]: "%anak kandung%" }
-            },
-            order: [["awal_masuk", "ASC"], ["id", "ASC"]],
-            transaction: t
-          }).then(async (riwayatKeluargaAwal) => {
-            if (riwayatKeluargaAwal) {
-              await riwayatKeluargaAwal.update({ 
-                awal_masuk: tanggalLahirBaru 
-              }, { 
-                transaction: t 
-              });
-            }
-          })
-        ]);
+      const tglMulai = tanggalLahirAktif || new Date();
+
+      if (riwayatLahirExist) {
+        await riwayatLahirExist.update({
+          status_peran_adat: keputusan.status_peran_adat,
+          garis_keturunan: keputusan.garis_keturunan,
+          dasar_keputusan: keputusan.dasar_keputusan + " (riwayat status peran adat telah diperbarui).",
+          mulai_tanggal: tglMulai
+        }, { transaction: t });
+      } else {
+        await simpanRiwayatPeranAdat({
+          krama_id: id,
+          status_peran_adat: keputusan.status_peran_adat,
+          garis_keturunan: keputusan.garis_keturunan,
+          dasar_keputusan: keputusan.dasar_keputusan + " (Riwayat status peran adat diinisialisasi melalui kelengkapan data).",
+          kategori_event: "LAHIR",
+          bobot_event: BOBOT_EVENT["LAHIR"],
+          event_date: tglMulai
+        }, t);
       }
     }
+
+    if (payload.tanggal_lahir && krama.tipe_data === "Keturunan") {
+      const tanggalLahirBaru = payload.tanggal_lahir;
+
+      // mengambil riwayat adat dengan kategori "LAHIR"
+      const riwayatLahirExist = await RiwayatPeranAdat.findOne({
+        where: { 
+          krama_id: id, 
+          kategori_event: "LAHIR" 
+        },
+        transaction: t
+      });
+      if (riwayatLahirExist) {
+        await riwayatLahirExist.update({ 
+          mulai_tanggal: tanggalLahirBaru 
+        }, { transaction: t });
+      }
+
+      // mengambil riwayat keluarga dengan kategori "LAHIR"
+      const hubunganKeluargaKandung = await RiwayatKeluarga.findOne({
+        where: { 
+          krama_id: id,
+          kategori_masuk: "LAHIR"
+        },
+        transaction: t
+      });
+      if (hubunganKeluargaKandung) {
+        await hubunganKeluargaKandung.update({ 
+          awal_masuk: tanggalLahirBaru 
+        }, { transaction: t });
+      }
+    }
+
+    const targetDesaNotif = payload.desa_adat_id !== undefined ? payload.desa_adat_id : krama.desa_adat_id;
+
+    // Setting notifikasi
+    await Promise.all([
+      kirimNotifikasiSistem(req, {
+        judul: "Perubahan Data Krama Bali",
+        deskripsi: `Data krama bali atas nama ${payload.nama_lengkap || krama.nama_lengkap} telah diperbarui dan diverifikasi otomatis oleh sistem (Update by ${userRole}).`,
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/krama-bali",
+        desa_adat_id: targetDesaNotif || userDesaId,
+        sender_id: currentUserId,
+        kontak_pesan_id: null,
+        user_id: null
+      }, t),
+
+      ...(krama.user_id ? [
+        kirimNotifikasiSistem(req, {
+          judul: "Perbaruan Data Krama Bali",
+          deskripsi: `Data krama bali Anda atas nama ${payload.nama_lengkap || krama.nama_lengkap} telah disesuaikan dan diperbarui secara resmi oleh ${userRole}.`,
+          kategori: "INFORMASI",
+          tautan_fitur: "/krama-bali/my-data",
+          desa_adat_id: null, 
+          sender_id: currentUserId,
+          kontak_pesan_id: null,
+          user_id: krama.user_id
+        }, t)
+      ] : [])
+    ]);
 
     await t.commit();
     
@@ -928,7 +1089,7 @@ export const updateKramaById = async (req, res) => {
       include: KRAMA_INCLUDE
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data krama bali berhasil diperbarui secara resmi!",
       data: updateKramaAdmin
     });
@@ -936,8 +1097,9 @@ export const updateKramaById = async (req, res) => {
     if (t && !t.finished) {
       await t.rollback();
     }
-    res.status(400).json({
-      message: error.message 
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan pada server saat memperbarui data krama bali."
     });
   }
 };
@@ -961,18 +1123,17 @@ export const cancelUpdateKrama = async (req, res) => {
     });
 
     if (!krama) {
-      await t.rollback();
-      return res.status(404).json({ 
+      throw { 
+        status: 404,
         message: "Data krama bali tidak ditemukan." 
-      });
+      };
     }
 
-    // Validasi adanya content yang dibatalkan
     if (!krama.is_pending_update) {
-      await t.rollback();
-      return res.status(400).json({ 
+      throw { 
+        status: 400, 
         message: "Tidak ada usulan perubahan yang aktif pada data ini." 
-      });
+      };
     }
 
     // Identifikasi keterlibatan desa adat
@@ -981,34 +1142,38 @@ export const cancelUpdateKrama = async (req, res) => {
       ? Number(krama.data_perubahan.desa_adat_id) 
       : null;
     
-    // Validasi hanya pemilik data yang boleh membatalkan usulan
+    // VALIDASI HAK AKSES MEMBATALKAN PERUBAHAN DATA
     if (userRole !== "Super Admin" && userId !== krama.user_id) {
       if (userRole === "Admin Desa") {
         const isAsalMatch = Number(desaAsalId) === Number(userDesaId);
         const isTujuanMatch = desaTujuanId && Number(desaTujuanId) === Number(userDesaId);
-
         if (!isAsalMatch && !isTujuanMatch) {
-          await t.rollback();
-          return res.status(403).json({ 
+          throw { 
+            status: 403, 
             message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda." 
-          });
+          };
         }
       } else {
-        await t.rollback();
-        return res.status(403).json({ 
-          message: "Otoritas mengakses data ditolak!" 
-        });
+        throw { 
+          status: 403, 
+          message: "Otoritas mengakses data ditolak! Anda bukan pengusul yang mengajukan perubahan data ini." 
+        };
       }
     }
 
-    // Mengambil status verifikasi sebelumnya
+    // DETERMINASI REKONSILIASI STATUS & LOGGING CATATAN
     const statusPulih = krama.status_sebelum_draft || "Draft";
-    let catatanBatal = `Usulan perubahan data krama bali telah resmi dibatalkan oleh ${userRole}.`;
+    let catatanBatal = "";
+
+    const isOwner = userId === krama.user_id;
+    const aktorLabel = isOwner ? "Pengusul" : userRole;
     
     if (statusPulih === "Ditolak") {
-      catatanBatal = "Usulan perbaikan data krama bali dibatalkan! Status penolakan sebelumnya dipulihkan.";
+      catatanBatal = `Usulan perbaikan data krama bali telah dibatalkan oleh ${aktorLabel}. Status penolakan sebelumnya dipulihkan kembali.`;
     } else if (statusPulih === "Disetujui") {
-      catatanBatal = "Usulan perubahan data krama bali dibatalkan! Data krama bali aktif kembali menggunakan data sah yang lama.";
+      catatanBatal = `Usulan perubahan data krama bali telah dibatalkan oleh ${aktorLabel}. Data krama bali aktif kembali menggunakan data yang lama.`;
+    } else {
+      catatanBatal = `Usulan perubahan data krama bali telah dihapus dari antrean oleh ${aktorLabel}.`;
     }
 
     await krama.update({
@@ -1017,21 +1182,51 @@ export const cancelUpdateKrama = async (req, res) => {
       status_verifikasi: statusPulih,
       status_sebelum_draft: null,
       catatan_admin_desa: catatanBatal
-    }, { 
-      transaction: t 
-    });
+    }, { transaction: t });
+
+    // Setting notifikasi
+    await Promise.all([
+      kirimNotifikasiSistem(req, {
+        judul: "Pembatalan Usulan Perubahan",
+        deskripsi: catatanBatal,
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/verifikasi-data/krama-bali",
+        desa_adat_id: krama.desa_adat_id || userDesaId, 
+        sender_id: userId,
+        kontak_pesan_id: null,
+        user_id: null 
+      }, t),
+
+      ...(!isOwner && krama.user_id ? [
+        kirimNotifikasiSistem(req, {
+          judul: "Perubahan Dibatalkan Admin",
+          deskripsi: `Usulan perubahan data krama bali Anda atas nama ${krama.nama_lengkap} telah dibatalkan dari antrean oleh Admin Desa.`,
+          kategori: "PERINGATAN",
+          tautan_fitur: "/krama-bali/my-data",
+          desa_adat_id: null, 
+          sender_id: userId,
+          kontak_pesan_id: null,
+          user_id: krama.user_id 
+        }, t)
+      ] : [])
+    ]);
 
     await t.commit();
 
-    res.status(200).json({ 
-      message: `Berhasil membatalkan usulan perubahan data krama bali. Status saat ini: ${statusPulih}.` 
+    const kramaTerbaru = await KramaBali.findByPk(id, {
+      include: KRAMA_INCLUDE
+    });
+
+    return res.status(200).json({ 
+      message: `Berhasil membatalkan usulan perubahan data krama bali. Status dialihkan kembali menjadi: ${statusPulih}.` 
     });
   } catch (error) {
     if (t && !t.finished) {
       await t.rollback();
     }
-    res.status(500).json({ 
-      message: error.message 
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({ 
+      message: error.message || "Terjadi kesalahan server saat membatalkan usulan perubahan data krama bali." 
     });
   }
 };
@@ -1043,6 +1238,7 @@ export const deleteKramaById = async (req, res) => {
   try {
     const { id } = req.params;
     const userRole = req.role;
+    const userId = req.userId;
     const userDesaId = req.desaAdatId;
 
     // Mulai transaksi database
@@ -1054,48 +1250,47 @@ export const deleteKramaById = async (req, res) => {
     });
 
     if (!krama) {
-      await t.rollback();
-      return res.status(404).json({
-        message: "Data krama bali tidak ditemukan."
-      });
+      throw { 
+        status: 404, 
+        message: "Data krama bali tidak ditemukan." 
+      };
     }
 
-    // Identifikasi keterlibatan desa adat
+    // Identifikasi keterlibatan wilayah desa adat
     const desaAsalId = krama.desa_adat_id;
     const desaTujuanId = krama.is_pending_update && krama.data_perubahan?.desa_adat_id
       ? Number(krama.data_perubahan.desa_adat_id)
       : null;
 
-    // Validasi hak akses ruang lingkup data
+    // VALIDASI HAK AKSES RUANG LINGKUP DATA
     if (userRole !== "Super Admin") {
-      if (req.userId === krama.user_id) {
+      if (userId === krama.user_id) {
         if (krama.status_verifikasi === "Disetujui") {
-          await t.rollback();
-          return res.status(403).json({
-            message: "Proses menghapus data dihentikan! Data krama bali ini sudah disetujui dan tidak dapat dihapus secara sepihak oleh pemilik data."
-          });
+          throw { 
+            status: 403, 
+            message: "Proses menghapus data dihentikan! Data krama bali ini sudah disetujui dan tidak dapat dihapus secara sepihak oleh pemilik data." 
+          };
         }
       } else {
         if (userRole === "Admin Desa") {
           const isAsalMatch = Number(desaAsalId) === Number(userDesaId);
           const isTujuanMatch = desaTujuanId && Number(desaTujuanId) === Number(userDesaId);
-
           if (!isAsalMatch && !isTujuanMatch) {
-            await t.rollback();
-            return res.status(403).json({ 
-              message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda."
-            });
+            throw { 
+              status: 403, 
+              message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda." 
+            };
           }
         } else {
-          await t.rollback();
-          return res.status(403).json({
-            message: "Otoritas mengakses data ditolak!"
-          });
+          throw { 
+            status: 403, 
+            message: "Otoritas mengakses data ditolak!" 
+          };
         }
-      } 
+      }
     }
 
-    // Memastikan krama tidak memiliki relasi struktural yang mengunci keturunan
+    // MELIHAT RELASI STRUKTURAL SILSILAH
     const [isOrangTua, isKawin, isKepalaKeluarga, relasiSilsilahAnak] = await Promise.all([
       // Case 1: Melihat statusnya sebagai orang tua
       RelasiKrama.findOne({
@@ -1131,42 +1326,39 @@ export const deleteKramaById = async (req, res) => {
       })
     ]);
     
-    // Validasi pemblokiran penghapusan data
     if (isOrangTua) {
-      await t.rollback();
-      return res.status(400).json({ 
-        message: "Proses menghapus data dihentikan! Krama masih tercatat sebagai orang tua." 
-      });
+      throw { 
+        status: 400, 
+        message: "Proses menghapus data dihentikan! Krama masih tercatat sebagai orang tua dalam silsilah." 
+      };
     }
     if (isKawin) {
-      await t.rollback();
-      return res.status(400).json({ 
-        message: "Proses menghapus data dihentikan! Krama masih tercatat dalam suatu perkawinan." 
-      });
+      throw { 
+        status: 400, 
+        message: "Proses menghapus data dihentikan! Krama masih tercatat aktif dalam hubungan perkawinan." 
+      };
     }
     if (isKepalaKeluarga) {
-      await t.rollback();
-      return res.status(400).json({ 
-        message: "Proses menghapus data dihentikan! Krama masih tercatat sebagai kepala keluarga yang aktif." 
-      });
+      throw { 
+        status: 400, 
+        message: "Proses menghapus data dihentikan! Krama masih tercatat aktif sebagai Kepala Keluarga." 
+      };
     }
 
     const idAyahLama = relasiSilsilahAnak?.ayah_id || null;
     const idIbuLama = relasiSilsilahAnak?.ibu_id || null;
 
     // ============================================================
-    // LOGIKA EKSEKUSI CASCADING INTERNAL DATA DATA MENTAH / APPROVAL
+    // LOGIKA EKSEKUSI CASCADING INTERNAL DATA INTERNAL / APPROVAL
     // ============================================================
     await RelasiKrama.destroy({
       where: { anak_id: id },
       transaction: t
     });
-
     await RiwayatPeranAdat.destroy({ 
       where: { krama_id: id },
       transaction: t
     });
-
     await RiwayatKeluarga.destroy({ 
       where: { krama_id: id },
       transaction: t
@@ -1184,18 +1376,31 @@ export const deleteKramaById = async (req, res) => {
         ibu_id: idIbuLama
       }, t);
     }
+
+    // Setting notifikasi
+    await kirimNotifikasiSistem(req, {
+      judul: "Data Krama Bali Dihapus",
+      deskripsi: `Data krama bali atas nama ${krama.nama_lengkap} telah dihapus oleh ${userRole}.`,
+      kategori: "LOG_SISTEM",
+      tautan_fitur: "/krama-bali",
+      desa_adat_id: krama.desa_adat_id || userDesaId,
+      sender_id: userId,
+      kontak_pesan_id: null,
+      user_id: null
+    }, t);
     
     await t.commit();
 
-    res.status(200).json({
-      message: "Data krama bali beserta riwayat struktural terkait berhasil dihapus!"
+    return res.status(200).json({
+      message: "Data krama bali beserta riwayat struktural terkait berhasil dihapus dari sistem secara resmi!"
     });
   } catch (error) {
     if (t && !t.finished) {
       await t.rollback();
     }
-    res.status(400).json({
-      message: error.message
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({
+      message: error.message || "Terjadi kesalahan server saat mencoba menghapus data krama bali."
     });
   }
 };

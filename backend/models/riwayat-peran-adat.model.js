@@ -29,6 +29,14 @@ const RiwayatPeranAdat = db.define("tb_riwayat_peran_adat", {
     type: DataTypes.TEXT,
     allowNull: false
   },
+  kategori_event: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  bobot_event: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
   mulai_tanggal: {
     type: DataTypes.DATEONLY,
     allowNull: true

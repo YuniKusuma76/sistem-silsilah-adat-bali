@@ -358,6 +358,14 @@ const PengajuanKramaDetail = ({ user }) => {
     };
   }, [isOpenModalKelola, isOpenModalRelasi]);
 
+  // Effect: Mengotomatiskan pilihan tombol verifikasi krama bali
+  useEffect(() => {
+  if (isOpenModalKelola && krama) {
+    setVerifyAction('Disetujui');
+    setCatatanValidator('');
+  }
+}, [isOpenModalKelola, krama]);
+
   // Effect: Mengotomatiskan pilihan tombol verifikasi relasi mengikuti data yang dibuka
   useEffect(() => {
     if (selectedRelasi) {
@@ -1194,7 +1202,7 @@ const PengajuanKramaDetail = ({ user }) => {
                   <span className={styles.labelColumn}>
                     Status Sinkronisasi Data
                   </span>
-                  {is_pending_update || krama.status_verifikasi === "Draft"  ? (
+                  {krama.is_pending_update || krama.status_verifikasi === "Draft" ? (
                     <span className={styles.badgePending}>
                       <FaExclamationTriangle size={11} className="mb-0.5" /> 
                       <span>Menunggu Verifikasi</span>
@@ -1219,7 +1227,7 @@ const PengajuanKramaDetail = ({ user }) => {
               </div>
             </div>
             {/* VERIFIKASI */}
-            {(is_pending_update || krama.status_verifikasi === "Draft") && (
+            {(krama.is_pending_update || krama.status_verifikasi === "Draft" || krama.status_verifikasi === "Ditolak") && (
               <div className="pt-7">
                 <div className="flex items-center gap-2 text-stone-700">
                   <h4 className="font-bold text-sm uppercase tracking-wide">

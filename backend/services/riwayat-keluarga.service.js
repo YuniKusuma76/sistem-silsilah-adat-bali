@@ -1,78 +1,104 @@
 import { Op } from "sequelize";
 import { RiwayatKeluarga } from "../models/associations.js";
 
+const BOBOT_KATEGORI_MASUK = {
+  "LAHIR": 1, 
+  "PENGANGKATAN": 2, 
+  "KAWIN": 3, 
+  "CERAI": 4
+};
+
 // Menutup riwayat keluarga aktif sebelumnya
 export const tutupRiwayatKeluarga = async (
   krama_id, 
-  event_date,
+  event_date, 
+  kategori_baru, 
   t = null
 ) => {
-  // memastikan data krama target tersedia
   if (!krama_id) return;
 
-  await RiwayatKeluarga.update(
-    { akhir_masuk: event_date },
-    {
-      where: {
-        krama_id,
-        awal_masuk: { [Op.lt]: event_date },
-        [Op.or]: [
-          { akhir_masuk: null },
-          { akhir_masuk: { [Op.ne]: event_date } }
-        ]
-      },
-      transaction: t
-    }
-  );
+  try {
+    await RiwayatKeluarga.update(
+      { akhir_masuk: event_date },
+      {
+        where: {
+          krama_id,
+          akhir_masuk: null,
+          awal_masuk: { [Op.lte]: event_date },
+          [Op.or]: [
+            { awal_masuk: { [Op.lt]: event_date } },
+            {
+              [Op.and]: [
+                { awal_masuk: event_date },
+                { kategori_masuk: { [Op.ne]: kategori_baru } }
+              ]
+            }
+          ]
+        },
+        transaction: t
+      }
+    );
+  } catch (error) {
+    console.error("Error pada tutupRiwayatKeluarga:", error.message);
+    throw error;
+  }
 };
 
 /**
- * Menyimpan riwayat keluarga yang baru
- * @param allow_multiple - Jika false, akan menutup riwayat aktif sebelumnya
+ * Menyimpan riwayat hubungan keluarga yang baru hasil sinkronisasi adat/kependudukan
+ * @param allow_multiple - Jika false, otomatis akan menutup hubungan keluarga aktif sebelumnya (misal saat kawin keluar KK)
  */
 export const simpanRiwayatKeluarga = async ({
   krama_id,
   keluarga_id,
   kedudukan,
+  kategori_masuk,
   dasar_keputusan,
   event_date = null,
   allow_multiple = false,
   akhir_masuk = null 
 }, t = null) => {
-  // Validasi keluarga dapat aktif bersamaan
-  if (!allow_multiple) {
-    const closeDate = event_date || new Date();
-    await tutupRiwayatKeluarga(krama_id, closeDate, t);
+  // Validasi internal kolom wajib
+  if (!krama_id || !keluarga_id || !kedudukan || !kategori_masuk || !dasar_keputusan) {
+    throw new Error("Gagal menyimpan riwayat keluarga! Parameter data  tidak lengkap.");
   }
 
-  // Validasi event date riwayat keluarga sudah sesuai
-  const existing = await RiwayatKeluarga.findOne({
-    where: {
+  const finalEventDate = event_date || new Date();
+
+  try {
+    if (!allow_multiple) {
+      await tutupRiwayatKeluarga(krama_id, finalEventDate, kategori_masuk, t);
+    }
+  
+    const existing = await RiwayatKeluarga.findOne({
+      where: {
+        krama_id,
+        keluarga_id,
+        kategori_masuk,
+        awal_masuk: finalEventDate
+      },
+      transaction: t
+    });
+
+    if (existing) {
+      return await existing.update({
+        kedudukan,
+        dasar_keputusan,
+        akhir_masuk: akhir_masuk || existing.akhir_masuk
+      }, { transaction: t });
+    }
+
+    return await RiwayatKeluarga.create({
       krama_id,
       keluarga_id,
-      awal_masuk: event_date
-    },
-    transaction: t
-  });
-
-  if (existing) {
-    return await existing.update({
       kedudukan,
+      kategori_masuk,
       dasar_keputusan,
-      akhir_masuk
-    }, { 
-      transaction: t 
-    });
+      awal_masuk: finalEventDate,
+      akhir_masuk: akhir_masuk || null 
+    }, { transaction: t });
+  } catch (error) {
+    console.error("Error pada simpanRiwayatKeluarga:", error.message);
+    throw error;
   }
-
-  return RiwayatKeluarga.create({
-    krama_id,
-    keluarga_id,
-    kedudukan,
-    dasar_keputusan,
-    awal_masuk: event_date,
-    akhir_masuk: akhir_masuk 
-  }, { 
-    transaction: t 
-  });
 };

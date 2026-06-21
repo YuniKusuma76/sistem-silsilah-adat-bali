@@ -75,7 +75,7 @@ const KramaBali = db.define("tb_krama_bali", {
     type: DataTypes.BOOLEAN,
     allowNull: false,
     defaultValue: false,
-    comment: "Field penanda adanya usulan perubahan yang belum di-approve"
+    comment: "Field penanda adanya usulan perubahan yang belum ditinjau"
   },
   data_perubahan: {
     type: DataTypes.JSONB,

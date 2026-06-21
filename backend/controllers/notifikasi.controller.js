@@ -16,10 +16,13 @@ export const getNotifikasiSaya = async (req, res) => {
     let includeCondition = [
       { 
         model: User, 
-        as: "user_notifikasi", 
+        as: "pengirim", 
         attributes: ["full_name", "display_name", "email", "role"] 
-      },
-      { 
+      },{ 
+        model: User, 
+        as: "penerima", 
+        attributes: ["full_name", "display_name", "email", "role"] 
+      },{ 
         model: DesaAdat, 
         as: "asal_notifikasi", 
         attributes: ["nama_desa_adat"] 
@@ -43,13 +46,19 @@ export const getNotifikasiSaya = async (req, res) => {
       };
     } else if (["Krama", "Pakar", "Viewer"].includes(userRole)) {
       filterCondition = {
-        desa_adat_id: userDesaId,
-        kontak_pesan_id: { [Op.ne]: null } 
+        [Op.or]: [
+          { user_id: currentUserId },
+          { 
+            desa_adat_id: userDesaId,
+            kontak_pesan_id: { [Op.ne]: null }
+          }
+        ] 
       };
 
       includeCondition.push({
         model: KontakPesan,
         as: "sumber_pesan", 
+        required: false,
         where: { user_id: currentUserId },
         attributes: ["id", "kategori_pesan", "status_pesan"]
       });

@@ -206,7 +206,8 @@ export const createPesan = async (req, res) => {
       tautan_fitur: "/laporan-masuk",
       desa_adat_id: targetDesaId,
       sender_id: finalUserId,
-      kontak_pesan_id: pesanLaporan.id
+      kontak_pesan_id: pesanLaporan.id,
+      user_id: null
     });
 
     return res.status(201).json({
@@ -251,7 +252,8 @@ export const updateStatusPesan = async (req, res) => {
         tautan_fitur: "/pusat-bantuan",
         desa_adat_id: kontak.desa_adat_id,   
         sender_id: req.userId,                
-        kontak_pesan_id: kontak.id 
+        kontak_pesan_id: kontak.id,
+        user_id: kontak.user_id
       });
       
     }

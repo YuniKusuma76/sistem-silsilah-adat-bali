@@ -318,11 +318,20 @@ KontakPesan.belongsTo(DesaAdat, {
 
 User.hasMany(Notifikasi, {
   foreignKey: "sender_id",
-  as: "pesan_masuk"
+  as: "notifikasi_terkirim"
 });
 Notifikasi.belongsTo(User, {
   foreignKey: "sender_id",
-  as: "user_notifikasi"
+  as: "pengirim"
+});
+
+User.hasMany(Notifikasi, { 
+  foreignKey: 'user_id', 
+  as: 'notifikasi_masuk', 
+});
+Notifikasi.belongsTo(User, { 
+  foreignKey: 'user_id', 
+  as: 'penerima' 
 });
 
 DesaAdat.hasMany(Notifikasi, {

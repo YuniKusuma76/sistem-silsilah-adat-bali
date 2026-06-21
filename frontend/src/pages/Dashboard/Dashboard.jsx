@@ -10,20 +10,39 @@ import {
   FaUserCog,    
   FaUserCheck, 
   FaUserGraduate,
-  FaUserAstronaut,
   FaUserInjured
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance'; 
 import Footer from '../../components/Footer/Footer';
 import styles from './Dashboard.module.css';
 
-const Dashboard = ({ user }) => {
-  const [jumlahNotif, setJumlahNotif] = useState(0);
-  const notifDropdownRef = useRef(null);
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
   
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const Dashboard = ({ user }) => {
+  const notifDropdownRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+
+  const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   const [stats, setStats] = useState({
     users: 0,
@@ -119,7 +138,9 @@ const Dashboard = ({ user }) => {
       icon: <FaGavel />, 
       color: "#f6c23e" 
     },{ 
-      label: "Total User", 
+      label: user?.role === "Admin Desa" 
+        ? "Total Krama Adat" 
+        : "Total User", 
       value: stats.users, 
       icon: <FaUserShield />, 
       color: "#4e73df" 
@@ -180,7 +201,7 @@ const Dashboard = ({ user }) => {
       const unread = response.data.data.filter(n => !n.is_read).length;
       setJumlahNotif(unread);
     } catch (error) {
-      console.error("Gagal mengambil daftar notifikasi", error);
+      console.error("Gagal mengambil list notifikasi masuk", error);
     }
   };
 
@@ -235,50 +256,73 @@ const Dashboard = ({ user }) => {
               <MdNotificationsNone className={styles.notifIcon} />
               {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
             </div>
-            {/* PANEL DROPDOWN NOTIFIKASI MELAYANG */}
+            {/* DROPDOWN NOTIFIKASI */}
             {isDropdownNotifOpen && (
               <div className={styles.notifDropdownMenu}>
                 <div className={styles.notifDropdownHeader}>
-                  <h3 className="text-sm font-bold text-gray-800">
+                  <h3 className={styles.notifDropdownHeaderTitle}>
                     Pemberitahuan Sistem
                   </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
                 </div>
                 <div className={styles.notifDropdownBody}>
                   {!user ? (
-                    <div className="text-center py-6 text-gray-400 italic text-xs">
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
                       Silakan login untuk melihat pemberitahuan.
                     </div>
                   ) : listNotifikasi.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400 italic text-xs">
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
                       Tidak ada pemberitahuan baru.
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-100 max-h-[320px] overflow-y-auto">
-                      {listNotifikasi.map((notif) => (
-                        <div key={notif.id} className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
-                          <div className="flex-1 pr-2">
-                            <div className="flex items-center space-x-1.5 mb-1">
-                              <span className={styles.badgeKategoriKecil}>
-                                {notif.kategori}
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
                               </span>
-                              <h4 className="text-xs font-bold text-gray-900 truncate max-w-[180px]">
-                                {notif.judul}
-                              </h4>
                             </div>
-                            <p className="text-[11px] text-gray-600 leading-normal">
-                              {notif.deskripsi}
-                            </p>
-                            <span className="text-[9px] text-gray-400 block mt-1">
-                              {new Date(notif.createdAt).toLocaleDateString('id-ID')}
-                            </span>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
                           </div>
-                          {!notif.is_read && (
-                            <button onClick={() => handleTandaiDibaca(notif.id)}className={styles.btnReadKecil}>
-                              Baca
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -293,9 +337,9 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
       </nav>
-      {/* Alert Action */}
+      {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -344,7 +388,6 @@ const Dashboard = ({ user }) => {
           )}
         </div>
       )}
-      {/* Content */}
       <div className={styles.contentWrapper}>
         {/* STATISTIK WILAYAH & DATA INTI ADAT */}
         <div className={styles.sectionBlock}>
@@ -366,24 +409,26 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
         {/* STATISTIK BREAKDOWN ROLE AKUN PENGGUNA */}
-        <div className={`${styles.sectionBlock} mt-8`}>
-          <div className={styles.sectionHeader}>
-            <h3>Ringkasan Distribusi Role Pengguna</h3>
-          </div>
-          <div className={styles.statsGrid}>
-            {roleStatConfig.map((item, index) => (
-              <div key={index} className={styles.statCard}>
-                <div className={styles.iconWrapper} style={{ backgroundColor: item.color }}>
-                  {item.icon}
+        {user?.role === 'Super Admin' && (
+          <div className={`${styles.sectionBlock} mt-8`}>
+            <div className={styles.sectionHeader}>
+              <h3>Ringkasan Distribusi Role Pengguna</h3>
+            </div>
+            <div className={styles.statsGrid}>
+              {roleStatConfig.map((item, index) => (
+                <div key={index} className={styles.statCard}>
+                  <div className={styles.iconWrapper} style={{ backgroundColor: item.color }}>
+                    {item.icon}
+                  </div>
+                  <div className={styles.info}>
+                    <span className={styles.statLabel}>{item.label}</span>
+                    <h2 className={styles.statValue}>{item.value.toLocaleString()}</h2>
+                  </div>
                 </div>
-                <div className={styles.info}>
-                  <span className={styles.statLabel}>{item.label}</span>
-                  <h2 className={styles.statValue}>{item.value.toLocaleString()}</h2>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
       <div className={styles.footerContainer}>
         <Footer />

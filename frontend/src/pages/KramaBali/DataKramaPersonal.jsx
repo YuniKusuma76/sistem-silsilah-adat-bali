@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -68,11 +68,36 @@ const createSlug = (namaLengkap, tipeData, id) => {
   return `${safeName}-${safeType}-${encodedId}`;
 };
 
-const DataKramaPersonal = () => {
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const DataKramaPersonal = ({ user }) => {
   const [kramaList, setKramaList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const notifDropdownRef = useRef(null);
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -104,7 +129,7 @@ const DataKramaPersonal = () => {
       setAlert({
         show: true,
         type: 'error',
-        message: 'Gagal memuat data krama.'
+        message: 'Gagal memuat data krama bali.'
       });
     } finally {
       setIsLoading(false);
@@ -114,6 +139,54 @@ const DataKramaPersonal = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Effect: Menutup dropdown ketika klik di luar area input
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Helper: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Helper: Menandai notifikasi telah dibaca
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
   
   // Effect: Alert Diteruskan ke alert halaman lain
   useEffect(() => {
@@ -146,7 +219,7 @@ const DataKramaPersonal = () => {
       setAlert({
         show: true,
         type: 'success',
-        message: 'Data krama bali berhasil dihapus.'
+        message: 'Data krama bali berhasil dihapus secara permanen!'
       });
       fetchData();
       setModal({ 
@@ -243,9 +316,83 @@ const DataKramaPersonal = () => {
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -261,12 +408,12 @@ const DataKramaPersonal = () => {
         onClose={() => setModal({ show: false, id: null })}
         onConfirm={handleDelete}
         isProcessing={isDeleting}
-        title="Konfirmasi Menghapus"
+        title="Konfirmasi Menghapus Data Krama Bali"
         message="Apakah Anda yakin ingin menghapus data krama ini secara permanen beserta seluruh riwayatnya?"
       />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -317,7 +464,6 @@ const DataKramaPersonal = () => {
       )}
       {/* List Krama Bali Content */}
       <div className={styles.contentArea}>
-        {/* Search Bar */}
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
@@ -346,7 +492,7 @@ const DataKramaPersonal = () => {
             <thead>
               <tr>
                 <th className="text-center w-16">No</th>
-                <th>Nama Lengkap</th>
+                <th className="text-left">Nama Lengkap</th>
                 <th className="text-center">Jenis Kelamin</th>
                 <th className="text-center">Status Hidup</th>
                 <th className="text-center">Tipe Data</th>

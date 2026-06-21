@@ -17,8 +17,8 @@ import styles from './DataKramaBaru.module.css';
 
 const DataKramaEditKrama = () => {
   const { id: slugParam } = useParams();
-
   const navigate = useNavigate();
+  
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   
@@ -218,22 +218,48 @@ const DataKramaEditKrama = () => {
       if (payloadKrama.desa_adat_id === "") {
         payloadKrama.desa_adat_id = null;
       }
-      if (payloadKrama.tipe_data === "Leluhur") {
-        if (payloadKrama.tanggal_lahir === "") {
-          payloadKrama.tanggal_lahir = null;
+      if (payloadKrama.tanggal_lahir === "") {
+        payloadKrama.tanggal_lahir = null;
+      }
+      if (payloadKrama.jenis_kelamin === "") {
+        payloadKrama.jenis_kelamin = null;
+      }
+
+      if (payloadKrama.tipe_data === "Keturunan") {
+        if (payloadKrama.status_hidup === "") {
+          payloadKrama.status_hidup = "Hidup";
         }
-        if (payloadKrama.jenis_kelamin === "") {
-          payloadKrama.jenis_kelamin = null;
-        }
+      } else {
         if (payloadKrama.status_hidup === "") {
           payloadKrama.status_hidup = null;
         }
       }
 
-      await axiosInstance.put(`/krama-bali/${realId}`, payloadKrama);
+      // Validasi manual untuk kolom wilayah asal
+      if (payloadKrama.tipe_data === "Keturunan") {
+        if (payloadKrama.is_bali && !payloadKrama.desa_adat_id) {
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: 'Silakan pilih Desa Adat Asal dari pencarian dropdown!' 
+          });
+          setIsLoading(false);
+          return window.scrollTo(0, 0);
+        }
+        if (!payloadKrama.is_bali && !payloadKrama.alamat_luar.trim()) {
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: 'Alamat Luar Bali wajib diisi!' 
+          });
+          setIsLoading(false);
+          return window.scrollTo(0, 0);
+        }
+      }
 
+      await axiosInstance.put(`/krama-bali/${realId}`, payloadKrama);
       navigate(`/krama-bali/my-data/detail/${slugParam}`, { 
-        state: { successMessage: 'Perubahan data krama bali berhasil disimpan!' } 
+        state: { successMessage: 'Perubahan data krama bali berhasil disimpan! Menunggu verifikasi dari Admin Desa.' } 
       });
     } catch (error) {
       setAlert({ 
@@ -343,8 +369,7 @@ const DataKramaEditKrama = () => {
                       value={kramaData.tipe_data} 
                       onChange={handleTipeDataChange}
                       className={styles.inputSelect} 
-                      required
-                    >
+                      required>
                       <option value="Keturunan">Keturunan</option>
                       <option value="Leluhur">Leluhur</option>
                     </select>
@@ -374,7 +399,7 @@ const DataKramaEditKrama = () => {
                 {/* Nama Panggilan */}
                 <div className="flex flex-col space-y-1">
                   <label className={styles.labelInput}>
-                    Nama Panggilan {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                    Nama Panggilan
                   </label>
                   <input 
                     type="text" 
@@ -383,7 +408,6 @@ const DataKramaEditKrama = () => {
                     onChange={handleChange} 
                     className={styles.inputText}
                     placeholder="Contoh: Sudarsana" 
-                    required={kramaData.tipe_data !== "Leluhur"}
                   />
                 </div>
                 <div className={styles.dualInput}>
@@ -398,9 +422,8 @@ const DataKramaEditKrama = () => {
                         value={kramaData.jenis_kelamin} 
                         onChange={handleChange} 
                         className={styles.inputSelect} 
-                        required={kramaData.tipe_data !== "Leluhur"}
-                      >
-                        <option value="">- Pilih -</option>
+                        required={kramaData.tipe_data !== "Leluhur"}>
+                        <option value="" disabled>- Pilih -</option>
                         <option value="Laki-laki">Laki-laki</option>
                         <option value="Perempuan">Perempuan</option>
                       </select>
@@ -412,7 +435,7 @@ const DataKramaEditKrama = () => {
                   {/* Tanggal Lahir */}
                   <div className="flex flex-col space-y-1.5">
                     <label className={styles.labelInput}>
-                      Tanggal Lahir {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                      Tanggal Lahir
                     </label>
                     <input 
                       type="date" 
@@ -420,7 +443,6 @@ const DataKramaEditKrama = () => {
                       value={kramaData.tanggal_lahir} 
                       onChange={handleChange} 
                       className={styles.inputCalendar} 
-                      required={kramaData.tipe_data !== "Leluhur"}
                     />
                   </div>
                 </div>
@@ -428,17 +450,14 @@ const DataKramaEditKrama = () => {
                   {/* Status Hidup */}
                   <div className="flex flex-col space-y-1.5">
                     <label className={styles.labelInput}>
-                      Status Hidup {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                      Status Hidup
                     </label>
                     <div className="relative">
                       <select 
                         name="status_hidup" 
                         value={kramaData.status_hidup} 
                         onChange={handleChange} 
-                        className={styles.inputSelect} 
-                        required={kramaData.tipe_data !== "Leluhur"}
-                      >
-                        <option value="">- Pilih -</option>
+                        className={styles.inputSelect}>
                         <option value="Hidup">Hidup</option>
                         <option value="Meninggal">Meninggal</option>
                       </select>
@@ -454,6 +473,8 @@ const DataKramaEditKrama = () => {
                         type="checkbox" 
                         name="is_bali" 
                         checked={kramaData.is_bali} 
+                        id="is_bali" 
+                        className={styles.checkboxInput} 
                         onChange={(e) => {
                           handleChange(e);
                           setKramaData(prev => ({
@@ -465,8 +486,6 @@ const DataKramaEditKrama = () => {
                           }));
                           setSearchDesaUtama("");
                         }} 
-                        id="is_bali" 
-                        className={styles.checkboxInput} 
                       />
                       <label htmlFor="is_bali" className={styles.checkboxLabel}>
                         Krama ini asal Bali?

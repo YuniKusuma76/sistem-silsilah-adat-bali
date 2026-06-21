@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -12,7 +12,32 @@ import {
 import axiosInstance from '../../api/axiosInstance.js';
 import styles from './VerifikasiData.module.css';
 
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
 const VerifikasiData = ({ user }) => {
+  const notifDropdownRef = useRef(null);
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
+  
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
@@ -198,6 +223,64 @@ const VerifikasiData = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Effect: Menutup dropdown ketika klik di luar area input
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Helper: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Helper: Menandai notifikasi telah dibaca
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
+
+  // Effect: Auto-Close Notifikasi Alert
+  useEffect(() => {
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [alert.show, alert.type]);
+
   // Helper: Navigasi path ke halaman masing-masing
   const handleNavigate = (path) => {
     console.log(`Navigasi ke halaman: ${path}`);
@@ -226,9 +309,83 @@ const VerifikasiData = ({ user }) => {
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -295,7 +452,6 @@ const VerifikasiData = ({ user }) => {
             const cat = categories[key];
             if (!cat.show) return null;
             const dataStat = stats[key];
-
             return (
               <div key={key} className={styles.statsCard}>
                 <div className={styles.cardHeader}>

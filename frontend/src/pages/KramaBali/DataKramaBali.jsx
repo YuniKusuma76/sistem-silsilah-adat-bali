@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -32,10 +32,40 @@ const createSlug = (namaLengkap, tipeData, id) => {
   return `${safeName}-${safeType}-${encodedId}`;
 };
 
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
 const DataKramaBali = ({ user }) => {
   const [kramaList, setKramaList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const [desaAdatMap, setDesaAdatMap] = useState({});
+  const [daftarDesaRaw, setDaftarDesaRaw] = useState([]);
+  const [daftarKecamatan, setDaftarKecamatan] = useState([]);
+  const [daftarKabupaten, setDaftarKabupaten] = useState([]);
+
+  const notifDropdownRef = useRef(null);
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -50,26 +80,100 @@ const DataKramaBali = ({ user }) => {
     message: ''
   });
 
-  // Effect: Mengambil data krama bali
+  // Helper: Mengambil data wilayah adat
+  const fetchWilayahDanDesa = async () => {
+    try {
+      const [resDesa, resKec, resKab] = await Promise.all([
+        axiosInstance.get('/desa-adat'),
+        axiosInstance.get('/kecamatan'),
+        axiosInstance.get('/kabupaten')
+      ]);
+
+      const desaData = resDesa.data?.data || [];
+      setDaftarDesaRaw(desaData);
+      setDaftarKecamatan(resKec.data?.data || []);
+      setDaftarKabupaten(resKab.data?.data || []);
+
+      const map = {};
+      desaData.forEach(desa => { 
+        map[desa.id] = desa.nama_desa_adat; 
+      });
+      setDesaAdatMap(map);
+    } catch (error) {
+      console.error("Gagal memuat data wilayah adat:", error);
+    }
+  };
+
+  // Helper: Fungsi mengambil data krama bali
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axiosInstance.get('/krama-bali?mode=public');
+      setKramaList(response.data.data || []);
+    } catch (error) {
+      console.log(error);
+      setAlert({
+        show: true,
+        type: 'error',
+        message: 'Gagal memuat data krama bali.'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const response = await axiosInstance.get('/krama-bali?mode=public');
-        setKramaList(response.data.data || []);
-      } catch (error) {
-        console.log(error);
-        setAlert({
-          show: true,
-          type: 'error',
-          message: 'Gagal memuat data krama.'
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    fetchWilayahDanDesa();
     fetchData();
   }, []);
+
+  // Effect: Menutup dropdown ketika klik di luar area input
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Helper: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Helper: Menandai notifikasi telah dibaca
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
   
   // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
@@ -92,6 +196,20 @@ const DataKramaBali = ({ user }) => {
       return () => clearTimeout(timer);
     }
   }, [alert.show, alert.type]);
+
+  // Helper: Fungsi mengambil detail wilayah berdasarkan desa adat id
+  const getWilayahLengkap = (desaId) => {
+    const desa = daftarDesaRaw.find(d => String(d.id) === String(desaId));
+    if (!desa) return null;
+
+    const kec = daftarKecamatan.find(k => String(k.id) === String(desa.kecamatan_id));
+    const kab = daftarKabupaten.find(kb => String(kb.id) === String(kec?.kabupaten_id));
+
+    return {
+      kecamatan: kec ? kec.nama_kecamatan : '-',
+      kabupaten: kab ? kab.nama_kabupaten : '-',
+    };
+  };
 
   // Helper: Menangani input pencarian
   const handleSearchChange = (e) => {
@@ -177,9 +295,83 @@ const DataKramaBali = ({ user }) => {
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -191,7 +383,7 @@ const DataKramaBali = ({ user }) => {
       </nav>
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -242,7 +434,6 @@ const DataKramaBali = ({ user }) => {
       )}
       {/* List Krama Bali Content */}
       <div className={styles.contentArea}>
-        {/* Search Bar */}
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
@@ -258,8 +449,7 @@ const DataKramaBali = ({ user }) => {
             <button 
               className={styles.btnTrehPuncak} 
               onClick={() => navigate('/krama-bali/treh-puncak')}
-              title="Lihat silsilah dari leluhur tertinggi"
-            >
+              title="Lihat silsilah dari leluhur tertinggi">
               <FaSitemap size={14} />
               <span>Treh Puncak</span>
             </button>
@@ -267,8 +457,7 @@ const DataKramaBali = ({ user }) => {
               <button 
                 className={styles.btnMyData} 
                 onClick={() => navigate('/krama-bali/my-data')}
-                title="Lihat data yang saya masukkan"
-              >
+                title="Lihat data yang saya masukkan">
                 <FaUserCircle size={14} />
                 <span>Data Saya</span>
               </button>
@@ -281,8 +470,9 @@ const DataKramaBali = ({ user }) => {
             <thead>
               <tr>
                 <th className="text-center w-16">No</th>
-                <th>Nama Lengkap</th>
+                <th className="text-left">Nama Lengkap</th>
                 <th className="text-center">Jenis Kelamin</th>
+                <th className="text-center">Desa Adat</th>
                 <th className="text-center">Status Hidup</th>
                 <th className="text-center">Tipe Data</th>
                 <th className="text-center"></th>
@@ -291,7 +481,7 @@ const DataKramaBali = ({ user }) => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-12">
+                  <td colSpan="7" className="text-center py-12">
                     <div className={styles.loadContainer}>
                       <div className={`${styles.loadSpinner} animate-spin`}></div>
                       <span>Memuat data...</span>
@@ -300,7 +490,7 @@ const DataKramaBali = ({ user }) => {
                 </tr>
               ) : currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-16 text-gray-500">
+                  <td colSpan="7" className="text-center py-16 text-gray-500">
                     <div className={styles.infoDataContent}>
                       <FaInfoCircle className={styles.infoDataIcon} />
                       <p className="text-sm font-medium">
@@ -310,42 +500,62 @@ const DataKramaBali = ({ user }) => {
                   </td>
                 </tr>
               ) : (
-                currentItems.map((krama, index) => (
-                  <tr key={krama.id}>
-                    <td className="text-center text-gray-400">
-                      {indexOfFirstItem + index + 1}
-                    </td>
-                    <td className="font-bold text-gray-800">
-                      {krama.nama_lengkap}
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.jenis_kelamin}
-                    </td>
-                    <td className="text-center">
-                      <span className={`${styles.badge} ${
-                        krama.status_hidup === 'Hidup' ? styles.badgeSuccess : 
-                        krama.status_hidup === 'Meninggal' ? styles.badgeDanger :
-                        styles.badgeGray
-                      }`}>
-                        {krama.status_hidup}
-                      </span>
-                    </td>
-                    <td className="text-center font-medium">
-                      {krama.tipe_data}
-                    </td>
-                    <td className="text-center">
-                      <button 
-                        className={styles.btnDetail} 
-                        onClick={() => {
-                          const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
-                          navigate(`/krama-bali/detail/${slug}`);
-                        }}
-                      >
-                        <FaInfoCircle /> Detail
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                currentItems.map((krama, index) => {
+                  const namaDesa = desaAdatMap[krama.desa_adat_id] 
+                    || krama.alamat_luar || krama.tempat_asal_khusus
+                    || "Alamat Asal Tidak Diketahui";
+                  const infoWilayah = krama.desa_adat_id 
+                    ? getWilayahLengkap(krama.desa_adat_id) 
+                    : null;
+
+                  return (
+                    <tr key={krama.id}>
+                      <td className="text-center text-gray-400">
+                        {indexOfFirstItem + index + 1}
+                      </td>
+                      <td className="font-bold text-gray-800">
+                        {krama.nama_lengkap}
+                      </td>
+                      <td className="text-center font-medium">
+                        {krama.jenis_kelamin}
+                      </td>
+                      <td className="text-center">
+                        <div className="flex flex-col">
+                          <span className="font-semibold">
+                            {namaDesa}
+                          </span>
+                          {infoWilayah && (
+                            <span className={styles.detailWilayah}>
+                              {infoWilayah.kecamatan} • {infoWilayah.kabupaten}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="text-center">
+                        <span className={`${styles.badge} ${
+                          krama.status_hidup === 'Hidup' ? styles.badgeSuccess : 
+                          krama.status_hidup === 'Meninggal' ? styles.badgeDanger :
+                          styles.badgeGray
+                        }`}>
+                          {krama.status_hidup}
+                        </span>
+                      </td>
+                      <td className="text-center font-medium">
+                        {krama.tipe_data}
+                      </td>
+                      <td className="text-center">
+                        <button 
+                          className={styles.btnDetail} 
+                          onClick={() => {
+                            const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
+                            navigate(`/krama-bali/detail/${slug}`);
+                          }}>
+                          <FaInfoCircle /> Detail
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

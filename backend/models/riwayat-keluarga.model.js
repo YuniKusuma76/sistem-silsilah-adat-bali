@@ -21,6 +21,10 @@ const RiwayatKeluarga = db.define("tb_riwayat_keluarga", {
     type: DataTypes.STRING,
     allowNull: false
   },
+  kategori_masuk: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
   awal_masuk: {
     type: DataTypes.DATEONLY,
     allowNull: true
@@ -39,6 +43,7 @@ const RiwayatKeluarga = db.define("tb_riwayat_keluarga", {
   indexes: [
     { fields: ["krama_id"] },
     { fields: ["keluarga_id"] },
+    { fields: ["kategori_masuk"] },
     { fields: ["akhir_masuk"] }
   ]
 });

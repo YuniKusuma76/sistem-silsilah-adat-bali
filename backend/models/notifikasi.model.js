@@ -36,11 +36,18 @@ const Notifikasi = db.define("tb_notifikasi", {
   },
   sender_id: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: true,
+    comment: "Field untuk user yang mengirimkan notifikasi"
   },
   kontak_pesan_id: {
     type: DataTypes.INTEGER,
-    allowNull: true
+    allowNull: true,
+    comment: "Field yang menghubungkan notifikasi dengan laporan pengaduan"
+  },
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: "Field untuk user yang menerima notifikasi"
   }
 }, {
   freezeTableName: true,

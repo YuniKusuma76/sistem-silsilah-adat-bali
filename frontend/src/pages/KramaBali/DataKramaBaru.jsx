@@ -56,7 +56,7 @@ const DataKramaBaru = ({ user }) => {
     nama_panggilan: "",
     jenis_kelamin: "",
     tanggal_lahir: "",
-    status_hidup: "",
+    status_hidup: "Hidup",
     is_bali: true,
     desa_adat_id: "",
     tempat_asal_khusus: "",
@@ -653,13 +653,18 @@ const DataKramaBaru = ({ user }) => {
       if (payloadKrama.desa_adat_id === "") {
         payloadKrama.desa_adat_id = null;
       }
-      if (payloadKrama.tipe_data === "Leluhur") {
-        if (payloadKrama.tanggal_lahir === "") {
-          payloadKrama.tanggal_lahir = null;
+      if (payloadKrama.tanggal_lahir === "") {
+        payloadKrama.tanggal_lahir = null;
+      }
+      if (payloadKrama.jenis_kelamin === "") {
+        payloadKrama.jenis_kelamin = null;
+      }
+
+      if (payloadKrama.tipe_data === "Keturunan") {
+        if (payloadKrama.status_hidup === "") {
+          payloadKrama.status_hidup = "Hidup";
         }
-        if (payloadKrama.jenis_kelamin === "") {
-          payloadKrama.jenis_kelamin = null;
-        }
+      } else {
         if (payloadKrama.status_hidup === "") {
           payloadKrama.status_hidup = null;
         }
@@ -1126,10 +1131,9 @@ const DataKramaBaru = ({ user }) => {
                     <select 
                       name="tipe_data" 
                       value={kramaData.tipe_data} 
-                      onChange={handleTipeDataChange}
+                      onChange={handleTipeDataChange} 
                       className={styles.inputSelect} 
-                      required
-                    >
+                      required>
                       <option value="Keturunan">Keturunan</option>
                       <option value="Leluhur">Leluhur</option>
                     </select>
@@ -1159,7 +1163,7 @@ const DataKramaBaru = ({ user }) => {
                 {/* Nama Panggilan */}
                 <div className="flex flex-col space-y-1">
                   <label className={styles.labelInput}>
-                    Nama Panggilan {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                    Nama Panggilan
                   </label>
                   <input 
                     type="text" 
@@ -1168,7 +1172,6 @@ const DataKramaBaru = ({ user }) => {
                     onChange={handleChange} 
                     className={styles.inputText}
                     placeholder="Contoh: Sudarsana" 
-                    required={kramaData.tipe_data !== "Leluhur"}
                   />
                 </div>
                 <div className={styles.dualInput}>
@@ -1183,9 +1186,8 @@ const DataKramaBaru = ({ user }) => {
                         value={kramaData.jenis_kelamin} 
                         onChange={handleChange} 
                         className={styles.inputSelect} 
-                        required={kramaData.tipe_data !== "Leluhur"}
-                      >
-                        <option value="">- Pilih -</option>
+                        required={kramaData.tipe_data !== "Leluhur"}>
+                        <option value="" disabled>- Pilih -</option>
                         <option value="Laki-laki">Laki-laki</option>
                         <option value="Perempuan">Perempuan</option>
                       </select>
@@ -1197,7 +1199,7 @@ const DataKramaBaru = ({ user }) => {
                   {/* Tanggal Lahir */}
                   <div className="flex flex-col space-y-1.5">
                     <label className={styles.labelInput}>
-                      Tanggal Lahir {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                      Tanggal Lahir
                     </label>
                     <input 
                       type="date" 
@@ -1205,7 +1207,6 @@ const DataKramaBaru = ({ user }) => {
                       value={kramaData.tanggal_lahir} 
                       onChange={handleChange} 
                       className={styles.inputCalendar} 
-                      required={kramaData.tipe_data !== "Leluhur"}
                     />
                   </div>
                 </div>
@@ -1213,17 +1214,14 @@ const DataKramaBaru = ({ user }) => {
                   {/* Status Hidup */}
                   <div className="flex flex-col space-y-1.5">
                     <label className={styles.labelInput}>
-                      Status Hidup {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                      Status Hidup
                     </label>
                     <div className="relative">
                       <select 
                         name="status_hidup" 
                         value={kramaData.status_hidup} 
                         onChange={handleChange} 
-                        className={styles.inputSelect} 
-                        required={kramaData.tipe_data !== "Leluhur"}
-                      >
-                        <option value="">- Pilih -</option>
+                        className={styles.inputSelect}>
                         <option value="Hidup">Hidup</option>
                         <option value="Meninggal">Meninggal</option>
                       </select>
@@ -1239,6 +1237,8 @@ const DataKramaBaru = ({ user }) => {
                         type="checkbox" 
                         name="is_bali" 
                         checked={kramaData.is_bali} 
+                        id="is_bali" 
+                        className={styles.checkboxInput} 
                         onChange={(e) => {
                           handleChange(e);
                           setKramaData(prev => ({
@@ -1250,8 +1250,6 @@ const DataKramaBaru = ({ user }) => {
                           }));
                           setSearchDesaUtama("");
                         }} 
-                        id="is_bali" 
-                        className={styles.checkboxInput} 
                       />
                       <label htmlFor="is_bali" className={styles.checkboxLabel}>
                         Krama ini asal Bali?

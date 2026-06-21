@@ -1,31 +1,43 @@
 import { Op } from "sequelize";
 import { RiwayatPeranAdat } from "../models/associations.js";
 
+const BOBOT_EVENT = {
+  "LAHIR": 1, 
+  "PENGANGKATAN": 2, 
+  "KAWIN": 3, 
+  "CERAI": 4
+};
+
 // Menutup riwayat peran adat aktif sebelumnya
 export const tutupRiwayatPeranAdat = async (
   krama_id, 
   event_date, 
+  bobot_baru, 
   t = null
 ) => {
   try {
-    const targetDate = new Date(event_date);
-
     await RiwayatPeranAdat.update(
       { selesai_tanggal : event_date },
       {
         where: {
           krama_id,
-          mulai_tanggal: { [Op.lte]: event_date },
+          mulai_tanggal: { [Op.lte]: event_date }, 
+          selesai_tanggal: null,
           [Op.or]: [
-            { selesai_tanggal: null },
-            { selesai_tanggal: { [Op.gt]: event_date } }
+            { mulai_tanggal: { [Op.lt]: event_date } },
+            { 
+              [Op.and]: [
+                { mulai_tanggal: event_date },
+                { bobot_event: { [Op.lt]: bobot_baru } }
+              ]
+            }
           ]
         },
         transaction: t
       }
     );
   } catch (error) {
-    console.error(error.message);
+    console.error("Error pada tutupRiwayatPeranAdat:", error.message);
     throw error;
   }
 };
@@ -37,6 +49,8 @@ export const simpanRiwayatPeranAdat = async ({
   jenis_perkawinan,
   garis_keturunan,
   dasar_keputusan,
+  kategori_event,
+  bobot_event,
   event_date
 }, t = null) => {
   // ============================================================
@@ -50,66 +64,45 @@ export const simpanRiwayatPeranAdat = async ({
   console.log("Tanggal Peristiwa:", event_date);
   console.log("============================================");
 
-  // Validasi internal untuk mencegah error 'NotNull Violation'
-  if (!krama_id || !status_peran_adat || !garis_keturunan || !dasar_keputusan) {
-    const missingFields = [];
-
-    if (!krama_id) {
-      missingFields.push("krama_id");
-    }
-    if (!status_peran_adat) {
-      missingFields.push("status_peran_adat");
-    }
-    if (!garis_keturunan) {
-      missingFields.push("garis_keturunan");
-    }
-    if (!dasar_keputusan) {
-      missingFields.push("dasar_keputusan");
-    }
-
-    throw new Error(
-      `Gagal menyimpan riwayat peran adat! Kolom ${missingFields.join(", ")} tidak boleh kosong. ` +
-      `Periksa apakah Decision Tree sudah mengembalikan data yang sesuai.`
-    );
+  // Validasi internal untuk kolom wajib
+  if (!krama_id || !status_peran_adat || !garis_keturunan || !dasar_keputusan || !kategori_event || !bobot_event) {
+    throw new Error("Gagal menyimpan riwayat peran adat! Parameter silsilah adat tidak lengkap.");
   }
-  
-  // Eksekusi hasil decision tree
-  try {
-    await tutupRiwayatPeranAdat(krama_id, event_date, t);
 
-    return RiwayatPeranAdat.create({
+  try {
+    await tutupRiwayatPeranAdat(krama_id, event_date, bobot_event, t);
+
+    return await RiwayatPeranAdat.create({
       krama_id,
       status_peran_adat,
       jenis_perkawinan: jenis_perkawinan || null,
       garis_keturunan,
       dasar_keputusan,
+      kategori_event,
+      bobot_event,
       mulai_tanggal: event_date,
       selesai_tanggal: null
-    }, { 
-      transaction: t 
-    });
+    }, { transaction: t });
   } catch (error) {
-    console.error(error.message);
+    console.error("Error pada simpanRiwayatPeranAdat:", error.message);
     throw error;
   }
 };
 
 // Mengambil riwayat peran adat yang aktif terakhir
-export const ambilPeranAdatTerakhir = async (
-  krama_id, 
-  t = null
-) => {
+export const ambilPeranAdatTerakhir = async (krama_id, t = null) => {
   try {
-    const kondisiData = {
+    const riwayatTerakhir = await RiwayatPeranAdat.findOne({
       where: { krama_id },
-      order: [["mulai_tanggal", "DESC"]],
+      order: [
+        ["mulai_tanggal", "DESC"],
+        ["bobot_event", "DESC"]
+      ],
       transaction: t
-    };
-
-    const riwayatTerakhir = await RiwayatPeranAdat.findOne(kondisiData);
+    });
     return riwayatTerakhir ?? null;
   } catch (error) {
-    console.error(error.message);
+    console.error("Error pada ambilPeranAdatTerakhir:", error.message);
     throw error;
   }
 };
