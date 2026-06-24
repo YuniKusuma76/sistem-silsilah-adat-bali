@@ -9,18 +9,13 @@ const BOBOT_EVENT = {
 };
 
 // Menutup riwayat peran adat aktif sebelumnya
-export const tutupRiwayatPeranAdat = async (
-  krama_id, 
-  event_date, 
-  bobot_baru, 
-  t = null
-) => {
+export const tutupRiwayatPeranAdat = async ({ krama_id, event_date, bobot_baru, t = null }) => {
   try {
     await RiwayatPeranAdat.update(
       { selesai_tanggal : event_date },
       {
         where: {
-          krama_id,
+          krama_id: parseInt(krama_id),
           mulai_tanggal: { [Op.lte]: event_date }, 
           selesai_tanggal: null,
           [Op.or]: [
@@ -28,7 +23,7 @@ export const tutupRiwayatPeranAdat = async (
             { 
               [Op.and]: [
                 { mulai_tanggal: event_date },
-                { bobot_event: { [Op.lt]: bobot_baru } }
+                { bobot_event: { [Op.lt]: parseInt(bobot_baru) } }
               ]
             }
           ]
@@ -45,6 +40,7 @@ export const tutupRiwayatPeranAdat = async (
 // Menyimpan riwayat peran adat yang baru hasil decision tree
 export const simpanRiwayatPeranAdat = async ({
   krama_id,
+  perkawinan_id,
   status_peran_adat,
   jenis_perkawinan,
   garis_keturunan,
@@ -53,34 +49,40 @@ export const simpanRiwayatPeranAdat = async ({
   bobot_event,
   event_date
 }, t = null) => {
-  // ============================================================
-  // LOGGING DEBUG (Monitor pergerakan status di terminal)
-  // ============================================================
+  const finalEventDate = event_date || new Date().toISOString().split('T')[0];
+  const finalBobot = bobot_event || BOBOT_EVENT[kategori_event] || 1;
+
   console.log("=== [SERVICE] SIMPAN RIWAYAT PERAN ADAT ===");
   console.log("ID Krama         :", krama_id);
+  console.log("Perkawinan ID    :", perkawinan_id);
   console.log("Status Peran     :", status_peran_adat);
   console.log("Garis Keturunan  :", garis_keturunan);
   console.log("Dasar Keputusan  :", dasar_keputusan);
-  console.log("Tanggal Peristiwa:", event_date);
+  console.log("Tanggal Peristiwa:", finalEventDate);
   console.log("============================================");
 
-  // Validasi internal untuk kolom wajib
-  if (!krama_id || !status_peran_adat || !garis_keturunan || !dasar_keputusan || !kategori_event || !bobot_event) {
+  if (!krama_id || !status_peran_adat || !garis_keturunan || !dasar_keputusan || !kategori_event) {
     throw new Error("Gagal menyimpan riwayat peran adat! Parameter silsilah adat tidak lengkap.");
   }
 
   try {
-    await tutupRiwayatPeranAdat(krama_id, event_date, bobot_event, t);
+    await tutupRiwayatPeranAdat({
+      krama_id,
+      event_date: finalEventDate,
+      bobot_baru: finalBobot,
+      t
+    });
 
     return await RiwayatPeranAdat.create({
-      krama_id,
+      krama_id: parseInt(krama_id),
+      perkawinan_id: perkawinan_id || null,
       status_peran_adat,
       jenis_perkawinan: jenis_perkawinan || null,
       garis_keturunan,
       dasar_keputusan,
       kategori_event,
-      bobot_event,
-      mulai_tanggal: event_date,
+      bobot_event: finalBobot,
+      mulai_tanggal: finalEventDate,
       selesai_tanggal: null
     }, { transaction: t });
   } catch (error) {
@@ -92,8 +94,8 @@ export const simpanRiwayatPeranAdat = async ({
 // Mengambil riwayat peran adat yang aktif terakhir
 export const ambilPeranAdatTerakhir = async (krama_id, t = null) => {
   try {
-    const riwayatTerakhir = await RiwayatPeranAdat.findOne({
-      where: { krama_id },
+    return await RiwayatPeranAdat.findOne({
+      where: { krama_id: parseInt(krama_id) },
       order: [
         ["mulai_tanggal", "DESC"],
         ["bobot_event", "DESC"]

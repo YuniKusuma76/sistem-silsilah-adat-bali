@@ -28,15 +28,18 @@ export const getAllRiwayatKeluarga = async (req, res) => {
   try {
     const riwayatList = await RiwayatKeluarga.findAll({
       include: RIWAYAT_KELUARGA_INCLUDE,
-      order: [["awal_masuk", "DESC"]]
+      order: [
+        ["awal_masuk", "DESC"],
+        ["id", "DESC"]
+      ]
     });
     
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data riwayat keluarga!",
       data: riwayatList
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -54,12 +57,12 @@ export const getRiwayatKeluargaById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data riwayat keluarga!",
       data: dataRiwayat
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }

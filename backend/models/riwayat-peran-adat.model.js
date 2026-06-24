@@ -13,6 +13,10 @@ const RiwayatPeranAdat = db.define("tb_riwayat_peran_adat", {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  perkawinan_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   status_peran_adat: {
     type: DataTypes.STRING,
     allowNull: false
@@ -47,7 +51,16 @@ const RiwayatPeranAdat = db.define("tb_riwayat_peran_adat", {
   }
 }, {
   freezeTableName: true,
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    { fields: ["krama_id"] },
+    { fields: ["perkawinan_id"] },
+    { fields: ["kategori_event"] },
+    {
+      name: "idx_peran_aktif_krama",
+      fields: ["krama_id", "selesai_tanggal"]
+    }
+  ]
 });
 
 export default RiwayatPeranAdat;

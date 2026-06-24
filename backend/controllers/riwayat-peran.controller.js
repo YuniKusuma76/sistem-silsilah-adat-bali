@@ -45,12 +45,12 @@ export const getAllRiwayatPeranAdat = async (req, res) => {
       ]
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data riwayat peran adat!",
       data: riwayatPeranAdatList
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -68,12 +68,12 @@ export const getRiwayatPeranAdatById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data riwayat peran adat!",
       data: dataRiwayatPeranAdat
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }

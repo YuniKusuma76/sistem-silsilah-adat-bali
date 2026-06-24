@@ -17,12 +17,20 @@ const RiwayatKeluarga = db.define("tb_riwayat_keluarga", {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  perkawinan_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   kedudukan: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  kategori_masuk: {
+  kategori_event: {
     type: DataTypes.STRING,
+    allowNull: false
+  },
+  bobot_event: {
+    type: DataTypes.INTEGER,
     allowNull: false
   },
   awal_masuk: {
@@ -43,8 +51,11 @@ const RiwayatKeluarga = db.define("tb_riwayat_keluarga", {
   indexes: [
     { fields: ["krama_id"] },
     { fields: ["keluarga_id"] },
-    { fields: ["kategori_masuk"] },
-    { fields: ["akhir_masuk"] }
+    { fields: ["kategori_event"] },
+    {
+      name: "idx_keluarga_aktif",
+      fields: ["keluarga_id", "akhir_masuk"]
+    }
   ]
 });
 

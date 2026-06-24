@@ -24,7 +24,8 @@ const Perkawinan = db.define("tb_perkawinan", {
   },
   jenis_perkawinan: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false,
+    defaultValue: "Biasa"
   },
   tanggal_perkawinan: {
     type: DataTypes.DATEONLY,
@@ -48,7 +49,8 @@ const Perkawinan = db.define("tb_perkawinan", {
   },
   user_id: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    comment: "Field untuk menyimpan user yang mendaftarkan perkawinan"
   },
   status_verifikasi: {
     type: DataTypes.STRING,
@@ -99,7 +101,7 @@ const Perkawinan = db.define("tb_perkawinan", {
     { fields: ["is_approved_desa_istri"] },
     {
       unique: true,
-      name: "unique_perkawinan_aktif",
+      name: "idx_perkawinan_aktif",
       fields: ["suami_id", "istri_id"],
       where: {
         status_perkawinan: "Kawin"

@@ -186,7 +186,7 @@ const DataKramaBaru = ({ user }) => {
       try {
         // Promise.allSettled agar satu error yang lain tidak mati
         const results = await Promise.allSettled([
-          axiosInstance.get("/krama-bali?mode=public"),
+          axiosInstance.get("/krama-bali"),
           axiosInstance.get("/desa-adat"),
           axiosInstance.get("/kecamatan"),
           axiosInstance.get("/kabupaten"),
@@ -716,82 +716,68 @@ const DataKramaBaru = ({ user }) => {
             istri_id: kramaData?.jenis_kelamin === "Laki-laki" ? spouseId : mainId,
             status_perkawinan: "Kawin", 
             jenis_perkawinan: m.jenis_perkawinan || "Biasa", 
-            tanggal_perkawinan: m.tanggal_perkawinan || null, 
-            data_perubahan: null,
+            tanggal_perkawinan: m.tanggal_perkawinan || "" 
           };
           // eksekusi post pendaftaran status perkawinan
           const mRes = await axiosInstance.post("/perkawinan/kawin", payloadP);
-          const marriageId = mRes.data.data?.perkawinan?.id || mRes.data.data?.id;
-          createdMarriageId = marriageId;
+          
+          const dataRoot = mRes.data?.data;
+          
+          // Amankan ekstraksi ID murni
+          const marriageId = dataRoot?.perkawinan?.id || dataRoot?.id;
+          const tanggalKawinEfektif = dataRoot?.perkawinan?.tanggal_perkawinan || dataRoot?.tanggal_perkawinan;
 
-          // baypass eksekusi mutasi perceraian historis
+          // Proteksi total dari objek gantung
+          if (!marriageId || typeof marriageId === "object" || isNaN(parseInt(marriageId))) {
+            console.error("ID Perkawinan meleset, tidak diproses ke perceraian:", marriageId);
+            continue; 
+          }
+
+          createdMarriageId = parseInt(marriageId);
+
+          // bypass eksekusi mutasi perceraian historis
           if (apakahCerai && marriageId) {
             try {
-              const userRole = user?.role || "Krama"; 
-              const isAdmin = userRole === "Super Admin" || userRole === "Admin Desa";
-              const jenisMutasiFinal = statusMentah.includes("mati") ? "Cerai Mati" : "Cerai Hidup";
-              const tglCeraiFinal = m.tanggal_cerai || m.tanggal_perkawinan || null;
+              const jenisMutasiFinal = apakahCeraiMati ? "Cerai Mati" : "Cerai Hidup";
+              const tglCeraiFinal = m.tanggal_cerai || m.tanggal_perkawinan || tanggalKawinEfektif;
 
+              // 🌟 NORMALISASI FRONTEND: Kirimkan string peran baku ("Purusa"/"Predana") 
+              // bukan "Suami"/"Istri" agar Decision Tree backend tidak melempar Error 500!
               let pihakMeninggalFinal = null;
-              
               if (apakahCeraiMati) {
                 const pilihanForm = m.pihak_meninggal || "Pasangan"; 
-                const jkUtama = kramaData.jenis_kelamin || "Laki-laki";
-                if (pilihanForm === "Pasangan") {
-                  // jika pasangan meninggal, gender kebalikan dari krama utama
-                  pihakMeninggalFinal = jkUtama === "Laki-laki" ? "Istri" : "Suami";
+                if (m.jenis_perkawinan === "Nyentana") {
+                  // Nyentana: Istri = Purusa, Suami = Predana
+                  pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
                 } else {
-                  // jika krama utama meninggal, gender disesuaikan langsung dengan form I
-                  pihakMeninggalFinal = jkUtama === "Laki-laki" ? "Suami" : "Istri";
+                  // Biasa: Suami = Purusa, Istri = Predana
+                  pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
                 }
               }
-              // sinkronisasi input ketetapan silsilah predana
+
               let pilihanPredanaFinal = "Kembali ke Asal";
               if (m.pilihan_predana === "Tetap di Tempat" || m.pilihan_predana === "Tetap") {
                 pilihanPredanaFinal = "Tetap";
               }
-              // data_perubahan jsonB
-              const payloadDrafPerceraian = {
-                PERCERAIAN: {
-                  jenis_mutasi: jenisMutasiFinal,
-                  status_perkawinan: jenisMutasiFinal,
-                  tanggal_cerai: tglCeraiFinal,
-                  pihak_meninggal: pihakMeninggalFinal,
-                  pilihan_predana: pilihanPredanaFinal,
-                  is_auto_draft: true
-                }
-              };
-              // melakukan update status is_pending_update
-              let payloadUpdateUtama = {
+
+              const payloadCeraiBersih = {
                 status_perkawinan: jenisMutasiFinal,
                 tanggal_cerai: tglCeraiFinal,
-                is_pending_update: isAdmin ? false : true,
-                data_perubahan: payloadDrafPerceraian
+                pihak_meninggal: pihakMeninggalFinal, // Sudah berformat "Purusa"/"Predana"
+                pilihan_predana: pilihanPredanaFinal
               };
 
-              if (apakahCeraiMati) {
-                payloadUpdateUtama.pihak_meninggal = pihakMeninggalFinal;
-                payloadUpdateUtama.pilihan_predana = pilihanPredanaFinal;
-              }
+              const cRes = await axiosInstance.put(`/perkawinan/cerai/${marriageId}`, payloadCeraiBersih);
 
-              await axiosInstance.put(`/perkawinan/cerai/${marriageId}`, payloadUpdateUtama);
-
-              if (isAdmin) {
-                console.log("Berhasil memproses dan memverifikasi mutasi perceraian simultan.");
+              if (cRes.data.data?.is_pending_update) {
+                console.log("Usulan data perceraian berhasil masuk ke draft antrean!");
               } else {
-                await new Promise(resolve => setTimeout(resolve, 250));
-                await axiosInstance.patch(`/perkawinan/cerai/verifikasi/${marriageId}`, {
-                  perkawinan_id: marriageId,
-                  status_verifikasi: "Draft",
-                  target_sisi: "super_admin",
-                  status_verifikasi_perceraian: `Diajukan otomatis via form simultan oleh ${userRole}`,
-                  user_role: userRole,
-                  nama_desa_operator: user?.nama_desa || "Admin Desa Setempat"
-                });
-                console.log("Usulan draft perceraian berhasil diajukan! Menunggu verifikasi Admin Desa.");
+                console.log("Perceraian berhasil dieksekusi langsung oleh sistem.");
               }
             } catch (errError) {
-              console.error(errError?.response?.data || errError.message);
+              const pesanErrorBackend = errError?.response?.data?.message || errError.message;
+              console.error("Gagal mengeksekusi cerai simultan:", pesanErrorBackend);
+              alert(`Gagal memproses perceraian simultan!\nAlasan: ${pesanErrorBackend}`);
             }
           }
         }
@@ -1431,8 +1417,7 @@ const DataKramaBaru = ({ user }) => {
                             value={m.status_perkawinan} 
                             onChange={(e) => handlePerkawinanChange(index, "status_perkawinan", e.target.value)} 
                             className={styles.inputPilihan} 
-                            required
-                          >
+                            required>
                             <option value="Belum Kawin">Belum Kawin</option>
                             <option value="Kawin">Kawin</option>
                             <option value="Cerai">Cerai Hidup</option>
@@ -1463,8 +1448,7 @@ const DataKramaBaru = ({ user }) => {
                                 value={m.jenis_perkawinan} 
                                 onChange={(e) => handlePerkawinanChange(index, "jenis_perkawinan", e.target.value)} 
                                 className={styles.inputPilihan} 
-                                required
-                              >
+                                required>
                                 <option value="Biasa">Biasa</option>
                                 <option value="Nyentana">Nyentana</option>
                                 <option value="Pade Gelahang">Pade Gelahang</option>
@@ -1476,14 +1460,13 @@ const DataKramaBaru = ({ user }) => {
                           </div>
                           <div className="flex flex-col space-y-1.5">
                             <label className={styles.labelInputSelect}>
-                              Tanggal Perkawinan {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                              Tanggal Perkawinan 
                             </label>
                             <input 
                               type="date" 
                               value={m.tanggal_perkawinan} 
                               onChange={(e) => handlePerkawinanChange(index, "tanggal_perkawinan", e.target.value)} 
                               className={styles.inputCalendar}
-                              required={m.status_perkawinan !== "Belum Kawin" && kramaData.tipe_data !== "Leluhur"}
                             />
                           </div>
                         </div>
@@ -1496,7 +1479,7 @@ const DataKramaBaru = ({ user }) => {
                             <input
                               type="text"
                               className={styles.inputText}
-                              placeholder="Ketikkan nama pasangan..."
+                              placeholder="Ketikkan nama pasangan terlebih dahulu..."
                               value={openDropdownIndex === index ? (searchPasangan[index] || "") 
                                 : m.isPasanganBaru ? " Data Pasangan Baru" 
                                 : (kramaList.find(k => String(k.id) === String(m.pasangan_id))?.nama_lengkap || "")
@@ -1525,8 +1508,7 @@ const DataKramaBaru = ({ user }) => {
                                       handlePerkawinanChange(index, "pasangan_id", "NEW_ENTRY");
                                       setOpenDropdownIndex(null);
                                       setSearchPasangan({ ...searchPasangan, [index]: "" });
-                                    }}
-                                  >
+                                    }}>
                                     <span className="font-bold text-blue-600">+ Input Pasangan Baru</span>
                                   </div>
                                   {/* Hasil Filter Lawan Jenis*/}
@@ -1539,8 +1521,7 @@ const DataKramaBaru = ({ user }) => {
                                           handlePerkawinanChange(index, "pasangan_id", k.id);
                                           setOpenDropdownIndex(null);
                                           setSearchPasangan({ ...searchPasangan, [index]: k.nama_lengkap });
-                                        }}
-                                      >
+                                        }}>
                                         <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
                                         <p className="text-[10px] text-gray-500 uppercase italic">
                                           {k.desa_adat_id 
@@ -1591,8 +1572,7 @@ const DataKramaBaru = ({ user }) => {
                                       }
                                     }}
                                     className={styles.inputSelect} 
-                                    required={m.isPasanganBaru}
-                                  >
+                                    required={m.isPasanganBaru}>
                                     <option value="Keturunan">Keturunan</option>
                                     <option value="Leluhur">Leluhur</option>
                                   </select>
@@ -1621,7 +1601,7 @@ const DataKramaBaru = ({ user }) => {
                               {/* Nama Panggilan Pasangn Baru */}
                               <div className="flex flex-col space-y-1">
                                 <label className={styles.labelInput}>
-                                  Nama Panggilan {m.dataPasanganBaru.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                  Nama Panggilan
                                 </label>
                                 <input 
                                   type="text" 
@@ -1629,35 +1609,31 @@ const DataKramaBaru = ({ user }) => {
                                   onChange={(e) => handlePasanganBaruChange(index, "nama_panggilan", e.target.value)} 
                                   className={styles.inputText}
                                   placeholder="Contoh: Sri Utami" 
-                                  required={m.dataPasanganBaru.tipe_data !== "Leluhur"}
                                 />
                               </div>
                               <div className={styles.dualInput}>
                                 {/* Tanggal Lahir Pasangan Baru */}
                                 <div className="flex flex-col space-y-1.5">
                                   <label className={styles.labelInput}>
-                                    Tanggal Lahir {m.dataPasanganBaru.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                    Tanggal Lahir
                                   </label>
                                   <input 
                                     type="date" 
                                     value={m.dataPasanganBaru.tanggal_lahir || ""} 
                                     onChange={(e) => handlePasanganBaruChange(index, "tanggal_lahir", e.target.value)} 
                                     className={styles.inputCalendar} 
-                                    required={m.dataPasanganBaru.tipe_data !== "Leluhur"}
                                   />
                                 </div>
                                 {/* Status Hidup Pasangan Baru*/}
                                 <div className="flex flex-col space-y-1.5">
                                   <label className={styles.labelInput}>
-                                    Status Hidup {m.dataPasanganBaru.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                    Status Hidup 
                                   </label>
                                   <div className="relative">
                                     <select 
                                       value={m.dataPasanganBaru.status_hidup || ""} 
                                       onChange={(e) => handlePasanganBaruChange(index, "status_hidup", e.target.value)} 
-                                      className={styles.inputSelect} 
-                                      required={m.dataPasanganBaru.tipe_data !== "Leluhur"}
-                                    >
+                                      className={styles.inputSelect}>
                                       <option value="Hidup">Hidup</option>
                                       <option value="Meninggal">Meninggal</option>
                                     </select>
@@ -1673,6 +1649,8 @@ const DataKramaBaru = ({ user }) => {
                                   <input 
                                     type="checkbox" 
                                     checked={m.dataPasanganBaru.is_bali || false} 
+                                    id={`is_bali_pasangan_${index}`} 
+                                    className={styles.checkboxInput} 
                                     onChange={(e) => {
                                       const isChecked = e.target.checked;
                                       const updatedDataPasangan = {
@@ -1684,8 +1662,6 @@ const DataKramaBaru = ({ user }) => {
                                       handlePasanganBaruChange(index, "dataPasanganBaruUtuh", updatedDataPasangan);
                                       setSearchDesaPasangan(prev => ({ ...prev, [index]: "" }));
                                     }}
-                                    id={`is_bali_pasangan_${index}`} 
-                                    className={styles.checkboxInput} 
                                   />
                                   <label htmlFor={`is_bali_pasangan_${index}`} className={styles.checkboxLabel}>
                                     Krama ini asal Bali?
@@ -1739,8 +1715,7 @@ const DataKramaBaru = ({ user }) => {
                                                     handlePasanganBaruChange(index, "desa_adat_id", d.id); 
                                                     setSearchDesaPasangan({ ...searchDesaPasangan, [index]: d.nama_desa_adat }); 
                                                     setOpenDesaDropdownIndex(null); 
-                                                  }}
-                                                >
+                                                  }}>
                                                   <p className="text-sm font-bold text-gray-800">{d.nama_desa_adat}</p>
                                                   {(() => {
                                                     const wil = getWilayahLengkap(d.id);
@@ -1822,14 +1797,13 @@ const DataKramaBaru = ({ user }) => {
                           <div className={styles.inputContent}>
                             <div className="flex flex-col space-y-1.5">
                               <label className={styles.labelInputSelect}>
-                                {m.status_perkawinan === "Cerai" ? "Tanggal Perceraian" : "Tanggal Perceraian/Kematian"} <span className="text-red-500">*</span>
+                                Tanggal Perceraian
                               </label>
                               <input 
                                 type="date" 
                                 value={m.tanggal_cerai || ""} 
                                 onChange={(e) => handlePerkawinanChange(index, "tanggal_cerai", e.target.value)} 
                                 className={styles.inputCalendar}
-                                required={(m.status_perkawinan === "Cerai" || m.status_perkawinan === "Cerai Mati") && kramaData.tipe_data !== "Leluhur"}  
                               />
                             </div>
                             {m.status_perkawinan === "Cerai Mati" && (
@@ -1844,8 +1818,7 @@ const DataKramaBaru = ({ user }) => {
                                         value={m.pihak_meninggal || ""} 
                                         onChange={(e) => handlePerkawinanChange(index, "pihak_meninggal", e.target.value)} 
                                         className={styles.inputPilihan} 
-                                        required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}
-                                      >
+                                        required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
                                         <option value="Pasangan">Pasangan</option>
                                         <option value="Krama Utama">Krama Utama (Form I)</option>
                                       </select>
@@ -1863,8 +1836,7 @@ const DataKramaBaru = ({ user }) => {
                                         value={m.pilihan_predana || ""} 
                                         onChange={(e) => handlePerkawinanChange(index, "pilihan_predana", e.target.value)} 
                                         className={styles.inputPilihan} 
-                                        required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}
-                                      >
+                                        required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
                                         <option value="Tetap">Tetap di Purusa</option>
                                         <option value="Kembali ke Asal">Kembali ke Asal</option>
                                       </select>

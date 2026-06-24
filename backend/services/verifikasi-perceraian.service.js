@@ -6,6 +6,7 @@ export const eksekusiVerifikasiPerceraian = async ({
   perkawinan_id,
   status_verifikasi,
   catatan_admin,
+  user_id,
   user_role,
   user_desa_id,
   target_sisi,
@@ -15,10 +16,11 @@ export const eksekusiVerifikasiPerceraian = async ({
   const t = await db.transaction();
 
   try {
-    // Validasi ketersediaan data yang diperlukan
+    // Validasi ketersediaan data perkawinan
     const perkawinan = await Perkawinan.findByPk(perkawinan_id, { 
       transaction: t 
     });
+
     if (!perkawinan) {
       throw new Error("Data perkawinan tidak ditemukan.");
     }
@@ -27,8 +29,9 @@ export const eksekusiVerifikasiPerceraian = async ({
       throw new Error("Data perkawinan ini tidak memiliki usulan draft perceraian yang aktif.");
     }
 
-    // Mengelola catatan admin desa JSONB
     const existingCatatan = perkawinan.catatan_admin_desa || {};
+
+    // STATUS VERIFIKASI BERDASARKAN ROLE
     let newCatatanAdmin = { ...existingCatatan };
 
     if (status_verifikasi === "Ditolak") {
@@ -40,7 +43,7 @@ export const eksekusiVerifikasiPerceraian = async ({
       }
       newCatatanAdmin.status_verifikasi_perceraian = `Usulan draft perceraian ditolak oleh ${user_role}.`;
     } else if (status_verifikasi === "Disetujui") {
-      let catatanOtomatis = `Mutasi data perceraian telah diverifikasi oleh ${user_role}.`;
+      let catatanOtomatis = `Usulan draft perceraian telah disetujui dan diverifikasi oleh ${user_role}.`;
       
       if (perkawinan.jenis_perkawinan === "Pade Gelahang") {
         if (target_sisi === "suami" || target_sisi === "super_admin") {
@@ -53,21 +56,20 @@ export const eksekusiVerifikasiPerceraian = async ({
         newCatatanAdmin.catatan_desa_suami = catatanOtomatis;
         newCatatanAdmin.catatan_desa_istri = catatanOtomatis;
       }
-      newCatatanAdmin.status_verifikasi_perceraian = `Perceraian telah diproses dan disetujui oleh ${user_role}.`;
+      newCatatanAdmin.status_verifikasi_perceraian = `Perceraian telah diverifikasi dan disetujui oleh ${user_role}.`;
     } 
 
     newCatatanAdmin.last_updated_by = nama_desa_operator;
 
-    // CASE 1: Pengajuan data perceraian Ditolak
+    // CASE 1: PENGAJUAN DATA PERCERAIAN DITOLAK
     if (status_verifikasi === "Ditolak") {
       const perkawinanDitolak = await perkawinan.update({
         is_pending_update: false,
         status_sebelum_draft: null,
         data_perubahan: null,
         catatan_admin_desa: newCatatanAdmin
-      }, { 
-        transaction: t 
-      });
+      }, { transaction: t });
+
       await t.commit();
       return { 
         type: "PENOLAKAN_CERAI", 
@@ -75,11 +77,11 @@ export const eksekusiVerifikasiPerceraian = async ({
       };
     }
 
-    // CASE 2: Pengajuan data perceraian Disetujui
+    // CASE 2: PENGAJUAN DATA PERCERAIAN DISETUJUI
     const existingChanges = perkawinan.data_perubahan || {};
     const drafCerai = existingChanges.PERCERAIAN;
 
-    // Inisialisasi atau ambil flag persetujuan dari objek draf JSONB
+    // inisialisasi atau mengambil flag persetujuan dari objek draft JSONB
     let approvedSuami = drafCerai.is_approved_desa_suami || false;
     let approvedIstri = drafCerai.is_approved_desa_istri || false;
 
@@ -90,7 +92,7 @@ export const eksekusiVerifikasiPerceraian = async ({
       approvedIstri = true;
     }
 
-    // Proses persetujuan parsial perceraian pade gelahang
+    // SKENARIO A: Persetujuan Parsial Kawin Pade Gelahang
     if (perkawinan.jenis_perkawinan === "Pade Gelahang" && (!approvedSuami || !approvedIstri)) {
       const perkawinanParsial = await perkawinan.update({
         data_perubahan: {
@@ -104,11 +106,10 @@ export const eksekusiVerifikasiPerceraian = async ({
         },
         catatan_admin_desa: {
           ...newCatatanAdmin,
-          status_verifikasi_perceraian: `Usulan perceraian disetujui oleh ${nama_desa_operator}. Menunggu persetujuan dari desa pasangan.`
+          status_verifikasi_perceraian: `Usulan draft perceraian telah diverifikasi dan disetujui oleh ${nama_desa_operator}. Menunggu verifikasi dari Admin Desa Pasangan.`
         }
-      }, { 
-        transaction: t 
-      });
+      }, { transaction: t });
+
       await t.commit();
       return { 
         type: "PERSETUJUAN_CERAI_PARSIAL", 
@@ -122,16 +123,17 @@ export const eksekusiVerifikasiPerceraian = async ({
       tanggal_cerai: drafCerai.tanggal_cerai,
       pihak_meninggal: drafCerai.pihak_meninggal,
       pilihan_predana: drafCerai.pilihan_predana,
-      is_admin_direct: true,
+      user_id,
       user_role,
       user_desa_id
     }, t);
 
     const perkawinanSah = await hasilMutasiFisik.data_perkawinan.update({
-      catatan_admin_desa: newCatatanAdmin
-    }, { 
-      transaction: t 
-    });
+      catatan_admin_desa: {
+        ...hasilMutasiFisik.data_perkawinan.catatan_admin_desa,
+        ...newCatatanAdmin
+      }
+    }, { transaction: t });
 
     await t.commit();
     return { 

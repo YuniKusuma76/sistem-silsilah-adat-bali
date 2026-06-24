@@ -157,6 +157,17 @@ KramaBali.belongsTo(User, {
   as: "pembuat_krama"
 });
 
+KramaBali.hasMany(RiwayatPeranAdat, {
+  foreignKey: "krama_id",
+  as: "riwayat_peran_adat",
+  onDelete: "CASCADE",
+  hooks: true
+});
+RiwayatPeranAdat.belongsTo(KramaBali, {
+  foreignKey: "krama_id",
+  as: "krama_adat"
+});
+
 KramaBali.hasMany(Keluarga, {
   foreignKey: "kepala_keluarga_id",
   as: "keluarga_yang_dipimpin"
@@ -186,7 +197,9 @@ Perkawinan.belongsTo(KramaBali, {
 
 KramaBali.hasMany(RiwayatKeluarga, {
   foreignKey: "krama_id",
-  as: "riwayat_keluarga"
+  as: "riwayat_keluarga",
+  onDelete: "CASCADE",
+  hooks: true
 });
 RiwayatKeluarga.belongsTo(KramaBali, {
   foreignKey: "krama_id",
@@ -195,7 +208,9 @@ RiwayatKeluarga.belongsTo(KramaBali, {
 
 Keluarga.hasMany(RiwayatKeluarga, {
   foreignKey: "keluarga_id",
-  as: "riwayat_anggota_keluarga"
+  as: "riwayat_anggota_keluarga",
+  onDelete: "CASCADE",
+  hooks: true
 });
 RiwayatKeluarga.belongsTo(Keluarga, {
   foreignKey: "keluarga_id",
@@ -223,6 +238,26 @@ User.hasMany(Perkawinan, {
 Perkawinan.belongsTo(User, {
   foreignKey: "user_id",
   as: "pembuat_perkawinan"
+});
+
+Perkawinan.hasMany(RiwayatPeranAdat, {
+  foreignKey: "perkawinan_id",
+  as: "dampak_peran_adat",
+  onDelete: "SET NULL"
+});
+RiwayatPeranAdat.belongsTo(Perkawinan, {
+  foreignKey: "perkawinan_id",
+  as: "peristiwa_perkawinan"
+});
+
+Perkawinan.hasMany(RiwayatKeluarga, {
+  foreignKey: "perkawinan_id",
+  as: "dampak_mutasi_keluarga",
+  onDelete: "SET NULL"
+});
+RiwayatKeluarga.belongsTo(Perkawinan, {
+  foreignKey: "perkawinan_id",
+  as: "peristiwa_perkawinan"
 });
 
 KramaBali.hasMany(RelasiKrama, {
@@ -286,15 +321,6 @@ DesaAdat.hasMany(RelasiKrama, {
 RelasiKrama.belongsTo(DesaAdat, { 
   foreignKey: "desa_adat_id_tujuan", 
   as: "desa_tujuan" 
-});
-
-KramaBali.hasMany(RiwayatPeranAdat, {
-  foreignKey: "krama_id",
-  as: "riwayat_peran_adat"
-});
-RiwayatPeranAdat.belongsTo(KramaBali, {
-  foreignKey: "krama_id",
-  as: "krama_adat"
 });
 
 // RELASI MODEL KONTAK DAN NOTIFIKASI

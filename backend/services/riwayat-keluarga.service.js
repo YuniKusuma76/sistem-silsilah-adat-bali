@@ -1,7 +1,7 @@
 import { Op } from "sequelize";
 import { RiwayatKeluarga } from "../models/associations.js";
 
-const BOBOT_KATEGORI_MASUK = {
+const BOBOT_EVENT = {
   "LAHIR": 1, 
   "PENGANGKATAN": 2, 
   "KAWIN": 3, 
@@ -9,12 +9,7 @@ const BOBOT_KATEGORI_MASUK = {
 };
 
 // Menutup riwayat keluarga aktif sebelumnya
-export const tutupRiwayatKeluarga = async (
-  krama_id, 
-  event_date, 
-  kategori_baru, 
-  t = null
-) => {
+export const tutupRiwayatKeluarga = async ({ krama_id, event_date, bobot_baru, t = null }) => {
   if (!krama_id) return;
 
   try {
@@ -22,7 +17,7 @@ export const tutupRiwayatKeluarga = async (
       { akhir_masuk: event_date },
       {
         where: {
-          krama_id,
+          krama_id: parseInt(krama_id),
           akhir_masuk: null,
           awal_masuk: { [Op.lte]: event_date },
           [Op.or]: [
@@ -30,7 +25,7 @@ export const tutupRiwayatKeluarga = async (
             {
               [Op.and]: [
                 { awal_masuk: event_date },
-                { kategori_masuk: { [Op.ne]: kategori_baru } }
+                { bobot_event: { [Op.lt]: parseInt(bobot_baru) } }
               ]
             }
           ]
@@ -51,30 +46,46 @@ export const tutupRiwayatKeluarga = async (
 export const simpanRiwayatKeluarga = async ({
   krama_id,
   keluarga_id,
+  perkawinan_id,
   kedudukan,
-  kategori_masuk,
+  kategori_event,
+  bobot_event,
   dasar_keputusan,
   event_date = null,
   allow_multiple = false,
   akhir_masuk = null 
 }, t = null) => {
-  // Validasi internal kolom wajib
-  if (!krama_id || !keluarga_id || !kedudukan || !kategori_masuk || !dasar_keputusan) {
-    throw new Error("Gagal menyimpan riwayat keluarga! Parameter data  tidak lengkap.");
+  if (!krama_id || !keluarga_id || !kedudukan || !kategori_event || !dasar_keputusan) {
+    throw new Error("Gagal menyimpan riwayat keluarga! Parameter data tidak lengkap.");
   }
 
-  const finalEventDate = event_date || new Date();
+  const finalEventDate = event_date || new Date().toISOString().split('T')[0];
+  const finalBobot = bobot_event || BOBOT_EVENT[kategori_event] || 1;
+
+  console.log("=== [SERVICE] SIMPAN RIWAYAT KELUARGA ===");
+  console.log("ID Krama         :", krama_id);
+  console.log("Keluarga ID      :", keluarga_id);
+  console.log("Kedudukan        :", kedudukan);
+  console.log("Kategori Event   :", kategori_event);
+  console.log("Bobot Event      :", finalBobot);
+  console.log("Tanggal Masuk    :", finalEventDate);
+  console.log("=========================================");
 
   try {
     if (!allow_multiple) {
-      await tutupRiwayatKeluarga(krama_id, finalEventDate, kategori_masuk, t);
+      await tutupRiwayatKeluarga({
+        krama_id,
+        event_date: finalEventDate,
+        bobot_baru: finalBobot,
+        t
+      });
     }
   
     const existing = await RiwayatKeluarga.findOne({
       where: {
-        krama_id,
+        krama_id: parseInt(krama_id),
         keluarga_id,
-        kategori_masuk,
+        kategori_event,
         awal_masuk: finalEventDate
       },
       transaction: t
@@ -82,17 +93,21 @@ export const simpanRiwayatKeluarga = async ({
 
     if (existing) {
       return await existing.update({
+        perkawinan_id: perkawinan_id || existing.perkawinan_id,
         kedudukan,
+        bobot_event: finalBobot,
         dasar_keputusan,
         akhir_masuk: akhir_masuk || existing.akhir_masuk
       }, { transaction: t });
     }
 
     return await RiwayatKeluarga.create({
-      krama_id,
+      krama_id: parseInt(krama_id),
       keluarga_id,
+      perkawinan_id: perkawinan_id || null,
       kedudukan,
-      kategori_masuk,
+      kategori_event,
+      bobot_event: finalBobot,
       dasar_keputusan,
       awal_masuk: finalEventDate,
       akhir_masuk: akhir_masuk || null 

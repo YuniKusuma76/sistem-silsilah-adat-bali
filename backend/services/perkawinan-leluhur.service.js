@@ -13,8 +13,8 @@ export const integrasiPerkawinanLeluhur = async ({
   user_role,
   user_desa_id,
   nama_desa_operator
-}, t) =>{
-  // Menentukan status verifikasi berdasarkan role
+}, t) => {
+  // MENENTUKAN STATUS APPROVAL BERDASARKAN ROLE
   const isSuperAdmin = user_role === "Super Admin";
   const isAdminDesa = user_role === "Admin Desa";
 
@@ -28,7 +28,6 @@ export const integrasiPerkawinanLeluhur = async ({
     approvedSuami = true;
     approvedIstri = true;
 
-    // Menentukan nama operator yang presisi
     let operatorIdentity = "Super Admin";
 
     if (isAdminDesa) {
@@ -48,7 +47,7 @@ export const integrasiPerkawinanLeluhur = async ({
     };
   }
 
-  const tanggalEfektif = tanggal_perkawinan || null;
+  const finalTanggalLeluhur = tanggal_perkawinan || new Date().toISOString().split('T')[0];
   const jenisPerkawinanValid = jenis_perkawinan || "Biasa";
 
   const perkawinan = await Perkawinan.create({
@@ -56,15 +55,13 @@ export const integrasiPerkawinanLeluhur = async ({
     istri_id,
     status_perkawinan: status_perkawinan || "Kawin",
     jenis_perkawinan: jenisPerkawinanValid,
-    tanggal_perkawinan: tanggalEfektif,
-    status_verifikasi: statusVerifikasi,       
-    is_approved_desa_suami: approvedSuami,       
+    tanggal_perkawinan: finalTanggalLeluhur,
+    status_verifikasi: statusVerifikasi,      
+    is_approved_desa_suami: approvedSuami,      
     is_approved_desa_istri: approvedIstri,
     catatan_admin_desa: catatanAdmin,
     user_id
-  }, {
-    transaction: t
-  });
+  }, { transaction: t });
 
   if (statusVerifikasi !== "Disetujui") {
     return {
@@ -74,10 +71,9 @@ export const integrasiPerkawinanLeluhur = async ({
   }
 
   // =====================================================
-  // PROCESS 1: Membuat keluarga leluhur jika data disetujui
+  // PROCESS 1: Perkawinan Biasa dan Nyentana Leluhur
   // =====================================================
   if (jenisPerkawinanValid !== "Pade Gelahang") {
-    // menentukan siapa yang menjadi kepala keluarga dalam perkawinan
     const isNyentana = jenisPerkawinanValid === "Nyentana";
     const kepalaId = isNyentana ? istri_id : suami_id;
     const anggotaId = isNyentana ? suami_id : istri_id;
@@ -89,22 +85,26 @@ export const integrasiPerkawinanLeluhur = async ({
     await simpanRiwayatKeluarga({
       krama_id: kepalaId,
       keluarga_id: keluargaLeluhur.id,
+      perkawinan_id: perkawinan.id,
       kedudukan: "Kepala Keluarga",
+      kategori_event: "KAWIN",
       dasar_keputusan: isNyentana 
-        ? "Kedudukan sebagai kepala keluarga diberikan karena krama ini karena berstatus Purusa Nyentana dalam sejarah silsilah keluarga leluhur."
+        ? "Kedudukan sebagai kepala keluarga diberikan karena krama ini berstatus Purusa Nyentana dalam sejarah silsilah keluarga leluhur."
         : "Kedudukan sebagai kepala keluarga diberikan karena krama ini merupakan penerus garis keturunan (Purusa) untuk keluarga leluhurnya.",
-      event_date: tanggalEfektif,
+      event_date: finalTanggalLeluhur,
       allow_multiple: true
     }, t);
 
     await simpanRiwayatKeluarga({
       krama_id: anggotaId,
       keluarga_id: keluargaLeluhur.id,
+      perkawinan_id: perkawinan.id,
       kedudukan: "Anggota",
+      kategori_event: "KAWIN",
       dasar_keputusan: isNyentana
         ? "Kedudukan sebagai anggota diberikan karena krama ini tercatat sebagai suami yang masuk ke dalam keluarga purusa istri (Nyentana)."
         : "Kedudukan sebagai anggota diberikan karena krama ini tercatat sebagai istri (Predana) dalam catatan Trah Bali.",
-      event_date: tanggalEfektif,
+      event_date: finalTanggalLeluhur,
       allow_multiple: true
     }, t);
 
@@ -115,50 +115,57 @@ export const integrasiPerkawinanLeluhur = async ({
   }
 
   // ====================================================================
-  // PROCESS 2: Antisipasi jika perkawinan leluhur adalah pade gelahang
+  // PROCESS 2: Antisipasi Perkawinan Pade Gelahang Leluhur
   // ====================================================================
   if (jenisPerkawinanValid === "Pade Gelahang") {
-    // membentuk keluarga pade gelahang
     const [keluargaSuami, keluargaIstri] = await Promise.all([
       buatKeluargaLeluhur({ kepala_keluarga_id: suami_id }, t),
       buatKeluargaLeluhur({ kepala_keluarga_id: istri_id }, t)
     ]);
 
-    // membuat riwayat keluarga untuk keluarga silsilah suami
+    // riwayat keluarga untuk keluarga silsilah suami
     await simpanRiwayatKeluarga({
       krama_id: suami_id,
       keluarga_id: keluargaSuami.id,
+      perkawinan_id: perkawinan.id,
       kedudukan: "Kepala Keluarga",
+      kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai kepala keluarga leluhur diberikan kepada krama ini karena berstatus purusa di garis keturunan asalnya pada perkawinan Pade Gelahang.",
-      event_date: tanggalEfektif,
+      event_date: finalTanggalLeluhur,
       allow_multiple: true
     }, t);
 
     await simpanRiwayatKeluarga({
       krama_id: istri_id,
       keluarga_id: keluargaSuami.id,
+      perkawinan_id: perkawinan.id,
       kedudukan: "Anggota",
+      kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini sebagai pendamping predana di silsilah keluarga suaminya pada perkawinan Pade Gelahang.",
-      event_date: tanggalEfektif,
+      event_date: finalTanggalLeluhur,
       allow_multiple: true
     }, t);
 
-    // membuat riwayat keluarga untuk keluarga silsilah istri
+    // riwayat keluarga untuk keluarga silsilah istri
     await simpanRiwayatKeluarga({
       krama_id: istri_id,
       keluarga_id: keluargaIstri.id,
+      perkawinan_id: perkawinan.id,
       kedudukan: "Kepala Keluarga",
+      kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai kepala keluarga leluhur diberikan kepada krama ini karena berstatus purusa di garis keturunan asalnya pada perkawinan Pade Gelahang.",
-      event_date: tanggalEfektif,
+      event_date: finalTanggalLeluhur,
       allow_multiple: true
     }, t);
 
     await simpanRiwayatKeluarga({
       krama_id: suami_id,
       keluarga_id: keluargaIstri.id,
+      perkawinan_id: perkawinan.id,
       kedudukan: "Anggota",
+      kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini sebagai pendamping predana di silsilah keluarga istrinya pada perkawinan Pade Gelahang.",
-      event_date: tanggalEfektif,
+      event_date: finalTanggalLeluhur,
       allow_multiple: true
     }, t);
 

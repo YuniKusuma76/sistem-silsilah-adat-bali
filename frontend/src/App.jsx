@@ -36,6 +36,8 @@ import SilsilahBali from './pages/TrehBali/SilsilahBali.jsx';
 import DataKramaEditKrama from './pages/KramaBali/DataKramaEditKrama.jsx';
 import DataKramaTambahRelasi from './pages/KramaBali/DataKramaTambahRelasi.jsx';
 import DataKramaEditRelasi from './pages/KramaBali/DataKramaEditRelasi.jsx';
+import DataKramaTambahKawin from './pages/KramaBali/DataKramaTambahKawin.jsx';
+import DataKramaEditKawin from './pages/KramaBali/DataKramaEditKawin.jsx';
 import PengajuanKrama from './pages/VerifikasiData/PengajuanKrama.jsx';
 import PengajuanKramaDetail from './pages/VerifikasiData/PengajuanKramaDetail.jsx';
 import PengajuanRelasi from './pages/VerifikasiData/PengajuanRelasi.jsx';
@@ -270,6 +272,14 @@ const App = () => {
           <Route 
             path="/krama-bali/detail/edit-relasi/:id" 
             element={<DataKramaEditRelasi user={user} />} 
+          />
+          <Route 
+            path="/krama-bali/detail/add-perkawinan/:id" 
+            element={<DataKramaTambahKawin user={user} />} 
+          />
+          <Route 
+            path="/krama-bali/detail/edit-perkawinan/:id" 
+            element={<DataKramaEditKawin user={user} />} 
           />
           <Route 
             path="/verifikasi-data/krama-bali" 

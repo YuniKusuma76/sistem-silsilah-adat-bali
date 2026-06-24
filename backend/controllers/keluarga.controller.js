@@ -47,12 +47,12 @@ export const getAllKeluarga = async (req, res) => {
       include: KELUARGA_INCLUDE
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data keluarga!",
       data: keluargaList
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -70,12 +70,12 @@ export const getKeluargaById = async (req, res) => {
       });
     }
     
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data keluarga!",
       data: dataKeluarga
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }

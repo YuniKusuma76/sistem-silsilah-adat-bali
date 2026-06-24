@@ -346,6 +346,70 @@
   @apply flex items-start gap-1.5 mt-4 bg-amber-100/60 p-2.5 rounded-md text-[10px] text-amber-800 leading-relaxed;
 }
 
+.cardTabel {
+  @apply min-w-full divide-gray-200 text-[10px] text-left text-black;
+}
+
+.cardPerkawinan {
+  @apply p-4 rounded-lg border border-amber-100/80 transition-all;
+}
+
+.titleCardPerkawinan {
+  @apply text-[10px] font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded;
+}
+
+.titleStatus {
+  @apply text-[10px] px-2 py-0.5 rounded font-bold bg-pink-100 text-pink-700;
+}
+
+.titlePerkawinanLama {
+  @apply text-xs font-bold uppercase tracking-wider text-gray-500 block pt-2;
+}
+
+.toggleRiwayat {
+  @apply relative border-l-2 border-gray-200 ml-2 pl-6 space-y-6 my-2 animate-fade-in;
+}
+
+.toggleDot {
+  @apply absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full border-2 bg-white transition-all group-hover:scale-125;
+}
+
+.dotAktif {
+  @apply border-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.15)];
+}
+
+.dotLampau {
+  @apply border-red-500 shadow-[0_0_0_4px_rgba(239,68,68,0.15)];
+}
+
+.cardRiwayat {
+  @apply bg-white p-4 rounded-lg border border-amber-200 shadow-sm transition-all hover:shadow-md hover:border-amber-400 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4;
+}
+
+.titleJenis {
+  @apply text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded font-medium;
+}
+
+.badgeStatus {
+  @apply flex sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100;
+}
+
+.labelStatus {
+  @apply px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider;
+}
+
+.labelCeraiMati {
+  @apply bg-purple-100 text-purple-800;
+}
+
+.labelCerai {
+  @apply bg-red-100 text-red-800;
+}
+
+.eyeLog {
+  @apply text-blue-600 hover:text-blue-800 font-semibold text-[11px] flex items-center gap-1 mt-1 transition-colors hover:underline underline-offset-4;
+}
+
 .animate-fade-in {
   @apply animate-[fadeIn_0.5s_ease-out];
 }

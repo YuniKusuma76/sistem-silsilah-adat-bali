@@ -16,17 +16,24 @@ import {
 } from "./riwayat-keluarga.service.js";
 import { mappingAturanAdatBali } from "./decision-tree.service.js";
 
+const BOBOT_EVENT = {
+  "LAHIR": 1, 
+  "PENGANGKATAN": 2, 
+  "KAWIN": 3, 
+  "CERAI": 4
+};
+
 export const prosesPerceraianBali = async ({
   perkawinan_id,
   status_perkawinan, 
   tanggal_cerai,
   pihak_meninggal,
   pilihan_predana,
-  is_admin_direct = false,
+  user_id,
   user_role,
   user_desa_id
 }, passedTransaction = null) => {
-  // Mulai transaksi database
+  // Mulai transaksi database yang dilewatkan
   const t = passedTransaction || await db.transaction();
 
   try {
@@ -37,6 +44,10 @@ export const prosesPerceraianBali = async ({
 
     if (!perkawinan) {
       throw new Error("Data perkawinan tidak ditemukan.");
+    }
+
+    if (perkawinan.status_perkawinan !== "Kawin") {
+      throw new Error("Perkawinan ini sudah tidak berstatus kawin.");
     }
 
     const { 
@@ -61,8 +72,115 @@ export const prosesPerceraianBali = async ({
       throw new Error("Data suami atau istri tidak ditemukan.");
     }
 
-    // ROLE KRAMA: Mengalihkan data perceraian ke draft data perubahan JSONB
-    if (!is_admin_direct) {
+    // SETTING VALUE KETIKA TANGGAL CERAI NULL/STRING KOSONG
+    const isTanggalCeraiKosong = !tanggal_cerai || tanggal_cerai === perkawinan.tanggal_perkawinan;
+
+    let finalTanggalCerai;
+    let infoTambahanDasar = "";
+
+    if (isTanggalCeraiKosong) {
+      const hariIni = new Date().toISOString().split('T')[0];
+      if (hariIni === perkawinan.tanggal_perkawinan) {
+        const besok = new Date();
+        besok.setDate(besok.getDate() + 1);
+        finalTanggalCerai = besok.toISOString().split('T')[0];
+        infoTambahanDasar = " (Tanggal riwayat bergeser 1 hari karena tanggal cerai kosong dan sama dengan tanggal perkawinan).";
+      } else {
+        finalTanggalCerai = hariIni;
+        infoTambahanDasar = " (Tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal cerai kosong).";
+      }
+    } else {
+      if (tanggal_cerai === perkawinan.tanggal_perkawinan) {
+        const dt = new Date(tanggal_cerai);
+        dt.setDate(dt.getDate() + 1);
+        finalTanggalCerai = dt.toISOString().split('T')[0];
+        infoTambahanDasar = " (Tanggal riwayat otomatis bergeser 1 hari setelah tanggal perkawinan untuk linimasa riwayat).";
+      } else {
+        finalTanggalCerai = tanggal_cerai;
+      }
+    }
+
+    // ===========================================================
+    // MENENTUKAN STATUS APPROVAL BERDASARKAN ROLE
+    // ===========================================================
+    const isKramaAtauPerkawinanDraft = suami.status_verifikasi === "Draft" || 
+      istri.status_verifikasi === "Draft" || 
+      perkawinan.status_verifikasi === "Draft";
+
+    let isExecuteDirect = false; 
+    let statusVerifikasiPerceraian = "";
+    let approvedSuami = perkawinan.is_approved_desa_suami;
+    let approvedIstri = perkawinan.is_approved_desa_istri;
+
+    if (user_role === "Super Admin") {
+      if (isKramaAtauPerkawinanDraft && perkawinan.user_id !== user_id) {
+        isExecuteDirect = false;
+        statusVerifikasiPerceraian = "Usulan perceraian berhasil disimpan! Tertahan sementara karena data krama bali/perkawinan masih ditinjau.";
+      } else {
+        isExecuteDirect = true;
+      }
+    } else if (user_role === "Admin Desa") {
+      let punyaHakKelola = false;
+
+      if (jenis_perkawinan === "Pade Gelahang") {
+        if (suami.desa_adat_id === user_desa_id || istri.desa_adat_id === user_desa_id) {
+          punyaHakKelola = true;
+        } 
+      } else if (jenis_perkawinan === "Nyentana") {
+        if (istri.desa_adat_id === user_desa_id) {
+          punyaHakKelola = true;
+        }
+      } else {
+        if (suami.desa_adat_id === user_desa_id) {
+          punyaHakKelola = true;
+        }
+      }
+      
+      if (!punyaHakKelola) {
+        throw new Error("Otoritas untuk mengelola data perceraian perkawinan ini ditolak!");
+      }
+
+      if (isKramaAtauPerkawinanDraft) {
+        isExecuteDirect = false;
+        statusVerifikasiPerceraian = "Usulan perceraian berhasil disimpan! Tertahan sementara karena data krama bali/perkawinan masih ditinjau.";
+      } else {
+        if (jenis_perkawinan === "Pade Gelahang") {
+          if (suami.desa_adat_id === user_desa_id) approvedSuami = true;
+          if (istri.desa_adat_id === user_desa_id) approvedIstri = true;
+
+          if (approvedSuami && approvedIstri) {
+            isExecuteDirect = true;
+          } else {
+            isExecuteDirect = false;
+            statusVerifikasiPerceraian = "Usulan perceraian berhasil disimpan! Menunggu verifikasi data perceraian dari Admin Desa Pasangannya.";
+          }
+        } else {
+          isExecuteDirect = true;
+        }
+      }
+    } else {
+      isExecuteDirect = false;
+      statusVerifikasiPerceraian = "Usulan perceraian berhasil disimpan! Menunggu verifikasi dari Admin Desa.";
+    }
+
+    // SINKRONISASI NAMA DESA OPERATOR UNTUK AUDIT LOGS
+    let namaDesaOperator = "Sistem (Input by Krama)";
+
+    if (user_role === "Super Admin") {
+      namaDesaOperator = "Super Admin";
+    } else if (user_role === "Admin Desa") {
+      namaDesaOperator = `Admin Desa ${user_desa_id}`;
+      const kramaOperator = suami.desa_adat_id === user_desa_id 
+        ? suami 
+        : (istri.desa_adat_id === user_desa_id ? istri : null);
+
+      if (kramaOperator?.wilayah_adat?.nama_desa_adat) {
+        namaDesaOperator = kramaOperator.wilayah_adat.nama_desa_adat;
+      }
+    }
+
+    // JALUR A: BUFFERING DATA PERUBAHAN (DRAFT)
+    if (!isExecuteDirect) {
       const existingChanges = perkawinan.data_perubahan || {};
 
       const updatedPerkawinanDraft = await perkawinan.update({
@@ -73,16 +191,18 @@ export const prosesPerceraianBali = async ({
           PERCERAIAN: {
             status_sebelumnya: perkawinan.status_perkawinan,
             status_perkawinan,
-            tanggal_cerai,
+            tanggal_cerai: finalTanggalCerai,
             pihak_meninggal,
             pilihan_predana,
-            updated_at: new Date()
+            updated_at: finalTanggalCerai
           }
         },
+        is_approved_desa_suami: approvedSuami,
+        is_approved_desa_istri: approvedIstri,
         catatan_admin_desa: {
           ...perkawinan.catatan_admin_desa,
-          status_verifikasi_perceraian: "Usulan perceraian sedang dalam proses verifikasi Admin Desa.",
-          last_updated_by: "Sistem (Input by Krama)"
+          status_verifikasi_perceraian: statusVerifikasiPerceraian,
+          last_updated_by: namaDesaOperator
         }
       }, { transaction: t });
 
@@ -97,26 +217,8 @@ export const prosesPerceraianBali = async ({
       };
     }
 
-    // Validasi integritas data krama bali jika dieksekusi admin
-    if (suami.status_verifikasi === "Draft" || istri.status_verifikasi === "Draft") {
-      throw new Error("Proses verifikasi dihentikan! Data krama kedua belah pihak belum terverifikasi.");
-    }
-
-    // MENYUSUN STRUKTUR JSONB UNTUK CATATAN ADMIN DESA
-    let namaDesaOperator = `Admin Desa ${user_desa_id}`;
-
-    if (user_role === "Admin Desa") {
-      const kramaBali = suami.desa_adat_id === user_desa_id 
-        ? suami 
-        : (istri.desa_adat_id === user_desa_id ? istri : null);
-      if (kramaBali?.wilayah_adat?.nama_desa_adat) {
-        namaDesaOperator = kramaBali.wilayah_adat.nama_desa_adat;
-      }
-    } else if (user_role === "Super Admin") {
-      namaDesaOperator = "Super Admin";
-    }
-
-    const catatanAdmin = {
+    // JALUR B: EKSEKUSI LANGSUNG (DISETUJUI)
+    const catatanAdminPenutup = {
       ...perkawinan.catatan_admin_desa,
       status_verifikasi_perceraian: `Perceraian telah diproses dan disetujui langsung oleh ${user_role}.`,
       last_updated_by: namaDesaOperator
@@ -129,7 +231,7 @@ export const prosesPerceraianBali = async ({
       let kramaMeninggal = null;
       let dbPihakMeninggal = null; 
 
-      // Menentukan pihak meninggal
+      // menentukan pihak meninggal
       if (status_perkawinan === "Cerai Mati") {
         if (pihak_meninggal === "Suami") {
           kramaMeninggal = suami;
@@ -143,7 +245,7 @@ export const prosesPerceraianBali = async ({
       let isSuamiMeninggal = status_perkawinan === "Cerai Mati" && pihak_meninggal === "Suami";
       let isIstriMeninggal = status_perkawinan === "Cerai Mati" && pihak_meninggal === "Istri";
 
-      // Mapping decision tree untuk status peran adat
+      // mapping decision tree untuk status peran adat
       const [keputusanSuami, keputusanIstri] = await Promise.all([
         mappingAturanAdatBali("CERAI", { 
           jenis_cerai: status_perkawinan, 
@@ -164,26 +266,32 @@ export const prosesPerceraianBali = async ({
       if (!isSuamiMeninggal) {
         await simpanRiwayatPeranAdat({ 
           krama_id: suami_id, 
+          perkawinan_id: perkawinan.id,
           status_peran_adat: keputusanSuami.status_peran_adat, 
           garis_keturunan: keputusanSuami.garis_keturunan, 
-          dasar_keputusan: keputusanSuami.dasar_keputusan, 
-          event_date: tanggal_cerai 
+          dasar_keputusan: keputusanSuami.dasar_keputusan + infoTambahanDasar, 
+          kategori_event: "CERAI",
+          bobot_event: BOBOT_EVENT["CERAI"],
+          event_date: finalTanggalCerai
         }, t);
       }
       if (!isIstriMeninggal) {
         await simpanRiwayatPeranAdat({ 
           krama_id: istri_id, 
+          perkawinan_id: perkawinan.id,
           status_peran_adat: keputusanIstri.status_peran_adat, 
           garis_keturunan: keputusanIstri.garis_keturunan, 
-          dasar_keputusan: keputusanIstri.dasar_keputusan, 
-          event_date: tanggal_cerai 
+          dasar_keputusan: keputusanIstri.dasar_keputusan + infoTambahanDasar, 
+          kategori_event: "CERAI",
+          bobot_event: BOBOT_EVENT["CERAI"],
+          event_date: finalTanggalCerai 
         }, t);
       }
 
       const labelSilsilahSuami = keputusanSuami.status_peran_adat ? "Tetap" : "Kembali ke Asal";
       const labelSilsilahIstri = keputusanIstri.status_peran_adat ? "Tetap" : "Kembali ke Asal";
 
-      // Memutuskan hubungan silang/cross-membership keluarga
+      // memutuskan hubungan silang keluarga
       const [riwayatKKSuami, riwayatKKIstri] = await Promise.all([
         RiwayatKeluarga.findOne({ 
           where: { 
@@ -215,10 +323,10 @@ export const prosesPerceraianBali = async ({
         })
       ]);
 
-      // Putus keanggotaan silang suami dari keluarga Pade Gelahang milik Istri
+      // menutup keanggotaan silang suami dari keluarga pihak istri
       if (riwayatKKIstri) {
         await RiwayatKeluarga.update(
-          { akhir_masuk: tanggal_cerai },
+          { akhir_masuk: finalTanggalCerai },
           { 
             where: { 
               krama_id: suami_id, 
@@ -229,10 +337,10 @@ export const prosesPerceraianBali = async ({
         );
       }
 
-      // Putus keanggotaan silang istri dari keluarga Pade Gelahang milik Suami
+      // menutup keanggotaan silang istri dari keluarga pihak suami
       if (riwayatKKSuami) {
         await RiwayatKeluarga.update(
-          { akhir_masuk: tanggal_cerai },
+          { akhir_masuk: finalTanggalCerai },
           { 
             where: { 
               krama_id: istri_id, 
@@ -246,27 +354,33 @@ export const prosesPerceraianBali = async ({
       if (kramaMeninggal) {
         await kramaMeninggal.update({ 
           status_hidup: "Meninggal" 
-        }, { 
-          transaction: t 
+        }, { transaction: t });
+
+        await tutupRiwayatPeranAdat({ 
+          krama_id: kramaMeninggal.id, 
+          event_date: finalTanggalCerai, 
+          bobot_baru: 4, t 
         });
-        await tutupRiwayatPeranAdat(kramaMeninggal.id, tanggal_cerai, t);
-        await tutupRiwayatKeluarga(kramaMeninggal.id, tanggal_cerai, t);
+        
+        await tutupRiwayatKeluarga({ 
+          krama_id: kramaMeninggal.id, 
+          event_date: finalTanggalCerai, 
+          bobot_baru: 4, t 
+        });
       }
 
       const updatedPerkawinan = await perkawinan.update({
         status_perkawinan: status_perkawinan,
         status_verifikasi: "Disetujui",
-        tanggal_cerai: tanggal_cerai,
+        tanggal_cerai: finalTanggalCerai,
         pihak_meninggal: dbPihakMeninggal,
         ketetapan_silsilah_suami: labelSilsilahSuami,
         ketetapan_silsilah_istri: labelSilsilahIstri,
-        catatan_admin_desa: catatanAdmin,
+        catatan_admin_desa: catatanAdminPenutup,
         is_pending_update: false,
         status_sebelum_draft: null,
         data_perubahan: null
-      }, { 
-        transaction: t 
-      });
+      }, { transaction: t });
 
       if (!passedTransaction) {
         await t.commit();
@@ -283,6 +397,7 @@ export const prosesPerceraianBali = async ({
     // CASE 2: PERKAWINAN BIASA dan NYENTANA
     // ==========================================
     let purusa, predana;
+
     if (jenis_perkawinan === "Nyentana") {
       purusa = istri;
       predana = suami;
@@ -291,8 +406,8 @@ export const prosesPerceraianBali = async ({
       predana = istri; 
     }
 
-    // Mencari keluarga aktif karena perkawinan ini
-    const riwayatKKPernikahan = await RiwayatKeluarga.findOne({
+    // mencari keluarga aktif karena perkawinan ini
+    const riwayatKeluargaPerkawinan = await RiwayatKeluarga.findOne({
       where: { 
         krama_id: purusa.id, 
         kedudukan: "Kepala Keluarga", 
@@ -301,14 +416,12 @@ export const prosesPerceraianBali = async ({
       transaction: t
     });
 
-    const targetKeluargaId = riwayatKKPernikahan 
-      ? riwayatKKPernikahan.keluarga_id 
-      : null;
+    const targetKeluargaId = riwayatKeluargaPerkawinan ? riwayatKeluargaPerkawinan.keluarga_id : null;
 
     let keputusanPurusa = "Tetap";
     let keputusanPredana = "Tetap";
 
-    // Mengubah string input pihak meninggal ke bentuk entitas object
+    // mengubah string input pihak meninggal ke bentuk entitas object
     let isPurusaMeninggal = status_perkawinan === "Cerai Mati" && (
       pihak_meninggal === "Purusa" || pihak_meninggal === (
         purusa.id === suami_id ? "Suami" : "Istri"
@@ -320,12 +433,9 @@ export const prosesPerceraianBali = async ({
       )
     );
 
-    let opsiPredanaEfektif = pilihan_predana;
-    if (status_perkawinan === "Cerai Hidup") {
-      opsiPredanaEfektif = "Kembali ke Asal";
-    }
+    let opsiPredanaEfektif = status_perkawinan === "Cerai Hidup" ? "Kembali ke Asal" : pilihan_predana;
 
-    // Mapping keputusan decision tree untuk pihak purusa
+    // mapping keputusan decision tree untuk pihak purusa
     const hasilPurusa = await mappingAturanAdatBali("CERAI", {
       jenis_cerai: status_perkawinan,
       status_peran_sebelum: "Purusa",
@@ -337,14 +447,17 @@ export const prosesPerceraianBali = async ({
     if (!isPurusaMeninggal) {
       await simpanRiwayatPeranAdat({ 
         krama_id: purusa.id, 
+        perkawinan_id: perkawinan.id,
         status_peran_adat: hasilPurusa.status_peran_adat, 
         garis_keturunan: hasilPurusa.garis_keturunan, 
-        dasar_keputusan: hasilPurusa.dasar_keputusan, 
-        event_date: tanggal_cerai 
+        dasar_keputusan: hasilPurusa.dasar_keputusan + infoTambahanDasar, 
+        kategori_event: "CERAI",
+        bobot_event: BOBOT_EVENT["CERAI"],
+        event_date: finalTanggalCerai 
       }, t);
     }
 
-    // Mapping keputusan decision tree untuk pihak predana
+    // mapping keputusan decision tree untuk pihak predana
     const hasilPredana = await mappingAturanAdatBali("CERAI", {
       jenis_cerai: status_perkawinan,
       status_peran_sebelum: "Predana",
@@ -353,7 +466,7 @@ export const prosesPerceraianBali = async ({
       posisi: predana.id === suami.id ? "suami" : "istri"
     }, t);
 
-    // Menentukan keputusan predana berdasarkan nilai opsi predana efektif
+    // menentukan keputusan predana berdasarkan nilai opsi predana efektif
     if (opsiPredanaEfektif === "Kembali ke Asal") {
       keputusanPredana = "Kembali ke Asal";
     } else if (hasilPredana && hasilPredana.status_peran_adat) {
@@ -362,53 +475,72 @@ export const prosesPerceraianBali = async ({
       keputusanPredana = "Kembali ke Asal";
     }
     
-    if (keputusanPredana === "Tetap") {
-      if (!isPredanaMeninggal && hasilPredana) {
+    if (!isPredanaMeninggal) {
+      if (keputusanPredana === "Tetap" && hasilPredana) {
         await simpanRiwayatPeranAdat({ 
           krama_id: predana.id, 
+          perkawinan_id: perkawinan.id,
           status_peran_adat: hasilPredana.status_peran_adat, 
           garis_keturunan: hasilPredana.garis_keturunan, 
-          dasar_keputusan: hasilPredana.dasar_keputusan, 
-          event_date: tanggal_cerai 
+          dasar_keputusan: hasilPredana.dasar_keputusan + infoTambahanDasar, 
+          kategori_event: "CERAI",
+          bobot_event: BOBOT_EVENT["CERAI"],
+          event_date: finalTanggalCerai 
         }, t);
-      }
-    } else {
-      if (!isPredanaMeninggal) {
-        await tutupRiwayatPeranAdat(predana.id, tanggal_cerai, t);
+      } else {
+        await tutupRiwayatPeranAdat({ 
+          krama_id: predana.id, 
+          event_date: finalTanggalCerai, 
+          bobot_baru: 4, t 
+        });
+        
         if (hasilPredana && hasilPredana.status_peran_adat) {
           await simpanRiwayatPeranAdat({ 
             krama_id: predana.id, 
+            perkawinan_id: perkawinan.id,
             status_peran_adat: hasilPredana.status_peran_adat, 
             garis_keturunan: hasilPredana.garis_keturunan, 
-            dasar_keputusan: hasilPredana.dasar_keputusan, 
-            event_date: tanggal_cerai 
+            dasar_keputusan: hasilPredana.dasar_keputusan + infoTambahanDasar, 
+            kategori_event: "CERAI",
+            bobot_event: BOBOT_EVENT["CERAI"],
+            event_date: finalTanggalCerai 
           }, t);
         }
-      }
+      } 
     }
 
-    // Mengelola data krama meninggal
+    // mengelola data krama meninggal
     if (status_perkawinan === "Cerai Mati") {
-      let kramaMeninggal = isPurusaMeninggal 
-        ? purusa 
-        : (isPredanaMeninggal ? predana : null);
+      let kramaMeninggal = isPurusaMeninggal ? purusa : (isPredanaMeninggal ? predana : null);
+
       if (kramaMeninggal) {
         await kramaMeninggal.update({ 
           status_hidup: "Meninggal" 
-        }, { 
-          transaction: t 
+        }, { transaction: t });
+
+        await tutupRiwayatPeranAdat({ 
+          krama_id: kramaMeninggal.id, 
+          event_date: finalTanggalCerai, 
+          bobot_baru: 4, t 
         });
-        await tutupRiwayatPeranAdat(kramaMeninggal.id, tanggal_cerai, t);
-        await tutupRiwayatKeluarga(kramaMeninggal.id, tanggal_cerai, t);
+        
+        await tutupRiwayatKeluarga({ 
+          krama_id: kramaMeninggal.id, 
+          event_date: finalTanggalCerai, 
+          bobot_baru: 4, t 
+        });
       }
     }
 
-    // Memindahkan silsilah pihak predana
+    // memindahkan silsilah pihak predana
     if (predana && keputusanPredana === "Kembali ke Asal" && !isPredanaMeninggal) {
-      await tutupRiwayatKeluarga(predana.id, tanggal_cerai, t);
-
-      // Mencari keluarga asal pihak predana
-      const riwayatAsal = await RiwayatKeluarga.findOne({
+      await tutupRiwayatKeluarga({ 
+        krama_id: predana.id, 
+        event_date: finalTanggalCerai, 
+        bobot_baru: 4, t 
+      });
+      
+      const riwayatKeluargaAsal = await RiwayatKeluarga.findOne({
         where: {
           krama_id: predana.id,
           keluarga_id: { [Op.ne]: targetKeluargaId }
@@ -420,8 +552,8 @@ export const prosesPerceraianBali = async ({
       let isKeluargaTujuan = null;
       let kedudukanBaru = "Anggota";
 
-      // Mencari data keluarga sesuai riwayat keluarga
-      if (!riwayatAsal && predana.ayah_id) {
+      // mencari data keluarga sesuai riwayat keluarga
+      if (!riwayatKeluargaAsal && predana.ayah_id) {
         const keluargaAyah = await Keluarga.findOne({
           where: { 
             kepala_keluarga_id: predana.ayah_id, 
@@ -432,8 +564,8 @@ export const prosesPerceraianBali = async ({
         if (keluargaAyah) {
           isKeluargaTujuan = keluargaAyah.id;
         }
-      } else if (riwayatAsal) {
-        const keluargaLama = await Keluarga.findByPk(riwayatAsal.keluarga_id, { 
+      } else if (riwayatKeluargaAsal) {
+        const keluargaLama = await Keluarga.findByPk(riwayatKeluargaAsal.keluarga_id, { 
           transaction: t 
         });
         if (keluargaLama) {
@@ -441,58 +573,55 @@ export const prosesPerceraianBali = async ({
           if (keluargaLama.status_keluarga === "Non-Aktif") {
             await keluargaLama.update({ 
               status_keluarga: "Aktif" 
-            }, { 
-              transaction: t 
-            });
+            }, { transaction: t });
           }
         }
       }
 
-      // Membuat keluarga asal baru jika keluarga asal pihak predana tidak terdaftar
+      // membuat keluarga asal baru jika keluarga asal pihak predana tidak terdaftar
       if (!isKeluargaTujuan) {
-        const keluargaBaruAsal = await Keluarga.create({
+        const keluargaAsalBaru = await Keluarga.create({
           kepala_keluarga_id: predana.id,
           jenis_keluarga: "Keluarga Asal",
           status_keluarga: "Aktif"
-        }, { 
-          transaction: t 
-        });
-        isKeluargaTujuan = keluargaBaruAsal.id;
+        }, { transaction: t });
+        isKeluargaTujuan = keluargaAsalBaru.id;
         kedudukanBaru = "Kepala Keluarga";
       }
 
       await simpanRiwayatKeluarga({
         krama_id: predana.id,
         keluarga_id: isKeluargaTujuan,
+        perkawinan_id: perkawinan.id,
         kedudukan: kedudukanBaru,
+        kategori_event: "CERAI",
+        bobot_event: BOBOT_EVENT["CERAI"],
         dasar_keputusan: "Kedudukan diberikan karena krama kembali ke keluarga asal setelah perceraian.",
-        event_date: tanggal_cerai,
-        allow_multiple: false 
+        event_date: finalTanggalCerai,
+        allow_multiple: false
       }, t);
     }
 
     const updatedPerkawinanInstance = await perkawinan.update({
       status_perkawinan,
       status_verifikasi: "Disetujui",
-      tanggal_cerai,
-      pihak_meninggal: status_perkawinan === "Cerai Mati" 
-        ? pihak_meninggal 
-        : null,
-      ketetapan_silsilah_suami: purusa.id === suami_id 
-        ? keputusanPurusa 
-        : keputusanPredana,
-      ketetapan_silsilah_istri: purusa.id === istri_id 
-        ? keputusanPurusa 
-        : keputusanPredana,
-      catatan_admin_desa: catatanAdmin,
+      tanggal_cerai: finalTanggalCerai,
+      pihak_meninggal: status_perkawinan === "Cerai Mati" ? pihak_meninggal : null,
+      ketetapan_silsilah_suami: jenis_perkawinan === "Pade Gelahang" 
+        ? (keputusanSuami.status_peran_adat ? "Tetap" : "Kembali ke Asal") 
+        : (purusa.id === suami_id ? keputusanPurusa : keputusanPredana),
+      ketetapan_silsilah_istri: jenis_perkawinan === "Pade Gelahang" 
+        ? (keputusanIstri.status_peran_adat ? "Tetap" : "Kembali ke Asal") 
+        : (purusa.id === istri_id ? keputusanPurusa : keputusanPredana),
+      catatan_admin_desa: catatanAdminPenutup,
+      is_approved_desa_suami: true,
+      is_approved_desa_istri: true,
       is_pending_update: false,
       status_sebelum_draft: null,
       data_perubahan: null
-    }, { 
-      transaction: t 
-    });
+    }, { transaction: t });
 
-    // Menutup keluarga lama jika tidak ada anggota keluarga
+    // menutup keluarga lama jika tidak ada anggota keluarga
     if (targetKeluargaId) {
       const anggotaAktif = await RiwayatKeluarga.count({
         where: { 

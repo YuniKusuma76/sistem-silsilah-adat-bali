@@ -515,7 +515,7 @@ export const createKrama = async (req, res) => {
         jenis_kelamin
       }, t);
 
-      const tglMulai = kramaBaru.tanggal_lahir || new Date();
+      const tglMulai = kramaBaru.tanggal_lahir || new Date().toISOString().split('T')[0];
 
       await simpanRiwayatPeranAdat({
         krama_id: kramaBaru.id,
@@ -745,7 +745,7 @@ export const verifikasiKrama = async (req, res) => {
         const riwayatKeluargaExist = await RiwayatKeluarga.findOne({
           where: { 
             krama_id: id, 
-            kategori_masuk: "LAHIR" 
+            kategori_event: "LAHIR" 
           },
           transaction: t
         });
@@ -776,7 +776,7 @@ export const verifikasiKrama = async (req, res) => {
           jenis_kelamin: jenisKelaminAktif
         }, t);
 
-        const tglMulai = tanggalLahirAktif || new Date();
+        const tglMulai = tanggalLahirAktif || new Date().toISOString().split('T')[0];
 
         if (riwayatPeranLama) {
           await riwayatPeranLama.update({
@@ -1000,7 +1000,7 @@ export const updateKramaById = async (req, res) => {
         jenis_kelamin: jenisKelaminAktif 
       }, t);
 
-      const tglMulai = tanggalLahirAktif || new Date();
+      const tglMulai = tanggalLahirAktif || new Date().toISOString().split('T')[0];
 
       if (riwayatLahirExist) {
         await riwayatLahirExist.update({
@@ -1043,7 +1043,7 @@ export const updateKramaById = async (req, res) => {
       const hubunganKeluargaKandung = await RiwayatKeluarga.findOne({
         where: { 
           krama_id: id,
-          kategori_masuk: "LAHIR"
+          kategori_event: "LAHIR"
         },
         transaction: t
       });
