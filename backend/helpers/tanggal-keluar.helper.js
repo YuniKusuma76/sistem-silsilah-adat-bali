@@ -1,8 +1,5 @@
 import { Op } from "sequelize";
-import { 
-  Perkawinan, 
-  RiwayatKeluarga 
-} from "../models/associations.js";
+import { Perkawinan, RiwayatKeluarga } from "../models/associations.js";
 
 // HALPER: Menghitung tanggal keluar anak berdasarkan kronologi peristiwa
 export const hitungTanggalKeluarAnak = async (
@@ -11,14 +8,15 @@ export const hitungTanggalKeluarAnak = async (
   t
 ) => {
   const [perkawinanAnak, riwayatLain] = await Promise.all([
-    // CASE 1: Mencari apakah anak ini pernah kawin setelah tanggal jangkar
+    // Process 1: Mencari apakah anak ini pernah kawin setelah tanggal jangkar
     Perkawinan.findOne({
       where: {
         [Op.or]: [
           { suami_id: anak_id }, 
           { istri_id: anak_id }
         ],
-        tanggal_perkawinan: { [Op.gt]: tanggal_jangkar }
+        tanggal_perkawinan: { [Op.gt]: tanggal_jangkar },
+        status_verifikasi: "Disetujui"
       },
       attributes: ["tanggal_perkawinan"],
       order: [["tanggal_perkawinan", "ASC"]],
@@ -27,7 +25,8 @@ export const hitungTanggalKeluarAnak = async (
     RiwayatKeluarga.findOne({
       where: {
         krama_id: anak_id,
-        awal_masuk: { [Op.gt]: tanggal_jangkar }
+        awal_masuk: { [Op.gt]: tanggal_jangkar },
+        kategori_event: { [Op.in]: ["PENGANGKATAN", "CERAI"] } 
       },
       attributes: ["awal_masuk"],
       order: [["awal_masuk", "ASC"]],
@@ -40,9 +39,7 @@ export const hitungTanggalKeluarAnak = async (
   const tanggalAngkat = riwayatLain ? new Date(riwayatLain.awal_masuk) : null;
 
   if (tanggalKawin && tanggalAngkat) {
-    return tanggalKawin < tanggalAngkat 
-      ? perkawinanAnak.tanggal_perkawinan 
-      : riwayatLain.awal_masuk;
+    return tanggalKawin < tanggalAngkat ? perkawinanAnak.tanggal_perkawinan : riwayatLain.awal_masuk;
   } else if (tanggalKawin) {
     return perkawinanAnak.tanggal_perkawinan;
   } else if (tanggalAngkat) {

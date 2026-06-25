@@ -15,6 +15,13 @@ import AturanAdatBali from "./aturan-adat.model.js";
 import KontakPesan from "./kontak-pesan.model.js";
 import Notifikasi from "./notifikasi.model.js";
 
+const BOBOT_EVENT = {
+  "LAHIR": 1, 
+  "PENGANGKATAN": 2, 
+  "KAWIN": 3, 
+  "CERAI": 4
+};
+
 // RELASI MODEL WILAYAH 
 Provinsi.hasMany(Kabupaten, { 
   foreignKey: "provinsi_id",

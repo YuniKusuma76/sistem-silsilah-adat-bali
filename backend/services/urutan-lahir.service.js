@@ -8,7 +8,6 @@ export const hitungUrutanLahir = async ({
   ibu_id = null,
   kepala_keluarga_id = null
 }, t = null) => {
-  // Mengambil relasi anak menggunakan halper
   const relasi = await ambilRelasiAnak({
     mode,
     ayah_id,
@@ -18,7 +17,6 @@ export const hitungUrutanLahir = async ({
 
   if (!relasi || relasi.length === 0) return;
 
-  // Loop urutan lahir
   await Promise.all(
     relasi.map((item, i) => {
       const urutanSeharusnya = i + 1;

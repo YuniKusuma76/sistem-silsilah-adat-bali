@@ -1,16 +1,22 @@
 import { Op } from "sequelize";
 import db from "../config/db.config.js";
 import {
-  Perkawinan, 
-  KramaBali, 
   RelasiKrama, 
+  KramaBali, 
+  Perkawinan, 
   RiwayatKeluarga, 
-  RiwayatPeranAdat, 
   Keluarga
 } from "../models/associations.js";
 import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 import { simpanRiwayatKeluarga } from "./riwayat-keluarga.service.js";
 import { hitungTanggalKeluarAnak } from "../helpers/tanggal-keluar.helper.js";
+
+const BOBOT_EVENT = {
+  "LAHIR": 1, 
+  "PENGANGKATAN": 2, 
+  "KAWIN": 3, 
+  "CERAI": 4
+};
 
 export const buatAnakKandung = async ({
   anak_id,
@@ -19,13 +25,13 @@ export const buatAnakKandung = async ({
   status_verifikasi,   
   catatan_admin_desa
 }, passedTransaction = null) => {
-  // Mulai transaksi database yang dilewatkan
+  // Menggunakan transaksi yang dilewatkan atau buat baru
   const t = passedTransaction || await db.transaction();
 
   try {
     // Validasi ketersediaan data perkawinan
-    const perkawinan = await Perkawinan.findByPk(perkawinan_id,{
-      transaction: t
+    const perkawinan = await Perkawinan.findByPk(perkawinan_id, { 
+      transaction: t 
     });
 
     if (!perkawinan) {
@@ -35,17 +41,28 @@ export const buatAnakKandung = async ({
     const { 
       suami_id, 
       istri_id, 
-      jenis_perkawinan
+      jenis_perkawinan 
     } = perkawinan;
 
     // Validasi ketersediaan data anak
-    const anak = await KramaBali.findByPk(anak_id, {
-      transaction: t
+    const anak = await KramaBali.findByPk(anak_id, { 
+      transaction: t 
     });
 
     if (!anak) {
       throw new Error("Data anak tidak ditemukan.");
     }
+
+    const [suamiData, istriData] = await Promise.all([
+      KramaBali.findByPk(suami_id, { 
+        attributes: ["desa_adat_id"], 
+        transaction: t 
+      }),
+      KramaBali.findByPk(istri_id, { 
+        attributes: ["desa_adat_id"], 
+        transaction: t 
+      })
+    ]);
 
     const relasi = await RelasiKrama.create({
       anak_id,
@@ -55,12 +72,10 @@ export const buatAnakKandung = async ({
       user_id,             
       status_verifikasi,   
       catatan_admin_desa
-    }, { 
-      transaction: t 
-    });
+    }, { transaction: t });
 
     if (status_verifikasi !== "Disetujui") {
-      if (!passedTransaction && !t.finished) {
+      if (!passedTransaction) {
         await t.commit();
       }
       return relasi;
@@ -78,31 +93,25 @@ export const buatAnakKandung = async ({
     let keluargaSuamiTarget = null;
     let keluargaIstriTarget = null;
 
-
     // =============================================================
     // MENCARI KELUARGA AKTIF BERDASARKAN JENIS PERKAWINAN
     // =============================================================
     if (jenis_perkawinan === "Pade Gelahang") {
-      // Mencari keluarga pihak suami
-      const riwayatSuami = await RiwayatKeluarga.findOne({
-        where: { 
-          krama_id: suami_id, 
-          akhir_masuk: null 
-        },
-        transaction: t
-      });
-
-      // Mencari keluarga pihak istri
-      const riwayatIstri = await RiwayatKeluarga.findOne({
-        where: { 
-          krama_id: istri_id, 
-          akhir_masuk: null 
-        },
-        transaction: t
-      });
+      const [riwayatSuami, riwayatIstri] = await Promise.all([
+        RiwayatKeluarga.findOne({ 
+          where: { 
+            krama_id: suami_id, 
+            akhir_masuk: null 
+          }, transaction: t }),
+        RiwayatKeluarga.findOne({ 
+          where: { 
+            krama_id: istri_id, 
+            akhir_masuk: null 
+          }, transaction: t })
+      ]);
 
       if (!riwayatSuami || !riwayatIstri) {
-        throw new Error("Pelacakan keluarga aktif Pade Gelahang gagal. Riwayat aktif orang tua tidak ditemukan.");
+        throw new Error("Pelacakan keluarga aktif Pade Gelahang gagal! Riwayat aktif orang tua tidak ditemukan.");
       }
 
       keluargaSuamiTarget = { id: riwayatSuami.keluarga_id };
@@ -112,9 +121,12 @@ export const buatAnakKandung = async ({
       await simpanRiwayatKeluarga({
         krama_id: anak_id,
         keluarga_id: keluargaSuamiTarget.id,
+        perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
         dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ayah karena perkawinan pade gelahang orang tuanya.",
         event_date: anak.tanggal_lahir,
+        kategori_event: "LAHIR",
+        bobot_event: BOBOT_EVENT["LAHIR"],
         allow_multiple: true,
         akhir_masuk: tanggal_keluar
       }, t);
@@ -123,18 +135,20 @@ export const buatAnakKandung = async ({
       await simpanRiwayatKeluarga({
         krama_id: anak_id,
         keluarga_id: keluargaIstriTarget.id,
+        perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
         dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ibu karena perkawinan pade gelahang orang tuanya.",
         event_date: anak.tanggal_lahir,
+        kategori_event: "LAHIR",
+        bobot_event: BOBOT_EVENT["LAHIR"],
         allow_multiple: true,
         akhir_masuk: tanggal_keluar 
       }, t);
     } else {
-      // PERKAWINAN BIASA ATAU NYENTANA
       const purusaId = jenis_perkawinan === "Nyentana" ? istri_id : suami_id;
       const predanaId = jenis_perkawinan === "Nyentana" ? suami_id : istri_id;
 
-      let riwayatWadah = await RiwayatKeluarga.findOne({
+      let riwayatKeluarga = await RiwayatKeluarga.findOne({
         where: { 
           krama_id: purusaId, 
           akhir_masuk: null 
@@ -143,8 +157,8 @@ export const buatAnakKandung = async ({
       });
 
       // Mencari riwayat keluarga aktif melalui istri
-      if (!riwayatWadah) {
-        riwayatWadah = await RiwayatKeluarga.findOne({
+      if (!riwayatKeluarga) {
+        riwayatKeluarga = await RiwayatKeluarga.findOne({
           where: { 
             krama_id: predanaId, 
             akhir_masuk: null 
@@ -153,24 +167,28 @@ export const buatAnakKandung = async ({
         });
       }
 
-      if (!riwayatWadah) {
-        throw new Error("Riwayat keluarga aktif tidak ditemukan.");
+      if (!riwayatKeluarga) {
+        throw new Error("Riwayat keluarga aktif orang tua tidak ditemukan.");
       }
 
-      const wadahKeluargaId = riwayatWadah.keluarga_id;
+      const keluargaId = riwayatKeluarga.keluarga_id;
+      
       if (jenis_perkawinan === "Nyentana") {
-        keluargaIstriTarget = { id: wadahKeluargaId };
+        keluargaIstriTarget = { id: keluargaId };
       } else {
-        keluargaSuamiTarget = { id: wadahKeluargaId };
+        keluargaSuamiTarget = { id: keluargaId };
       }
 
       // Simpan riwayat anak ke dalam wadah KK perkawinan orang tua yang berhasil dilacak
       await simpanRiwayatKeluarga({
         krama_id: anak_id,
-        keluarga_id: wadahKeluargaId,
+        keluarga_id: keluargaId,
+        perkawinan_id: perkawinan_id,
         kedudukan: "Anggota", 
         dasar_keputusan: `Kedudukan sebagai anggota diberikan karena krama ini merupakan anak kandung hasil perkawinan orang tuanya (${jenis_perkawinan}).`,
         event_date: anak.tanggal_lahir,
+        kategori_event: "LAHIR",
+        bobot_event: BOBOT_EVENT["LAHIR"],
         akhir_masuk: tanggal_keluar, 
         allow_multiple: tanggal_keluar ? true : false 
       }, t);
@@ -199,17 +217,22 @@ export const buatAnakKandung = async ({
       if (jenis_perkawinan === "Pade Gelahang") {
         await riwayatMandiriDarurat.update({
           keluarga_id: keluargaSuamiTarget.id,
+          perkawinan_id: perkawinan_id,
           kedudukan: "Anggota",
+          kategori_event: "LAHIR",
+          bobot_event: BOBOT_EVENT["LAHIR"],
           dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ayah setelah data perkawinan ditemukan."
-        }, { 
-          transaction: t 
-        });
+        }, { transaction: t });
+
         await simpanRiwayatKeluarga({
           krama_id: anak_id,
           keluarga_id: keluargaIstriTarget.id,
+          perkawinan_id: perkawinan_id,
           kedudukan: "Anggota",
           dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ibu setelah data perkawinan ditemukan.",
           event_date: riwayatMandiriDarurat.awal_masuk,
+          kategori_event: "LAHIR",
+          bobot_event: BOBOT_EVENT["LAHIR"],
           akhir_masuk: riwayatMandiriDarurat.akhir_masuk,
           allow_multiple: true
         }, t);
@@ -219,11 +242,12 @@ export const buatAnakKandung = async ({
         if (keluargaTujuanId) {
           await riwayatMandiriDarurat.update({
             keluarga_id: keluargaTujuanId,
+            perkawinan_id: perkawinan_id,
             kedudukan: "Anggota",
+            kategori_event: "LAHIR",
+            bobot_event: BOBOT_EVENT["LAHIR"],
             dasar_keputusan: "Krama dikembalikan ke keluarga perkawinan kandung orang tuanya."
-          }, { 
-            transaction: t 
-          });
+          }, { transaction: t });
         }
       }
 
@@ -233,20 +257,29 @@ export const buatAnakKandung = async ({
       if (idKeluargaLama && idKeluargaLama !== idKeluargaBaruSuami && idKeluargaLama !== idKeluargaBaruIstri) {
         await Keluarga.update(
           { status_keluarga: "Non-Aktif" },
-          { 
-            where: { id: idKeluargaLama }, 
-            transaction: t 
-          }
+          { where: { id: idKeluargaLama }, transaction: t }
         );
       }
     }
 
-    if (!passedTransaction && !t.finished) {
+    // UPDATE DESA ADAT ANAK SECARA SAH
+    const desaAdatTarget = jenis_perkawinan === "Nyentana" 
+      ? istriData?.desa_adat_id 
+      : suamiData?.desa_adat_id;
+
+    if (desaAdatTarget) {
+      await KramaBali.update(
+        { desa_adat_id: desaAdatTarget },
+        { where: { id: anak_id }, transaction: t }
+      );
+    }
+
+    if (!passedTransaction) {
       await t.commit();
     }
     return relasi;
   } catch (error) {
-    if (t && !passedTransaction && !t.finished) {
+    if (!passedTransaction) {
       await t.rollback();
     }
     throw error;

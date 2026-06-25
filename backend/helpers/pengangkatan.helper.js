@@ -9,6 +9,7 @@ export const hitungJumlahPengangkatan = async (
   return RelasiKrama.count({
     where: {
       status_hubungan: "Anak Angkat",
+      status_verifikasi: "Disetujui",
       [Op.or]: [
         { ayah_id: kepala_keluarga_id },
         { ibu_id: kepala_keluarga_id }

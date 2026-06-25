@@ -9,7 +9,6 @@ export const ambilRelasiAnak = async ({
   ibu_id = null,
   kepala_keluarga_id = null
 }, t = null) => {
-  // Menentukan opsi dasar query
   const queryOptions = {
     include: {
       model: KramaBali,
@@ -17,10 +16,11 @@ export const ambilRelasiAnak = async ({
       attributes: ["id", "tanggal_lahir"]
     },
     order: [
-      [{
-        model: KramaBali,
-        as: "anak"
-      }, "tanggal_lahir", "ASC"]
+      [{ 
+        model: KramaBali, 
+        as: "anak" 
+      }, "tanggal_lahir", "ASC"], 
+      ["id", "ASC"] 
     ],
     transaction: t
   };
@@ -31,6 +31,7 @@ export const ambilRelasiAnak = async ({
       ...queryOptions,
       where: {
         status_hubungan: "Anak Angkat",
+        status_verifikasi: "Disetujui",
         [Op.or]: [
           { ayah_id: kepala_keluarga_id },
           { ibu_id: kepala_keluarga_id }
@@ -46,6 +47,7 @@ export const ambilRelasiAnak = async ({
       where: {
         ayah_id,
         ibu_id,
+        status_verifikasi: "Disetujui",
         status_hubungan: {
           [Op.in]: ["Anak Kandung", "Anak Angkat"]
         }
