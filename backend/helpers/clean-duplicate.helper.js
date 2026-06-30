@@ -70,4 +70,4 @@ const hapusDuplikatRelasi = async () => {
 
 hapusDuplikatRelasi();
 
-// Perintah: node helpers/clean-duplicate.js
+// Perintah: node helpers/clean-duplicate.helper.js

@@ -47,15 +47,18 @@ export const integrasiPerkawinanLeluhur = async ({
     };
   }
 
-  const finalTanggalLeluhur = tanggal_perkawinan || new Date().toISOString().split('T')[0];
   const jenisPerkawinanValid = jenis_perkawinan || "Biasa";
+  const tanggalPerkawinanMurni = tanggal_perkawinan || new Date().toISOString().split('T')[0];
+
+  const jamSekarang = new Date().toTimeString().split(' ')[0];
+  const finalTanggalLeluhurDateTime = new Date(`${tanggalPerkawinanMurni} ${jamSekarang}`);
 
   const perkawinan = await Perkawinan.create({
     suami_id,
     istri_id,
     status_perkawinan: status_perkawinan || "Kawin",
     jenis_perkawinan: jenisPerkawinanValid,
-    tanggal_perkawinan: finalTanggalLeluhur,
+    tanggal_perkawinan: tanggalPerkawinanMurni,
     status_verifikasi: statusVerifikasi,      
     is_approved_desa_suami: approvedSuami,      
     is_approved_desa_istri: approvedIstri,
@@ -91,7 +94,7 @@ export const integrasiPerkawinanLeluhur = async ({
       dasar_keputusan: isNyentana 
         ? "Kedudukan sebagai kepala keluarga diberikan karena krama ini berstatus Purusa Nyentana dalam sejarah silsilah keluarga leluhur."
         : "Kedudukan sebagai kepala keluarga diberikan karena krama ini merupakan penerus garis keturunan (Purusa) untuk keluarga leluhurnya.",
-      event_date: finalTanggalLeluhur,
+      event_date: finalTanggalLeluhurDateTime,
       allow_multiple: true
     }, t);
 
@@ -104,7 +107,7 @@ export const integrasiPerkawinanLeluhur = async ({
       dasar_keputusan: isNyentana
         ? "Kedudukan sebagai anggota diberikan karena krama ini tercatat sebagai suami yang masuk ke dalam keluarga purusa istri (Nyentana)."
         : "Kedudukan sebagai anggota diberikan karena krama ini tercatat sebagai istri (Predana) dalam catatan Trah Bali.",
-      event_date: finalTanggalLeluhur,
+      event_date: finalTanggalLeluhurDateTime,
       allow_multiple: true
     }, t);
 
@@ -131,7 +134,7 @@ export const integrasiPerkawinanLeluhur = async ({
       kedudukan: "Kepala Keluarga",
       kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai kepala keluarga leluhur diberikan kepada krama ini karena berstatus purusa di garis keturunan asalnya pada perkawinan Pade Gelahang.",
-      event_date: finalTanggalLeluhur,
+      event_date: finalTanggalLeluhurDateTime,
       allow_multiple: true
     }, t);
 
@@ -142,7 +145,7 @@ export const integrasiPerkawinanLeluhur = async ({
       kedudukan: "Anggota",
       kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini sebagai pendamping predana di silsilah keluarga suaminya pada perkawinan Pade Gelahang.",
-      event_date: finalTanggalLeluhur,
+      event_date: finalTanggalLeluhurDateTime,
       allow_multiple: true
     }, t);
 
@@ -154,7 +157,7 @@ export const integrasiPerkawinanLeluhur = async ({
       kedudukan: "Kepala Keluarga",
       kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai kepala keluarga leluhur diberikan kepada krama ini karena berstatus purusa di garis keturunan asalnya pada perkawinan Pade Gelahang.",
-      event_date: finalTanggalLeluhur,
+      event_date: finalTanggalLeluhurDateTime,
       allow_multiple: true
     }, t);
 
@@ -165,7 +168,7 @@ export const integrasiPerkawinanLeluhur = async ({
       kedudukan: "Anggota",
       kategori_event: "KAWIN",
       dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini sebagai pendamping predana di silsilah keluarga istrinya pada perkawinan Pade Gelahang.",
-      event_date: finalTanggalLeluhur,
+      event_date: finalTanggalLeluhurDateTime,
       allow_multiple: true
     }, t);
 

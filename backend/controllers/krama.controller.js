@@ -493,7 +493,7 @@ export const createKrama = async (req, res) => {
       nama_panggilan: nama_panggilan || null,
       jenis_kelamin: jenis_kelamin || "Tidak Diketahui",
       tanggal_lahir: tanggal_lahir || null,
-      status_hidup: tipe_data === "Leluhur" ? "Tidak Diketahui" : (status_hidup || "Hidup"),
+      status_hidup: tipe_data === "Leluhur" ? (status_hidup || "Tidak Diketahui") : (status_hidup || "Hidup"),
       is_bali: final_is_bali,
       desa_adat_id: final_desa_adat_id,
       tempat_asal_khusus,
@@ -515,7 +515,9 @@ export const createKrama = async (req, res) => {
         jenis_kelamin
       }, t);
 
-      const tglMulai = kramaBaru.tanggal_lahir || new Date().toISOString().split('T')[0];
+      const tglMulai = kramaBaru.tanggal_lahir 
+        ? new Date(`${kramaBaru.tanggal_lahir} ${new Date().toTimeString().split(' ')[0]}`)
+        : new Date();
 
       await simpanRiwayatPeranAdat({
         krama_id: kramaBaru.id,
@@ -734,10 +736,12 @@ export const verifikasiKrama = async (req, res) => {
 
       // Sinkronisasi kronologis jika ada perubahan tanggal lahir
       if (dataBaru.tanggal_lahir && krama.tipe_data === "Keturunan") {
-        const tanggalBaru = dataBaru.tanggal_lahir;
+        const jamSekarang = new Date().toTimeString().split(' ')[0];
+        const tanggalBaruDateTime = new Date(`${dataBaru.tanggal_lahir} ${jamSekarang}`);
+        
         if (riwayatPeranLama) {
           await riwayatPeranLama.update({ 
-            mulai_tanggal: tanggalBaru 
+            mulai_tanggal: tanggalBaruDateTime 
           }, { transaction: t });
         }
 
@@ -751,7 +755,7 @@ export const verifikasiKrama = async (req, res) => {
         });
         if (riwayatKeluargaExist) {
           await riwayatKeluargaExist.update({ 
-            awal_masuk: tanggalBaru 
+            awal_masuk: tanggalBaruDateTime 
           }, { transaction: t });
         }
       }
@@ -760,6 +764,7 @@ export const verifikasiKrama = async (req, res) => {
     await krama.update(finalUpdate, { 
       transaction: t 
     });
+
     const kramaRefreshed = await krama.reload({ 
       transaction: t 
     });
@@ -776,7 +781,10 @@ export const verifikasiKrama = async (req, res) => {
           jenis_kelamin: jenisKelaminAktif
         }, t);
 
-        const tglMulai = tanggalLahirAktif || new Date().toISOString().split('T')[0];
+        const jamSekarang = new Date().toTimeString().split(' ')[0];
+        const tglMulai = tanggalLahirAktif 
+          ? new Date(`${tanggalLahirAktif} ${jamSekarang}`)
+          : new Date();
 
         if (riwayatPeranLama) {
           await riwayatPeranLama.update({
@@ -850,9 +858,11 @@ export const updateKramaById = async (req, res) => {
 
   try {
     const { id } = req.params;
+
     const userRole = req.role;
     const userDesaId = req.desaAdatId;
     const currentUserId = req.userId;
+
     const payload = { ...req.body };
 
     // Membersihkan string kosong
@@ -1000,7 +1010,9 @@ export const updateKramaById = async (req, res) => {
         jenis_kelamin: jenisKelaminAktif 
       }, t);
 
-      const tglMulai = tanggalLahirAktif || new Date().toISOString().split('T')[0];
+      const tglMulai = tanggalLahirAktif 
+        ? new Date(`${tanggalLahirAktif} ${new Date().toTimeString().split(' ')[0]}`)
+        : new Date();
 
       if (riwayatLahirExist) {
         await riwayatLahirExist.update({
@@ -1023,7 +1035,8 @@ export const updateKramaById = async (req, res) => {
     }
 
     if (payload.tanggal_lahir && krama.tipe_data === "Keturunan") {
-      const tanggalLahirBaru = payload.tanggal_lahir;
+      const jamSekarang = new Date().toTimeString().split(' ')[0];
+      const tanggalLahirBaruDateTime = new Date(`${payload.tanggal_lahir} ${jamSekarang}`);
 
       // mengambil riwayat adat dengan kategori "LAHIR"
       const riwayatLahirExist = await RiwayatPeranAdat.findOne({
@@ -1035,7 +1048,7 @@ export const updateKramaById = async (req, res) => {
       });
       if (riwayatLahirExist) {
         await riwayatLahirExist.update({ 
-          mulai_tanggal: tanggalLahirBaru 
+          mulai_tanggal: tanggalLahirBaruDateTime 
         }, { transaction: t });
       }
 
@@ -1049,7 +1062,7 @@ export const updateKramaById = async (req, res) => {
       });
       if (hubunganKeluargaKandung) {
         await hubunganKeluargaKandung.update({ 
-          awal_masuk: tanggalLahirBaru 
+          awal_masuk: tanggalLahirBaruDateTime 
         }, { transaction: t });
       }
     }
@@ -1110,6 +1123,7 @@ export const cancelUpdateKrama = async (req, res) => {
 
   try {
     const { id } = req.params;
+
     const userRole = req.role;
     const userId = req.userId;
     const userDesaId = req.desaAdatId;
@@ -1237,6 +1251,7 @@ export const deleteKramaById = async (req, res) => {
 
   try {
     const { id } = req.params;
+
     const userRole = req.role;
     const userId = req.userId;
     const userDesaId = req.desaAdatId;

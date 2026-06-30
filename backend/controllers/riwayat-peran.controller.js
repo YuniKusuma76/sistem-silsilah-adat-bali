@@ -39,10 +39,7 @@ export const getAllRiwayatPeranAdat = async (req, res) => {
   try {
     const riwayatPeranAdatList = await RiwayatPeranAdat.findAll({
       include: RIWAYAT_PERAN_INCLUDE,
-      order: [
-        ["mulai_tanggal", "DESC"],
-        ["id", "DESC"]
-      ]
+      order: [["id", "DESC"]]
     });
 
     return res.status(200).json({

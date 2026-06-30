@@ -49,7 +49,7 @@ export const simpanRiwayatPeranAdat = async ({
   bobot_event,
   event_date
 }, t = null) => {
-  const finalEventDate = event_date || new Date().toISOString().split('T')[0];
+  const finalEventDate = event_date ? new Date(event_date) : new Date();
   const finalBobot = bobot_event || BOBOT_EVENT[kategori_event] || 1;
 
   console.log("=== [SERVICE] SIMPAN RIWAYAT PERAN ADAT ===");

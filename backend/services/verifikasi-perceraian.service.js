@@ -136,6 +136,7 @@ export const eksekusiVerifikasiPerceraian = async ({
     }, { transaction: t });
 
     await t.commit();
+    
     return { 
       type: "PERSETUJUAN_CERAI_PENUH", 
       data: perkawinanSah 

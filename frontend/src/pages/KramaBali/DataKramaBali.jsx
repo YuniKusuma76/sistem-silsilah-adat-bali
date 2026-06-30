@@ -53,6 +53,7 @@ const formatWaktuRelatif = (dateString) => {
 };
 
 const DataKramaBali = ({ user }) => {
+  const notifDropdownRef = useRef(null);
   const [kramaList, setKramaList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,8 +62,7 @@ const DataKramaBali = ({ user }) => {
   const [daftarDesaRaw, setDaftarDesaRaw] = useState([]);
   const [daftarKecamatan, setDaftarKecamatan] = useState([]);
   const [daftarKabupaten, setDaftarKabupaten] = useState([]);
-
-  const notifDropdownRef = useRef(null);
+  
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
@@ -73,14 +73,12 @@ const DataKramaBali = ({ user }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // State alert notifikasi global
   const [alert, setAlert] = useState({
     show: false,
     type: '',
     message: ''
   });
 
-  // Helper: Mengambil data wilayah adat
   const fetchWilayahDanDesa = async () => {
     try {
       const [resDesa, resKec, resKab] = await Promise.all([
@@ -104,7 +102,6 @@ const DataKramaBali = ({ user }) => {
     }
   };
 
-  // Helper: Fungsi mengambil data krama bali
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -127,7 +124,6 @@ const DataKramaBali = ({ user }) => {
     fetchData();
   }, []);
 
-  // Effect: Menutup dropdown ketika klik di luar area input
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
@@ -138,7 +134,7 @@ const DataKramaBali = ({ user }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Helper: Mengambil list notifikasi yang masuk
+  // HELPER NOTIFIKASI: mengambil list notifikasi yang masuk
   const fetchNotifikasiLengkap = async () => {
     if (!user) return;
     try {
@@ -159,7 +155,6 @@ const DataKramaBali = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Helper: Menandai notifikasi telah dibaca
   const handleTandaiDibaca = async (notifId) => {
     try {
       await axiosInstance.patch(`/notifikasi/read/${notifId}`);
@@ -175,7 +170,6 @@ const DataKramaBali = ({ user }) => {
     }
   };
   
-  // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
       setAlert({
@@ -187,7 +181,6 @@ const DataKramaBali = ({ user }) => {
     }
   }, [location]);
   
-  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -197,7 +190,7 @@ const DataKramaBali = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
-  // Helper: Fungsi mengambil detail wilayah berdasarkan desa adat id
+  // Helper: fungsi mengambil detail wilayah adat berdasarkan desa adat id
   const getWilayahLengkap = (desaId) => {
     const desa = daftarDesaRaw.find(d => String(d.id) === String(desaId));
     if (!desa) return null;
@@ -211,13 +204,13 @@ const DataKramaBali = ({ user }) => {
     };
   };
 
-  // Helper: Menangani input pencarian
+  // Helper: menangani input pencarian
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
     setCurrentPage(1);
   };
   
-  // Helper: Fungsi search filter krama
+  // Helper: fungsi search filter krama
   const filteredKrama = useMemo(() => {
     return kramaList.filter(krama => 
       krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -230,19 +223,17 @@ const DataKramaBali = ({ user }) => {
   const currentItems = filteredKrama.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredKrama.length / itemsPerPage);
 
-  // Effect: Setting current page aktif default 1
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Fungsi pergi ke next page
   const goToPage = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
     }
   };
 
-  // Helper: Merender halaman pagination
+  // Helper: merender halaman pagination
   const renderPageNumbers = () => {
     const pageNumbers = [];
     if (totalPages <= 2) {
@@ -432,14 +423,13 @@ const DataKramaBali = ({ user }) => {
           )}
         </div>
       )}
-      {/* List Krama Bali Content */}
       <div className={styles.contentArea}>
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
             <input 
               type="text" 
-              placeholder="Cari nama krama..." 
+              placeholder="Cari nama krama bali..." 
               value={searchTerm}
               onChange={handleSearchChange}
               className={styles.searchInput}
@@ -503,7 +493,7 @@ const DataKramaBali = ({ user }) => {
                 currentItems.map((krama, index) => {
                   const namaDesa = desaAdatMap[krama.desa_adat_id] 
                     || krama.alamat_luar || krama.tempat_asal_khusus
-                    || "Alamat Asal Tidak Diketahui";
+                    || <span className="text-gray-300 text-xs italic">Tidak Diketahui</span>;
                   const infoWilayah = krama.desa_adat_id 
                     ? getWilayahLengkap(krama.desa_adat_id) 
                     : null;

@@ -6,10 +6,12 @@ import {
   verifikasiPerkawinan,
   createPerceraian,
   verifikasiPerceraian,
-  cancelDraftPerceraian,
-  deleteDraftPerkawinan,
+  cancelPerceraian,
+  deletePerkawinan,
   updatePerkawinanById,
-  verifikasiUpdatePerkawinan
+  verifikasiUpdatePerkawinan,
+  cancelUpdatePerkawinanById,
+  cancelUpdatePerceraianById
 } from '../controllers/perkawinan.controller.js';
 import { 
   verifyToken,
@@ -24,8 +26,10 @@ router.put("/update/:id", verifyToken, updatePerkawinanById);
 router.patch("/kawin/verifikasi/:id", verifyToken, superAdminOrAdminDesa, verifikasiPerkawinan);
 router.patch("/cerai/verifikasi/:id", verifyToken, superAdminOrAdminDesa, verifikasiPerceraian);
 router.patch("/update/verifikasi/:id", verifyToken, superAdminOrAdminDesa, verifikasiUpdatePerkawinan);
-router.put('/cerai/cancel-draft/:id', verifyToken, cancelDraftPerceraian);
-router.delete('/kawin/cancel-draft/:id', verifyToken, deleteDraftPerkawinan);
+router.patch('/cerai/cancel-draft/:id', verifyToken, cancelPerceraian);
+router.delete('/kawin/cancel-draft/:id', verifyToken, deletePerkawinan);
+router.patch("/kawin/cancel-update/:id", verifyToken, cancelUpdatePerkawinanById);
+router.patch("/cerai/cancel-update/:id", verifyToken, cancelUpdatePerceraianById);
 router.get("/", verifyToken, getAllPerkawinan);
 router.get("/:id", verifyToken, getPerkawinanById);
 

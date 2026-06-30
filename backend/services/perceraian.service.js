@@ -78,25 +78,31 @@ export const prosesPerceraianBali = async ({
     let finalTanggalCerai;
     let infoTambahanDasar = "";
 
+    const jamSekarang = new Date().toTimeString().split(' ')[0];
+
     if (isTanggalCeraiKosong) {
       const hariIni = new Date().toISOString().split('T')[0];
       if (hariIni === perkawinan.tanggal_perkawinan) {
         const besok = new Date();
         besok.setDate(besok.getDate() + 1);
-        finalTanggalCerai = besok.toISOString().split('T')[0];
+        finalTanggalCerai = new Date(`${besok.toISOString().split('T')[0]} ${jamSekarang}`);
         infoTambahanDasar = " (Tanggal riwayat bergeser 1 hari karena tanggal cerai kosong dan sama dengan tanggal perkawinan).";
       } else {
-        finalTanggalCerai = hariIni;
+        finalTanggalCerai = new Date();
         infoTambahanDasar = " (Tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal cerai kosong).";
       }
     } else {
-      if (tanggal_cerai === perkawinan.tanggal_perkawinan) {
-        const dt = new Date(tanggal_cerai);
+      const stringDateOnly = tanggal_cerai.includes('T') 
+        ? tanggal_cerai.split('T')[0] 
+        : tanggal_cerai.split(' ')[0];
+
+      if (stringDateOnly === perkawinan.tanggal_perkawinan) {
+        const dt = new Date(stringDateOnly);
         dt.setDate(dt.getDate() + 1);
-        finalTanggalCerai = dt.toISOString().split('T')[0];
+        finalTanggalCerai = new Date(`${dt.toISOString().split('T')[0]} ${jamSekarang}`);
         infoTambahanDasar = " (Tanggal riwayat otomatis bergeser 1 hari setelah tanggal perkawinan untuk linimasa riwayat).";
       } else {
-        finalTanggalCerai = tanggal_cerai;
+        finalTanggalCerai = new Date(`${stringDateOnly} ${jamSekarang}`);
       }
     }
 
@@ -182,6 +188,7 @@ export const prosesPerceraianBali = async ({
     // JALUR A: BUFFERING DATA PERUBAHAN (DRAFT)
     if (!isExecuteDirect) {
       const existingChanges = perkawinan.data_perubahan || {};
+      const stringTanggalCeraiDraft = finalTanggalCerai.toISOString();
 
       const updatedPerkawinanDraft = await perkawinan.update({
         is_pending_update: true,
@@ -191,10 +198,10 @@ export const prosesPerceraianBali = async ({
           PERCERAIAN: {
             status_sebelumnya: perkawinan.status_perkawinan,
             status_perkawinan,
-            tanggal_cerai: finalTanggalCerai,
+            tanggal_cerai: stringTanggalCeraiDraft,
             pihak_meninggal,
             pilihan_predana,
-            updated_at: finalTanggalCerai
+            updated_at: stringTanggalCeraiDraft
           }
         },
         is_approved_desa_suami: approvedSuami,
@@ -381,6 +388,31 @@ export const prosesPerceraianBali = async ({
         status_sebelum_draft: null,
         data_perubahan: null
       }, { transaction: t });
+
+      if (isSuamiMeninggal) {
+        const perkawinanPoligamiLainnya = await Perkawinan.findAll({
+          where: {
+            suami_id: suami_id,
+            status_perkawinan: "Kawin",
+            id: { [Op.ne]: perkawinan.id }
+          },
+          transaction: t
+        });
+
+        for (const pLain of perkawinanPoligamiLainnya) {
+          const targetPihakMeninggal = pLain.jenis_perkawinan === "Nyentana" ? "Purusa" : "Suami";
+          await prosesPerceraianBali({
+            perkawinan_id: pLain.id,
+            status_perkawinan: "Cerai Mati",
+            tanggal_cerai: finalTanggalCerai,
+            pihak_meninggal: targetPihakMeninggal,
+            pilihan_predana: "Tetap",
+            user_id,
+            user_role,
+            user_desa_id
+          }, t);
+        }
+      }
 
       if (!passedTransaction) {
         await t.commit();
@@ -605,7 +637,7 @@ export const prosesPerceraianBali = async ({
     const updatedPerkawinanInstance = await perkawinan.update({
       status_perkawinan,
       status_verifikasi: "Disetujui",
-      tanggal_cerai: finalTanggalCerai,
+      tanggal_cerai: finalTanggalCerai.toISOString().split('T')[0],
       pihak_meninggal: status_perkawinan === "Cerai Mati" ? pihak_meninggal : null,
       ketetapan_silsilah_suami: jenis_perkawinan === "Pade Gelahang" 
         ? (keputusanSuami.status_peran_adat ? "Tetap" : "Kembali ke Asal") 
@@ -637,6 +669,39 @@ export const prosesPerceraianBali = async ({
           where: { id: targetKeluargaId }, 
           transaction: t 
         });
+      }
+    }
+
+    if (isPurusaMeninggal) {
+      const perkawinanPoligamiLainnya = await Perkawinan.findAll({
+        where: {
+          suami_id: suami_id, // Pencarian tetap menggunakan suami_id sebagai foreign key relasi poligami
+          status_perkawinan: "Kawin",
+          id: { [Op.ne]: perkawinan.id }
+        },
+        transaction: t
+      });
+
+      for (const pLain of perkawinanPoligamiLainnya) {
+        let targetPihakMeninggal = "Purusa";
+        if (pLain.jenis_perkawinan === "Biasa") {
+          targetPihakMeninggal = "Purusa";
+        } else if (pLain.jenis_perkawinan === "Nyentana") {
+          targetPihakMeninggal = "Predana";
+        } else if (pLain.jenis_perkawinan === "Pade Gelahang") {
+          targetPihakMeninggal = "Suami";
+        }
+
+        await prosesPerceraianBali({
+          perkawinan_id: pLain.id,
+          status_perkawinan: "Cerai Mati",
+          tanggal_cerai: finalTanggalCerai,
+          pihak_meninggal: targetPihakMeninggal,
+          pilihan_predana: "Tetap",
+          user_id,
+          user_role,
+          user_desa_id
+        }, t);
       }
     }
 

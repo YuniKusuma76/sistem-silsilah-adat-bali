@@ -134,12 +134,16 @@ export const verifikasiUpdateDataPerkawinan = async ({
         transaction: t 
       });
 
+      const tglMurniPerkawinan = perkawinan.tanggal_perkawinan.split(' ')[0];
+      const rentangHariPerkawinan = {
+        [db.Sequelize.Op.between]: [`${tglMurniPerkawinan} 00:00:00`, `${tglMurniPerkawinan} 23:59:59`]
+      };
+
       await RiwayatKeluarga.update(
         { akhir_masuk: null },
-        { 
-          where: { 
+        { where: { 
             krama_id: [perkawinan.suami_id, perkawinan.istri_id], 
-            akhir_masuk: perkawinan.tanggal_perkawinan 
+            akhir_masuk: rentangHariPerkawinan 
           }, 
           transaction: t 
         }
@@ -151,10 +155,12 @@ export const verifikasiUpdateDataPerkawinan = async ({
     newCatatanAdmin.last_updated_by = operatorIdentity;
 
     if (tipe_update === "PERKAWINAN") {
+      const tglPerkawinanMurni = subDraftUpdate.tanggal_perkawinan.split('T')[0].split(' ')[0];
+
       await perkawinan.update({
         suami_id: subDraftUpdate.suami_id,
         istri_id: subDraftUpdate.istri_id,
-        tanggal_perkawinan: subDraftUpdate.tanggal_perkawinan,
+        tanggal_perkawinan: tglPerkawinanMurni,
         jenis_perkawinan: subDraftUpdate.jenis_perkawinan,
         status_perkawinan: subDraftUpdate.status_perkawinan,
         is_pending_update: false,
@@ -163,10 +169,10 @@ export const verifikasiUpdateDataPerkawinan = async ({
       }, { transaction: t });
     } else if (tipe_update === "PERCERAIAN") {
       const tanggalCeraiLama = perkawinan.tanggal_cerai;
-      const tanggalCeraiBaru = subDraftUpdate.tanggal_cerai;
+      const tglCeraiMurni = subDraftUpdate.tanggal_cerai.split('T')[0].split(' ')[0];
 
       await perkawinan.update({
-        tanggal_cerai: tanggalCeraiBaru,
+        tanggal_cerai: tglCeraiMurni,
         status_perkawinan: subDraftUpdate.status_perkawinan,
         pihak_meninggal: subDraftUpdate.pihak_meninggal,
         is_pending_update: false,
@@ -176,32 +182,39 @@ export const verifikasiUpdateDataPerkawinan = async ({
 
       // sinkronisasi pergeseran linimasa riwayat cerai
       if (subDraftUpdate.is_pergeseran_tanggal && tanggalCeraiLama !== tanggalCeraiBaru) {
+        const jamSekarang = new Date().toTimeString().split(' ')[0];
+        const tglCeraiBaruDateTime = `${tglCeraiMurni} ${jamSekarang}`;
+
+        const rentangHariCeraiLama = {
+          [db.Sequelize.Op.between]: [`${tanggalCeraiLama} 00:00:00`, `${tanggalCeraiLama} 23:59:59`]
+        };
+
         await RiwayatPeranAdat.update(
-          { mulai_tanggal: tanggalCeraiBaru },
+          { mulai_tanggal: tglCeraiBaruDateTime },
           { where: { 
             perkawinan_id: perkawinan.id, 
             kategori_event: "CERAI" 
           }, transaction: t }
         );
         await RiwayatPeranAdat.update(
-          { selesai_tanggal: tanggalCeraiBaru },
+          { selesai_tanggal: tglCeraiBaruDateTime },
           { where: { 
             perkawinan_id: perkawinan.id, 
             selesai_tanggal: tanggalCeraiLama 
           }, transaction: t }
         );
         await RiwayatKeluarga.update(
-          { awal_masuk: tanggalCeraiBaru },
+          { awal_masuk: tglCeraiBaruDateTime },
           { where: { 
             perkawinan_id: perkawinan.id, 
             kategori_event: "CERAI" 
           }, transaction: t }
         );
         await RiwayatKeluarga.update(
-          { akhir_masuk: tanggalCeraiBaru },
+          { akhir_masuk: tglCeraiBaruDateTime },
           { where: { 
             perkawinan_id: perkawinan.id, 
-            akhir_masuk: tanggalCeraiLama 
+            akhir_masuk: tglCeraiBaruDateTime 
           }, transaction: t }
         );
       }

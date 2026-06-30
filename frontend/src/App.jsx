@@ -42,6 +42,7 @@ import PengajuanKrama from './pages/VerifikasiData/PengajuanKrama.jsx';
 import PengajuanKramaDetail from './pages/VerifikasiData/PengajuanKramaDetail.jsx';
 import PengajuanRelasi from './pages/VerifikasiData/PengajuanRelasi.jsx';
 import PengajuanPerkawinan from './pages/VerifikasiData/PengajuanPerkawinan.jsx';
+import DataKramaPerceraian from './pages/KramaBali/DataKramaPerceraian.jsx';
 // Verifikasi Data
 
 import DataKramaDetail from './pages/KramaBali/DataKramaDetail.jsx';
@@ -262,15 +263,15 @@ const App = () => {
             element={<SilsilahBali user={user} />} 
           />
           <Route 
-            path="/krama-bali/detail/edit-krama/:id" 
+            path="/krama-bali/detail/my-data/edit-krama/:id" 
             element={<DataKramaEditKrama user={user} />} 
           />
           <Route 
-            path="/krama-bali/detail/add-relasi/:id" 
+            path="/krama-bali/detail/my-data/add-relasi/:id" 
             element={<DataKramaTambahRelasi user={user} />} 
           />
           <Route 
-            path="/krama-bali/detail/edit-relasi/:id" 
+            path="/krama-bali/detail/my-data/edit-relasi/:id" 
             element={<DataKramaEditRelasi user={user} />} 
           />
           <Route 
@@ -278,8 +279,12 @@ const App = () => {
             element={<DataKramaTambahKawin user={user} />} 
           />
           <Route 
-            path="/krama-bali/detail/edit-perkawinan/:id" 
+            path="/krama-bali/detail/my-data/edit-perkawinan/:id" 
             element={<DataKramaEditKawin user={user} />} 
+          />
+          <Route 
+            path="/krama-bali/detail/my-data/perceraian/:id" 
+            element={<DataKramaPerceraian user={user} />} 
           />
           <Route 
             path="/verifikasi-data/krama-bali" 

@@ -34,11 +34,11 @@ const RiwayatKeluarga = db.define("tb_riwayat_keluarga", {
     allowNull: false
   },
   awal_masuk: {
-    type: DataTypes.DATEONLY,
+    type: DataTypes.DATE,
     allowNull: true
   },
   akhir_masuk: {
-    type: DataTypes.DATEONLY,
+    type: DataTypes.DATE,
     allowNull: true
   },
   dasar_keputusan: {

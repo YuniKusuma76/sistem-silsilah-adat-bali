@@ -13,12 +13,14 @@ export const bentukKeluargaAngkat = async ({
   kepala_keluarga_id,
   anak_id,
   tanggal_pengangkatan,
+  dasar_keputusan,
   akhir_masuk_anak = null
 }, t = null) => {
+  // mencari keluarga yang aktif
   let keluarga = await cariKeluargaAktif({ kepala_keluarga_id, t });
 
   const keluargaBaru = !keluarga;
-  const finalTglPengangkatan = tanggal_pengangkatan || new Date().toISOString().split('T')[0];
+  const finalTglPengangkatan = tanggal_pengangkatan || new Date().toISOString();
 
   if (keluargaBaru) {
     keluarga = await Keluarga.create({
@@ -33,7 +35,7 @@ export const bentukKeluargaAngkat = async ({
       kedudukan: "Kepala Keluarga",
       kategori_event: "PENGANGKATAN",
       bobot_event: BOBOT_EVENT["PENGANGKATAN"],
-      dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan karena krama ini memiliki status purusa di dalam keluarga akibat telah mengangkat anak dalam Adat Bali.",
+      dasar_keputusan: dasar_keputusan || "Kedudukan sebagai kepala keluarga diberikan karena krama ini memiliki status purusa di dalam keluarga akibat telah mengangkat anak dalam Adat Bali.",
       event_date: finalTglPengangkatan
     }, t);
   }
@@ -55,7 +57,7 @@ export const bentukKeluargaAngkat = async ({
       kedudukan: "Anggota",
       kategori_event: "PENGANGKATAN",
       bobot_event: BOBOT_EVENT["PENGANGKATAN"],
-      dasar_keputusan: "Krama ini masuk ke dalam keluarga karena di angkat sebagai anak secara Adat Bali",
+      dasar_keputusan: dasar_keputusan || "Krama ini masuk ke dalam keluarga karena di angkat sebagai anak secara Adat Bali",
       event_date: finalTglPengangkatan,
       akhir_masuk: akhir_masuk_anak,
       allow_multiple: akhir_masuk_anak ? true : false

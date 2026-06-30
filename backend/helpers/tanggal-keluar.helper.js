@@ -2,20 +2,22 @@ import { Op } from "sequelize";
 import { Perkawinan, RiwayatKeluarga } from "../models/associations.js";
 
 // HALPER: Menghitung tanggal keluar anak berdasarkan kronologi peristiwa
-export const hitungTanggalKeluarAnak = async (
-  anak_id, 
-  tanggal_jangkar, // Tanggal Lahir (anak kandung) atau Tanggal Pengangkatan (anak angkat)
-  t
-) => {
+export const hitungTanggalKeluarAnak = async (anak_id, tanggal_jangkar, t) => {
+  if (!tanggal_jangkar) return null;
+
+  const jamSekarang = new Date().toTimeString().split(' ')[0];
+  const jangkarDateOnly = tanggal_jangkar.includes('T') 
+    ? tanggal_jangkar.split('T')[0] 
+    : tanggal_jangkar.split(' ')[0];
+
   const [perkawinanAnak, riwayatLain] = await Promise.all([
-    // Process 1: Mencari apakah anak ini pernah kawin setelah tanggal jangkar
     Perkawinan.findOne({
       where: {
         [Op.or]: [
           { suami_id: anak_id }, 
           { istri_id: anak_id }
         ],
-        tanggal_perkawinan: { [Op.gt]: tanggal_jangkar },
+        tanggal_perkawinan: { [Op.gt]: jangkarDateOnly },
         status_verifikasi: "Disetujui"
       },
       attributes: ["tanggal_perkawinan"],
@@ -25,7 +27,7 @@ export const hitungTanggalKeluarAnak = async (
     RiwayatKeluarga.findOne({
       where: {
         krama_id: anak_id,
-        awal_masuk: { [Op.gt]: tanggal_jangkar },
+        awal_masuk: { [Op.gt]: new Date(`${jangkarDateOnly} ${jamSekarang}`) },
         kategori_event: { [Op.in]: ["PENGANGKATAN", "CERAI"] } 
       },
       attributes: ["awal_masuk"],
@@ -36,14 +38,20 @@ export const hitungTanggalKeluarAnak = async (
   
   // Membandingkan tanggal peristiwa yang terjadi terlebih dahulu untuk diurutkan
   const tanggalKawin = perkawinanAnak ? new Date(perkawinanAnak.tanggal_perkawinan) : null;
-  const tanggalAngkat = riwayatLain ? new Date(riwayatLain.awal_masuk) : null;
+  const tanggalAngkat = riwayatLain ? new Date(new Date(riwayatLain.awal_masuk).toISOString().split('T')[0]) : null;
+
+  let tanggalTerdekat = null;
 
   if (tanggalKawin && tanggalAngkat) {
-    return tanggalKawin < tanggalAngkat ? perkawinanAnak.tanggal_perkawinan : riwayatLain.awal_masuk;
+    tanggalTerdekat = tanggalKawin < tanggalAngkat ? tanggalKawin : tanggalAngkat;
   } else if (tanggalKawin) {
-    return perkawinanAnak.tanggal_perkawinan;
+    tanggalTerdekat = tanggalKawin;
   } else if (tanggalAngkat) {
-    return riwayatLain.awal_masuk;
+    tanggalTerdekat = tanggalAngkat;
+  }
+
+  if (tanggalTerdekat) {
+    return tanggalTerdekat.toISOString().split('T')[0];
   }
 
   return null;

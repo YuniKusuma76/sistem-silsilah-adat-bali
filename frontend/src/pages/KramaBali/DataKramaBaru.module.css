@@ -123,7 +123,7 @@
 }
 
 .btnAddIstri {
-  @apply flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95;
+  @apply flex items-center gap-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95;
 }
 
 .cardSection {
@@ -255,7 +255,7 @@
 }
 
 .modalContainer {
-  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border-t-4 border-red-700;
 }
 
 .elipsis {
@@ -348,4 +348,40 @@
 
 .dotUnreadIndicator {
   @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
+}
+
+.noteForm {
+  @apply mb-10 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg shadow-sm;
+}
+
+.noteFormEdit {
+  @apply mb-10 p-4 border-l-4 border-amber-500 bg-amber-50 rounded-r-lg shadow-sm;
+}
+
+.noteFormCerai {
+  @apply mb-10 p-4 border-l-4 border-rose-500 bg-rose-50 rounded-r-lg shadow-sm;
+}
+
+.preview {
+  @apply mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md shadow-inner text-xs space-y-1;
+}
+
+.previewTitle {
+  @apply flex items-center gap-1.5 text-blue-900 font-bold uppercase tracking-wider text-[10px] mb-1;
+}
+
+.previewLabel {
+  @apply text-gray-400 block text-[9px] uppercase font-medium;
+}
+
+.modalContent {
+  @apply bg-white w-full max-w-xl rounded-3xl p-5 shadow-2xl border-t-4 border-amber-700;
+}
+
+.elipsisConf {
+  @apply h-16 w-16 flex items-center justify-center bg-blue-50 rounded-full;
+}
+
+.noteConf {
+  @apply text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 p-2.5 rounded mt-3 italic text-left;
 }

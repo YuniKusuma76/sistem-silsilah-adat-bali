@@ -1,26 +1,44 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
   FaChevronDown, 
   FaSave, 
   FaTimes, 
-  FaPlus, 
-  FaTrash, 
-  FaInfoCircle, 
-  FaEraser, 
   FaExclamationTriangle
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
 import styles from './DataKramaBaru.module.css';
 
-const DataKramaEditKrama = () => {
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const DataKramaEditKrama = ({ user }) => {
   const { id: slugParam } = useParams();
+  const notifDropdownRef = useRef(null);
   const navigate = useNavigate();
   
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false);
   
   // STATE WILAYAH ADAT:
   const [desaList, setDesaList] = useState([]);
@@ -31,8 +49,11 @@ const DataKramaEditKrama = () => {
   // STATE KRAMA UTAMA:
   const [searchDesaUtama, setSearchDesaUtama] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
   
-  // State alert notifikasi global
   const [alert, setAlert] = useState({
     show: false,
     type: '',
@@ -45,7 +66,7 @@ const DataKramaEditKrama = () => {
     nama_panggilan: "",
     jenis_kelamin: "",
     tanggal_lahir: "",
-    status_hidup: "",
+    status_hidup: "Hidup",
     is_bali: true,
     desa_adat_id: "",
     tempat_asal_khusus: "",
@@ -53,21 +74,29 @@ const DataKramaEditKrama = () => {
     tipe_data: "Keturunan"
   });
 
-  // Helper: Decode slug url menjadi id asli
+  // Helper: enkripsi slug url menjadi id asli
   const realId = useMemo(() => {
     if (!slugParam) return null;
-    if (!slugParam.includes('-')) return slugParam;
+    if (!slugParam.includes('-')) {
+      const cleanParam = String(slugParam).trim();
+      return isNaN(Number(cleanParam)) ? null : cleanParam;
+    }
     try {
       const parts = slugParam.split('-');
-      const encodedId = parts[parts.length - 1];
-      return atob(encodedId);
+      let encodedId = parts[parts.length - 1];
+      if (!encodedId) return null;
+      
+      encodedId = encodedId.trim();
+      const decoded = atob(encodedId);
+
+      if (!decoded || decoded.trim() === "") return null;
+      return String(decoded).trim(); 
     } catch (error) {
       console.error("Format slug tidak valid:", error);
       return null;
     }
   }, [slugParam]);
   
-  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -77,13 +106,11 @@ const DataKramaEditKrama = () => {
     }
   }, [alert.show, alert.type]);
 
-  // Effect: Fetching multi endpoint data master
   useEffect(() => {
     const fetchDataKrama = async () => {
       if (!realId) return;
       try {
         setIsLoading(true);
-        // Promise.allSettled agar satu error yang lain tidak mati
         const results = await Promise.allSettled([
           axiosInstance.get(`/krama-bali/${realId}`),
           axiosInstance.get("/desa-adat"),
@@ -92,30 +119,32 @@ const DataKramaEditKrama = () => {
           axiosInstance.get("/provinsi"),
         ]);
 
-        const resKrama = results[0].status === "fulfilled" 
-          ? results[0].value.data?.data : null;
-        const dataDesa = results[1].status === "fulfilled" 
-          ? results[1].value.data?.data : [];
-        const dataKec  = results[2].status === "fulfilled" 
-          ? results[2].value.data?.data : [];
-        const dataKab  = results[3].status === "fulfilled" 
-          ? results[3].value.data?.data : [];
-        const dataProv = results[4].status === "fulfilled" 
-          ? results[4].value.data?.data : [];
+        const [
+          resKramaObj, 
+          resDesaObj, 
+          resKecObj, 
+          resKabObj, 
+          resProvObj
+        ] = results;
+
+        const resKrama = resKramaObj.status === "fulfilled" ? resKramaObj.value.data?.data : null;
+        const dataDesa = resDesaObj.status === "fulfilled" ? resDesaObj.value.data?.data : [];
+        const dataKec = resKecObj.status === "fulfilled" ? resKecObj.value.data?.data : [];
+        const dataKab = resKabObj.status === "fulfilled" ? resKabObj.value.data?.data : [];
+        const dataProv = resProvObj.status === "fulfilled" ? resProvObj.value.data?.data : [];
 
         setDesaList(dataDesa || []);
         setKecamatanList(dataKec || []);
         setKabupatenList(dataKab || []);
         setProvinsiList(dataProv || []);
 
-        // Setting data lama ke dalam form
         if (resKrama) {
           setKramaData({
             nama_lengkap: resKrama.nama_lengkap || "",
             nama_panggilan: resKrama.nama_panggilan || "",
             jenis_kelamin: resKrama.jenis_kelamin || "",
             tanggal_lahir: resKrama.tanggal_lahir ? resKrama.tanggal_lahir.substring(0, 10) : "",
-            status_hidup: resKrama.status_hidup || "",
+            status_hidup: resKrama.status_hidup || "Hidup",
             is_bali: resKrama.is_bali ?? true,
             desa_adat_id: resKrama.desa_adat_id || "",
             tempat_asal_khusus: resKrama.tempat_asal_khusus || "",
@@ -123,8 +152,8 @@ const DataKramaEditKrama = () => {
             tipe_data: resKrama.tipe_data || "Keturunan"
           });
 
-          // Setting desa adat id lama ke dalam form
           const activeDesa = dataDesa.find(d => String(d.id) === String(resKrama.desa_adat_id));
+          
           if (activeDesa) {
             setSearchDesaUtama(activeDesa.nama_desa_adat);
           }
@@ -132,13 +161,13 @@ const DataKramaEditKrama = () => {
           setAlert({ 
             show: true, 
             type: 'error', 
-            message: 'Data krama tidak ditemukan.' 
+            message: 'Gagal memuat data krama utama. Data krama tidak ditemukan.' 
           });
         }
 
-        const failLoad = results.some(r => r.status === "rejected");
+        const failLoadMasterData = results.slice(2).some(r => r.status === "rejected");
 
-        if (failLoad) {
+        if (failLoadMasterData) {
           setAlert({
             show: true,
             type: 'warning',
@@ -150,7 +179,7 @@ const DataKramaEditKrama = () => {
         setAlert({ 
           show: true, 
           type: 'error', 
-          message: 'Gagal memuat data master dari server.' 
+          message: 'Terjadi kesalahan pada server saat memuat data relasi krama.' 
         });
       } finally {
         setIsLoading(false);
@@ -159,18 +188,68 @@ const DataKramaEditKrama = () => {
     fetchDataKrama();
   }, [realId]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
+
   // HELPER WILAYAH ADAT: Mengambil data lengkap hierarki wilayah adat
   const getWilayahLengkap = (desaId) => {
-    if (!desaId) return null;
+    if (!desaId) return null; 
+
     const desa = desaList.find(d => String(d.id) === String(desaId));
     if (!desa) return null;
 
     const kec = desa.kecamatan_id 
-      ? kecamatanList.find(k => String(k.id) === String(desa.kecamatan_id)) : null;
+      ? kecamatanList.find(k => String(k.id) === String(desa.kecamatan_id)) 
+      : null;
     const kab = kec?.kabupaten_id 
-      ? kabupatenList.find(k => String(k.id) === String(kec.kabupaten_id)) : null;
+      ? kabupatenList.find(k => String(k.id) === String(kec.kabupaten_id)) 
+      : null;
     const prov = kab?.provinsi_id 
-      ? provinsiList.find(p => String(p.id) === String(kab.provinsi_id)) : null;
+      ? provinsiList.find(p => String(p.id) === String(kab.provinsi_id)) 
+      : null;
 
     return {
       kecamatan: kec?.nama_kecamatan || "-",
@@ -179,13 +258,12 @@ const DataKramaEditKrama = () => {
     };
   };
 
-  // HELPER WILAYAH ADAT: Melakukan filter desa utama berdasarkan search
   const filteredDesa = useMemo(() => {
     if (!searchDesaUtama.trim()) return [];
-    return desaList.filter((d) => 
-      d.nama_desa_adat.toLowerCase().includes(searchDesaUtama.toLowerCase())
-    );
-  }, [desaList, searchDesaUtama]); 
+    return desaList
+      .filter((d) => d.nama_desa_adat.toLowerCase().includes(searchDesaUtama.toLowerCase()))
+      .slice(0, 8);
+  }, [desaList, searchDesaUtama]);
   
   // HELPER KRAMA UTAMA: Menangani perubahan data input krama utama
   const handleChange = (e) => {
@@ -196,7 +274,6 @@ const DataKramaEditKrama = () => {
     }));
   };
 
-  // HELPER KRAMA UTAMA: Menangani perubahan khusus dropdown tipe data
   const handleTipeDataChange = (e) => {
     const targetValue = e.target.value;
     setKramaData((prev) => ({
@@ -204,13 +281,65 @@ const DataKramaEditKrama = () => {
       tipe_data: targetValue,
       nama_panggilan: targetValue === "Leluhur" ? "" : prev.nama_panggilan,
       tanggal_lahir: targetValue === "Leluhur" ? "" : prev.tanggal_lahir,
-      status_hidup: targetValue === "Leluhur" ? "" : prev.status_hidup,
+      status_hidup: targetValue === "Leluhur" ? "Tidak Diketahui" : "Hidup",
     }));
   };
 
-  // SUBMIT DATA 
-  const saveKrama = async (e) => {
-    e.preventDefault();
+  // HELPER VALIDASI:
+  const validateForm = () => {
+    if (!kramaData.nama_lengkap.trim()) {
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: 'Nama lengkap krama utama (form I) wajib diisi!' 
+      });
+      return false;
+    }
+    
+    if (kramaData.tipe_data === "Keturunan") {
+      if (!kramaData.jenis_kelamin) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Jenis kelamin krama keturunan wajib dipilih!' 
+        });
+        return false;
+      }
+      if (kramaData.is_bali && !kramaData.desa_adat_id) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Krama Bali wajib memilih desa adat asal!' 
+        });
+        return false;
+      }
+      if (!kramaData.is_bali && !kramaData.alamat_luar.trim()) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Krama luar Bali wajib mengisi alamat asal!' 
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // SUBMIT DATA:
+  const saveKrama = async (e, isConfirmed = false) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    
+    if (typeof validateForm === "function" && !validateForm()) return;
+
+    if (!isConfirmed) {
+      setShowSaveConfirmModal(true);
+      return;
+    }
+
+    setShowSaveConfirmModal(false);
+
     try {
       setIsLoading(true);
       const payloadKrama = { ...kramaData };
@@ -226,48 +355,28 @@ const DataKramaEditKrama = () => {
       }
 
       if (payloadKrama.tipe_data === "Keturunan") {
-        if (payloadKrama.status_hidup === "") {
+        if (!payloadKrama.status_hidup) {
           payloadKrama.status_hidup = "Hidup";
         }
       } else {
-        if (payloadKrama.status_hidup === "") {
-          payloadKrama.status_hidup = null;
-        }
-      }
-
-      // Validasi manual untuk kolom wilayah asal
-      if (payloadKrama.tipe_data === "Keturunan") {
-        if (payloadKrama.is_bali && !payloadKrama.desa_adat_id) {
-          setAlert({ 
-            show: true, 
-            type: 'error', 
-            message: 'Silakan pilih Desa Adat Asal dari pencarian dropdown!' 
-          });
-          setIsLoading(false);
-          return window.scrollTo(0, 0);
-        }
-        if (!payloadKrama.is_bali && !payloadKrama.alamat_luar.trim()) {
-          setAlert({ 
-            show: true, 
-            type: 'error', 
-            message: 'Alamat Luar Bali wajib diisi!' 
-          });
-          setIsLoading(false);
-          return window.scrollTo(0, 0);
+        if (!payloadKrama.status_hidup) {
+          payloadKrama.status_hidup = "Tidak Diketahui";
         }
       }
 
       await axiosInstance.put(`/krama-bali/${realId}`, payloadKrama);
+
       navigate(`/krama-bali/my-data/detail/${slugParam}`, { 
-        state: { successMessage: 'Perubahan data krama bali berhasil disimpan! Menunggu verifikasi dari Admin Desa.' } 
+        state: { successMessage: 'Perubahan data krama bali berhasil disimpan!' } 
       });
     } catch (error) {
+      console.error("Critical Save Error: ", error);
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || 'Terjadi kesalahan pada sistem.' 
+        message: error.response?.data?.message || 'Terjadi kesalahan sistem saat menyimpan silsilah krama.' 
       });
-      window.scrollTo(0,0);
+      window.scrollTo(0, 0);
     } finally { 
       setIsLoading(false); 
     }
@@ -286,9 +395,83 @@ const DataKramaEditKrama = () => {
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -298,9 +481,9 @@ const DataKramaEditKrama = () => {
           </div>
         </div>
       </nav>
-      {/* Alert Action */}
+      {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -349,7 +532,6 @@ const DataKramaEditKrama = () => {
           )}
         </div>
       )}
-      {/* Form Edit Krama Bali */}
       <div className="p-8 flex-1 flex flex-col items-center">
         <div className="w-full max-w-4xl">
           <form onSubmit={saveKrama} className="w-full space-y-8">
@@ -367,7 +549,7 @@ const DataKramaEditKrama = () => {
                     <select 
                       name="tipe_data" 
                       value={kramaData.tipe_data} 
-                      onChange={handleTipeDataChange}
+                      onChange={handleTipeDataChange} 
                       className={styles.inputSelect} 
                       required>
                       <option value="Keturunan">Keturunan</option>
@@ -393,7 +575,6 @@ const DataKramaEditKrama = () => {
                     onChange={handleChange} 
                     className={styles.inputText}
                     placeholder="Contoh: I Wayan Sudarsana" 
-                    required 
                   />
                 </div>
                 {/* Nama Panggilan */}
@@ -421,8 +602,7 @@ const DataKramaEditKrama = () => {
                         name="jenis_kelamin" 
                         value={kramaData.jenis_kelamin} 
                         onChange={handleChange} 
-                        className={styles.inputSelect} 
-                        required={kramaData.tipe_data !== "Leluhur"}>
+                        className={styles.inputSelect}>
                         <option value="" disabled>- Pilih -</option>
                         <option value="Laki-laki">Laki-laki</option>
                         <option value="Perempuan">Perempuan</option>
@@ -460,6 +640,9 @@ const DataKramaEditKrama = () => {
                         className={styles.inputSelect}>
                         <option value="Hidup">Hidup</option>
                         <option value="Meninggal">Meninggal</option>
+                        {kramaData.tipe_data === "Leluhur" && (
+                          <option value="Tidak Diketahui">Tidak Diketahui</option>
+                        )}
                       </select>
                       <div className={styles.selectIcon}>
                         <FaChevronDown size={12}/>
@@ -476,16 +659,16 @@ const DataKramaEditKrama = () => {
                         id="is_bali" 
                         className={styles.checkboxInput} 
                         onChange={(e) => {
-                          handleChange(e);
+                          const isChecked = e.target.checked;
                           setKramaData(prev => ({
                             ...prev,
-                            is_bali: e.target.checked,
+                            is_bali: isChecked,
                             desa_adat_id: e.target.checked ? prev.desa_adat_id : "",
                             tempat_asal_khusus: e.target.checked ? prev.tempat_asal_khusus : "",
                             alamat_luar: e.target.checked ? "" : prev.alamat_luar
                           }));
                           setSearchDesaUtama("");
-                        }} 
+                        }}
                       />
                       <label htmlFor="is_bali" className={styles.checkboxLabel}>
                         Krama ini asal Bali?
@@ -523,7 +706,6 @@ const DataKramaEditKrama = () => {
                               setSearchDesaUtama(currentDesaName);
                               setIsDropdownOpen(true);
                             }}
-                            required={kramaData.tipe_data !== "Leluhur"}
                           />
                           <div className={styles.termsIcon}>
                             <FaChevronDown size={12} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
@@ -555,7 +737,7 @@ const DataKramaEditKrama = () => {
                                   ))
                                 ) : (
                                   <div className="px-4 py-3 text-sm text-gray-500 italic bg-white">
-                                    Desa tidak ditemukan.
+                                    Desa adat tidak ditemukan
                                   </div>
                                 )}
                               </div>
@@ -569,7 +751,7 @@ const DataKramaEditKrama = () => {
                         </label>
                         <input 
                           name="tempat_asal_khusus" 
-                          value={kramaData.tempat_asal_khusus || ""} 
+                          value={kramaData.tempat_asal_khusus} 
                           onChange={handleChange} 
                           className={styles.inputText} 
                           placeholder="Contoh: Puri Agung Bangli" 
@@ -622,7 +804,7 @@ const DataKramaEditKrama = () => {
                       </label>
                       <input 
                         name="alamat_luar" 
-                        value={kramaData.alamat_luar || ""} 
+                        value={kramaData.alamat_luar} 
                         onChange={handleChange} 
                         className={styles.inputText} 
                         placeholder="Jl. Raya No. 1/Unit 3, 100 George Street Sydney..."
@@ -647,6 +829,48 @@ const DataKramaEditKrama = () => {
           </form>
         </div>
       </div>
+      {/* Modal Konfirmasi Save */}
+      {showSaveConfirmModal && (
+        <div className={styles.modalOverlay}>
+          <div className={`${styles.modalContent} animate-fade-in`}>
+            <div className="p-6">
+              <div className="flex justify-center mb-5">
+                <div className={styles.elipsisConf}>
+                  <FaExclamationTriangle className="text-amber-500 text-2xl" />
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  Konfirmasi Perubahan Data Krama
+                </h3>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Apakah Anda yakin data krama bali ini sudah benar, sah, dan sesuai dengan awig-awig/pararem desa adat?
+                </p>
+                <p className={styles.noteConf}>
+                  * Pastikan data yang Anda masukkan sudah benar agar tidak terjadinya kesalahan input dan membutuhkan proses verifikasi ulang untuk perubahan data.
+                </p>
+              </div>
+              <div className="mt-8 flex gap-3 justify-center">
+                <button 
+                  type="button" 
+                  onClick={() => setShowSaveConfirmModal(false)} 
+                  className={styles.btnCancel}
+                  disabled={isLoading}>
+                  Periksa Kembali
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => saveKrama(null, true)} 
+                  className={styles.btnSubmit}
+                  disabled={isLoading}>
+                  <FaSave size={14} className="mr-1" /> {isLoading ? 'Memproses...' : 'Ya, Lanjutkan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Konfirmasi Cancel */}
       {showCancelModal && (
         <div className={styles.modalOverlay}>
           <div className={`${styles.modalContainer} animate-fade-in`}>
@@ -661,7 +885,7 @@ const DataKramaEditKrama = () => {
                   Konfirmasi Pembatalan
                 </h3>
                 <p className="text-sm text-gray-600">
-                  Apakah Anda yakin ingin membatalkan pendaftaran ini? Semua perubahan data yang telah Anda ketik akan hilang seketika.
+                  Apakah Anda yakin ingin membatalkan perubahan data ini? Semua modifikasi data krama bali yang baru saja Anda ketik akan hilang seketika.
                 </p>
               </div>
               <div className="mt-10 flex gap-3 justify-center">

@@ -53,6 +53,15 @@ export const buatAnakKandung = async ({
       throw new Error("Data anak tidak ditemukan.");
     }
 
+    const jamSekarang = new Date().toTimeString().split(' ')[0];
+
+    const finalTanggalEventTimestamp = anak.tanggal_lahir 
+      ? new Date(`${anak.tanggal_lahir} ${jamSekarang}`).toISOString()
+      : new Date().toISOString();
+    
+    const tanggalLahirDateOnly = anak.tanggal_lahir || new Date().toISOString().split('T')[0];
+    const infoTambahanDasar = !anak.tanggal_lahir ? " (Tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal lahir kosong)." : "";
+
     const [suamiData, istriData] = await Promise.all([
       KramaBali.findByPk(suami_id, { 
         attributes: ["desa_adat_id"], 
@@ -82,7 +91,11 @@ export const buatAnakKandung = async ({
     }
 
     // Logika Chronological Stitching dan Urutan Lahir
-    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, anak.tanggal_lahir, t);
+    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tanggalLahirDateOnly, t);
+
+    const finalTanggalKeluarTimestamp = tanggal_keluar 
+      ? new Date(`${tanggal_keluar} ${jamSekarang}`).toISOString()
+      : null;
 
     await hitungUrutanLahir({ 
       ayah_id: suami_id, 
@@ -123,12 +136,12 @@ export const buatAnakKandung = async ({
         keluarga_id: keluargaSuamiTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
-        dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ayah karena perkawinan pade gelahang orang tuanya.",
-        event_date: anak.tanggal_lahir,
+        dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ayah karena perkawinan pade gelahang orang tuanya." + infoTambahanDasar,
+        event_date: finalTanggalEventTimestamp,
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
         allow_multiple: true,
-        akhir_masuk: tanggal_keluar
+        akhir_masuk: finalTanggalKeluarTimestamp
       }, t);
 
       // Masuk ke silsilah keluarga pihak ibu
@@ -137,12 +150,12 @@ export const buatAnakKandung = async ({
         keluarga_id: keluargaIstriTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
-        dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ibu karena perkawinan pade gelahang orang tuanya.",
-        event_date: anak.tanggal_lahir,
+        dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ibu karena perkawinan pade gelahang orang tuanya." + infoTambahanDasar,
+        event_date: finalTanggalEventTimestamp,
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
         allow_multiple: true,
-        akhir_masuk: tanggal_keluar 
+        akhir_masuk: finalTanggalKeluarTimestamp 
       }, t);
     } else {
       const purusaId = jenis_perkawinan === "Nyentana" ? istri_id : suami_id;
@@ -185,12 +198,12 @@ export const buatAnakKandung = async ({
         keluarga_id: keluargaId,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota", 
-        dasar_keputusan: `Kedudukan sebagai anggota diberikan karena krama ini merupakan anak kandung hasil perkawinan orang tuanya (${jenis_perkawinan}).`,
-        event_date: anak.tanggal_lahir,
+        dasar_keputusan: `Kedudukan sebagai anggota diberikan karena krama ini merupakan anak kandung hasil perkawinan orang tuanya (${jenis_perkawinan}).` + infoTambahanDasar,
+        event_date: finalTanggalEventTimestamp,
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
-        akhir_masuk: tanggal_keluar, 
-        allow_multiple: tanggal_keluar ? true : false 
+        akhir_masuk: finalTanggalKeluarTimestamp, 
+        allow_multiple: finalTanggalKeluarTimestamp ? true : false 
       }, t);
     }
 
@@ -201,7 +214,7 @@ export const buatAnakKandung = async ({
       where: {
         krama_id: anak_id,
         kedudukan: "Kepala Keluarga", 
-        awal_masuk: { [Op.gte]: tanggal_keluar || anak.tanggal_lahir }, 
+        awal_masuk: { [Op.gte]: finalTanggalKeluarTimestamp || finalTanggalEventTimestamp }, 
         akhir_masuk: null 
       },
       include: [{ 

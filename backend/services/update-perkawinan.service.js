@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import db from "../config/db.config.js";
 import { 
   Perkawinan, 
@@ -5,12 +6,13 @@ import {
   User, 
   RiwayatPeranAdat, 
   RiwayatKeluarga,
-  Keluarga
+  Keluarga,
+  RelasiKrama
 } from "../models/associations.js";
-
 import { buatPerkawinanBali } from "./perkawinan.service.js";
 import { integrasiPerkawinanLeluhur } from "./perkawinan-leluhur.service.js";
 import { prosesPerceraianBali } from "./perceraian.service.js";
+import { eksekusiRollbackPerkawinan } from "./batal-perkawinan.service.js";
 
 export const updateDataPerkawinan = async ({
   perkawinan_id,
@@ -35,17 +37,13 @@ export const updateDataPerkawinan = async ({
   const t = await db.transaction();
 
   try {
-    // Validasi ketersediaan data perkawinan
-    const perkawinan = await Perkawinan.findByPk(perkawinan_id, { 
-      transaction: t 
-    });
-
+    const perkawinan = await Perkawinan.findByPk(perkawinan_id, { transaction: t });
     if (!perkawinan) {
       throw new Error("Data perkawinan tidak ditemukan.");
     }
 
     if (tipe_update === "PERCERAIAN" && perkawinan.status_perkawinan === "Kawin") {
-      throw new Error("Proses memperbarui dihentikan! Gunakan modul ajukan perceraian jika ingin mengubah status perkawinan menjadi cerai.");
+      throw new Error("Proses memperbarui dihentikan! Gunakan pengajuan perceraian jika ingin mengubah status perkawinan menjadi cerai.");
     }
 
     const [suamiLama, istriLama] = await Promise.all([
@@ -57,7 +55,7 @@ export const updateDataPerkawinan = async ({
       })
     ]);
 
-    // OTORITAS RUANG LINGKUP DATA
+    // SETTING HAK AKSES MANAJEMEN DATA
     let isHakAkses = false;
     let approvedSuami = false;
     let approvedIstri = false;
@@ -89,18 +87,14 @@ export const updateDataPerkawinan = async ({
         }
       }
     } else {
-      if (perkawinan.user_id === user_id) {
-        isHakAkses = true;
-      }
+      if (perkawinan.user_id === user_id) isHakAkses = true;
     }
 
     if (!isHakAkses) {
       throw new Error("Otoritas mengakses data ditolak! Anda tidak memiliki hak untuk mengusulkan perubahan pada data perkawinan ini.");
     }
 
-    // SETTING AUTO-APPROVAL
     let isExecuteDirect = false;
-
     if (user_role === "Super Admin") {
       isExecuteDirect = true;
     } else if (user_role === "Admin Desa") {
@@ -113,7 +107,6 @@ export const updateDataPerkawinan = async ({
       }
     }
 
-    // STATUS VERIFIKASI BERDASARKAN ROLE
     const existingChanges = perkawinan.data_perubahan || {};
     let subDraftUpdate = {};
 
@@ -142,7 +135,9 @@ export const updateDataPerkawinan = async ({
       };
     }
 
-    const userOperator = await User.findByPk(user_id, { transaction: t });
+    const userOperator = await User.findByPk(user_id, { 
+      transaction: t 
+    });
 
     subDraftUpdate.catatan_update = catatan_update || `Pengajuan draft perubahan data ${tipe_update.toLowerCase()}.`;
     subDraftUpdate.diusulkan_oleh = `${user_role} (${userOperator?.display_name})`;
@@ -157,9 +152,22 @@ export const updateDataPerkawinan = async ({
     // JALUR A: BUFFERING KE DRAFT PERUBAHAN DATA
     // ==========================================================
     if (!isExecuteDirect) {
-      const draftUpdateFinal = {
-        ...existingChanges,
-        [`UPDATE_${tipe_update}`]: subDraftUpdate
+      if (subDraftUpdate.is_perubahan_ekstrem && tipe_update === "PERKAWINAN") {
+        const jumlahAnakDraf = await RelasiKrama.count({
+          where: { 
+            ayah_id: perkawinan.suami_id, 
+            ibu_id: perkawinan.istri_id 
+          },
+          transaction: t
+        });
+        if (jumlahAnakDraf > 0) {
+          throw new Error("Perubahan data ditolak! Perkawinan ini telah memiliki relasi anak yang terikat.");
+        }
+      }
+
+      const draftUpdateFinal = { 
+        ...existingChanges, 
+        [`UPDATE_${tipe_update}`]: subDraftUpdate 
       };
 
       const perkawinanDraf = await perkawinan.update({
@@ -181,47 +189,131 @@ export const updateDataPerkawinan = async ({
     }
     
     // ==========================================================
-    // JALUR B: AUTO-APPROVAL
+    // JALUR B1: AUTO-APPROVAL (PERUBAHAN EKSTREM)
     // ==========================================================
     const statusPerkawinanAwal = perkawinan.status_perkawinan;
-
-    // rollback riwayat ketika perubahan data utama terjadi
-    if (subDraftUpdate.is_perubahan_ekstrem) {
-      await RiwayatPeranAdat.destroy({ 
-        where: { perkawinan_id: perkawinan.id }, 
-        transaction: t 
-      });
-      await RiwayatKeluarga.destroy({ 
-        where: { perkawinan_id: perkawinan.id }, 
-        transaction: t 
-      });
-
-      await Keluarga.destroy({ 
+    const tanggalCeraiLama = perkawinan.tanggal_cerai;
+    const pihakMeninggalLama = perkawinan.pihak_meninggal;
+    
+    if (subDraftUpdate.is_perubahan_ekstrem && tipe_update === "PERKAWINAN") {
+      const jumlahAnak = await RelasiKrama.count({
         where: { 
-          kepala_keluarga_id: perkawinan.suami_id, 
-          jenis_keluarga: perkawinan.jenis_perkawinan 
-        }, 
-        transaction: t 
+          ayah_id: perkawinan.suami_id, 
+          ibu_id: perkawinan.istri_id 
+        },
+        transaction: t
       });
 
-      await RiwayatKeluarga.update(
-        { akhir_masuk: null },
-        { 
-          where: { 
-            krama_id: [perkawinan.suami_id, perkawinan.istri_id], 
-            akhir_masuk: perkawinan.tanggal_perkawinan 
-          }, 
+      if (jumlahAnak > 0) {
+        throw new Error("Perubahan data ditolak! Perkawinan ini telah memiliki relasi anak yang terikat.");
+      }
+
+      const idSuamiLama = perkawinan.suami_id;
+      const idIstriLama = perkawinan.istri_id;
+
+      await eksekusiRollbackPerkawinan(perkawinan, "PERKAWINAN", t);
+
+      await perkawinan.destroy({ transaction: t });
+
+      const tglKawinTerbaru = subDraftUpdate.tanggal_perkawinan.includes('T') 
+        ? subDraftUpdate.tanggal_perkawinan.split('T')[0] 
+        : subDraftUpdate.tanggal_perkawinan.split(' ')[0];
+
+      const [suamiBaru, istriBaru] = await Promise.all([
+        KramaBali.findByPk(subDraftUpdate.suami_id, { 
           transaction: t 
+        }),
+        KramaBali.findByPk(subDraftUpdate.istri_id, { 
+          transaction: t 
+        })
+      ]);
+
+      let perkawinanBaru;
+
+      if (suamiBaru.tipe_data === "Leluhur" || istriBaru.tipe_data === "Leluhur") {
+        perkawinanBaru = await integrasiPerkawinanLeluhur({
+          suami_id: subDraftUpdate.suami_id,
+          istri_id: subDraftUpdate.istri_id,
+          status_perkawinan: subDraftUpdate.status_perkawinan,
+          jenis_perkawinan: subDraftUpdate.jenis_perkawinan,
+          tanggal_perkawinan: tglKawinTerbaru, 
+          event_date: tglKawinTerbaru,
+          user_id, user_role, user_desa_id,
+          nama_desa_operator: operatorIdentity
+        }, t);
+      } else {
+        perkawinanBaru = await buatPerkawinanBali({
+          suami_id: subDraftUpdate.suami_id,
+          istri_id: subDraftUpdate.istri_id,
+          status_perkawinan: "Kawin",
+          jenis_perkawinan: subDraftUpdate.jenis_perkawinan,
+          tanggal_perkawinan: tglKawinTerbaru, 
+          event_date: tglKawinTerbaru,
+          user_id, user_role, user_desa_id,
+          isUpdateMode: true
+        }, t);
+
+        if (statusPerkawinanAwal !== "Kawin") {
+          const targetPerkawinanId = perkawinanBaru?.id || perkawinanBaru?.perkawinan?.id;
+          await prosesPerceraianBali({
+            perkawinan_id: targetPerkawinanId,
+            status_perkawinan: statusPerkawinanAwal, 
+            tanggal_cerai: tanggalCeraiLama || tglKawinTerbaru,
+            event_date: tanggalCeraiLama || tglKawinTerbaru,
+            pihak_meninggal: pihakMeninggalLama,
+            pilihan_predana: pilihan_predana || subDraftUpdate.pilihan_predana,
+            user_id, user_role, user_desa_id
+          }, t);
+        }
+      }
+      
+      await RiwayatPeranAdat.update(
+        { selesai_tanggal: null },
+        {
+          where: {
+            krama_id: [idSuamiLama, idIstriLama],
+            kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] },
+            perkawinan_id: null
+          },
+          transaction: t
         }
       );
+
+      await RiwayatPeranAdat.update(
+        { selesai_tanggal: tglKawinTerbaru },
+        {
+          where: {
+            krama_id: [subDraftUpdate.suami_id, subDraftUpdate.istri_id],
+            kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] },
+            perkawinan_id: null
+          },
+          transaction: t
+        }
+      );
+
+      await t.commit();
+      return { 
+        type: "AUTO_APPROVED_SUKSES", 
+        data: perkawinanBaru 
+      };
     }
 
-    // mutasi data perubahan ke tabel utama
+    // ==========================================================
+    // JALUR B2: AUTO-APPROVAL (PERGESERAN TANGGAL/STATUS)
+    // ==========================================================
+    let tglKawinTerbaru = perkawinan.tanggal_perkawinan;
+
     if (tipe_update === "PERKAWINAN") {
+      const tglPerkawinanMurni = subDraftUpdate.tanggal_perkawinan.includes('T') 
+        ? subDraftUpdate.tanggal_perkawinan.split('T')[0] 
+        : subDraftUpdate.tanggal_perkawinan.split(' ')[0];
+
+      tglKawinTerbaru = tglPerkawinanMurni;
+
       await perkawinan.update({
         suami_id: subDraftUpdate.suami_id,
         istri_id: subDraftUpdate.istri_id,
-        tanggal_perkawinan: subDraftUpdate.tanggal_perkawinan,
+        tanggal_perkawinan: tglPerkawinanMurni,
         jenis_perkawinan: subDraftUpdate.jenis_perkawinan,
         status_perkawinan: subDraftUpdate.status_perkawinan,
         is_pending_update: false,
@@ -232,9 +324,44 @@ export const updateDataPerkawinan = async ({
           last_updated_by: operatorIdentity
         }
       }, { transaction: t });
+
+      await RiwayatPeranAdat.update(
+        { mulai_tanggal: tglKawinTerbaru },
+        { 
+          where: { 
+            perkawinan_id: perkawinan.id, 
+            kategori_event: "KAWIN" 
+          }, 
+          transaction: t 
+        }
+      );
+
+      await RiwayatPeranAdat.update(
+        { selesai_tanggal: tglKawinTerbaru },
+        { 
+          where: { 
+            krama_id: [perkawinan.suami_id, perkawinan.istri_id],
+            kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] },
+            perkawinan_id: null      
+          }, 
+          transaction: t 
+        }
+      );
+      
+      await RiwayatKeluarga.update(
+        { awal_masuk: tglKawinTerbaru }, 
+        { 
+          where: { perkawinan_id: perkawinan.id }, 
+          transaction: t 
+        }
+      );
     } else if (tipe_update === "PERCERAIAN") {
+      const tglCeraiMurni = subDraftUpdate.tanggal_cerai.includes('T') 
+        ? subDraftUpdate.tanggal_cerai.split('T')[0] 
+        : subDraftUpdate.tanggal_cerai.split(' ')[0];
+
       await perkawinan.update({
-        tanggal_cerai: subDraftUpdate.tanggal_cerai,
+        tanggal_cerai: tglCeraiMurni,
         status_perkawinan: subDraftUpdate.status_perkawinan,
         pihak_meninggal: subDraftUpdate.pihak_meninggal,
         is_pending_update: false,
@@ -245,60 +372,27 @@ export const updateDataPerkawinan = async ({
           last_updated_by: operatorIdentity
         }
       }, { transaction: t });
+
+      await RiwayatPeranAdat.update(
+        { selesai_tanggal: tglCeraiMurni },
+        { 
+          where: { 
+            perkawinan_id: perkawinan.id, 
+            kategori_event: "KAWIN" 
+          }, 
+          transaction: t 
+        }
+      );
+
+      await RiwayatKeluarga.update(
+        { akhir_masuk: tglCeraiMurni }, 
+        { 
+          where: { perkawinan_id: perkawinan.id }, 
+          transaction: t 
+        }
+      );
     }
     
-    // eksekusi perubahan menggunakan service
-    if (subDraftUpdate.is_perubahan_ekstrem && tipe_update === "PERKAWINAN") {
-      const [suamiBaru, istriBaru] = await Promise.all([
-        KramaBali.findByPk(perkawinan.suami_id, { 
-          transaction: t 
-        }),
-        KramaBali.findByPk(perkawinan.istri_id, { 
-          transaction: t 
-        })
-      ]);
-
-      let logRiwayatBaru = {};
-
-      if (suamiBaru.tipe_data === "Leluhur" || istriBaru.tipe_data === "Leluhur") {
-        logRiwayatBaru = await integrasiPerkawinanLeluhur({
-          suami_id: perkawinan.suami_id,
-          istri_id: perkawinan.istri_id,
-          status_perkawinan: perkawinan.status_perkawinan,
-          jenis_perkawinan: perkawinan.jenis_perkawinan,
-          tanggal_perkawinan: perkawinan.tanggal_perkawinan,
-          user_id,
-          user_role,
-          user_desa_id,
-          nama_desa_operator: operatorIdentity
-        }, t);
-      } else {
-        logRiwayatBaru = await buatPerkawinanBali({
-          suami_id: perkawinan.suami_id,
-          istri_id: perkawinan.istri_id,
-          status_perkawinan: "Kawin",
-          jenis_perkawinan: perkawinan.jenis_perkawinan,
-          tanggal_perkawinan: perkawinan.tanggal_perkawinan,
-          user_id,
-          user_role,
-          user_desa_id
-        }, t);
-
-        if (statusPerkawinanAwal !== "Kawin") {
-          await prosesPerceraianBali({
-            perkawinan_id: perkawinan.id,
-            status_perkawinan: statusPerkawinanAwal, 
-            tanggal_cerai: perkawinan.tanggal_cerai || perkawinan.tanggal_perkawinan,
-            pihak_meninggal: perkawinan.pihak_meninggal,
-            pilihan_predana: pilihan_predana || subDraftUpdate.pilihan_predana,
-            user_id,
-            user_role,
-            user_desa_id
-          }, t);
-        }
-      }
-    }
-
     await t.commit();
     return { 
       type: "AUTO_APPROVED_SUKSES", 

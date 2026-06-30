@@ -59,7 +59,7 @@ export const simpanRiwayatKeluarga = async ({
     throw new Error("Gagal menyimpan riwayat keluarga! Parameter data tidak lengkap.");
   }
 
-  const finalEventDate = event_date || new Date().toISOString().split('T')[0];
+  const finalEventDate = event_date ? new Date(event_date) : new Date();
   const finalBobot = bobot_event || BOBOT_EVENT[kategori_event] || 1;
 
   console.log("=== [SERVICE] SIMPAN RIWAYAT KELUARGA ===");

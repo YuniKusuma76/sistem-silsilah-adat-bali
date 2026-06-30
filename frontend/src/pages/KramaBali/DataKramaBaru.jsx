@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -15,10 +15,44 @@ import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
 import styles from './DataKramaBaru.module.css';
 
+// Helper: Membuat format tanggal indonesia
+const formatDate = (dateString) => {
+  if (!dateString) return 'Tidak Diketahui';
+  const date = new Date(dateString);
+  return isNaN(date.getTime()) 
+    ? 'Tidak Diketahui' 
+    : date.toLocaleDateString('id-ID', { 
+        day: 'numeric', month: 'long', year: 'numeric' 
+      });
+};
+
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
 const DataKramaBaru = ({ user }) => {
   const navigate = useNavigate();
+  const notifDropdownRef = useRef(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showSaveConfirmModal, setShowSaveConfirmModal] = useState(false);
 
   // STATE WILAYAH ADAT:
   const [desaList, setDesaList] = useState([]);
@@ -42,8 +76,11 @@ const DataKramaBaru = ({ user }) => {
   const [searchOrangTuaTerm, setSearchOrangTuaTerm] = useState("");
   const [searchTermAnak, setSearchTermAnak] = useState("");
   const [isDropdownAnakOpen, setIsDropdownAnakOpen] = useState(false);
+
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
   
-  // State alert notifikasi global
   const [alert, setAlert] = useState({
     show: false,
     type: '',
@@ -99,30 +136,31 @@ const DataKramaBaru = ({ user }) => {
     selected_perkawinan_id: "",
     selected_ayah_id: "",
     selected_ibu_id: "",
+    urutan_lahir: "",
     isManual: false,
     manualAyah: { 
       nama_lengkap: "", 
       nama_panggilan: "",
       jenis_kelamin: "Laki-laki",
       tanggal_lahir: "", 
-      status_hidup: "Hidup",
+      status_hidup: "Meninggal",
       is_bali: true,
       desa_adat_id: "",
       tempat_asal_khusus: "",
       alamat_luar: "",
-      tipe_data: "Keturunan" 
+      tipe_data: "Leluhur"
     },
     manualIbu: { 
       nama_lengkap: "", 
       nama_panggilan: "",
       jenis_kelamin: "Perempuan",
       tanggal_lahir: "", 
-      status_hidup: "Hidup",
+      status_hidup: "Meninggal",
       is_bali: true,
       desa_adat_id: "",
       tempat_asal_khusus: "",
       alamat_luar: "",
-      tipe_data: "Keturunan" 
+      tipe_data: "Leluhur"
     },
     manualPerkawinan: { 
       status_perkawinan: "Kawin",
@@ -137,12 +175,12 @@ const DataKramaBaru = ({ user }) => {
       nama_panggilan: "",
       jenis_kelamin: "Laki-laki",
       tanggal_lahir: "", 
-      status_hidup: "Hidup",
+      status_hidup: "Meninggal",
       is_bali: true,
       desa_adat_id: "",
       tempat_asal_khusus: "",
       alamat_luar: "",
-      tipe_data: "Keturunan"
+      tipe_data: "Leluhur"
     }
   });
 
@@ -166,13 +204,8 @@ const DataKramaBaru = ({ user }) => {
     }
   });
   
-  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
-    if (alert.show && (
-      alert.type === 'success' || 
-      alert.type === 'error' || 
-      alert.type === 'warning'
-    )) {
+    if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
         setAlert(prev => ({ ...prev, show: false }));
       }, 3000);
@@ -180,32 +213,27 @@ const DataKramaBaru = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
-  // Effect: Fetching multi endpoint data master
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchData = async () => {
+      setIsLoading(true);
       try {
-        // Promise.allSettled agar satu error yang lain tidak mati
         const results = await Promise.allSettled([
-          axiosInstance.get("/krama-bali"),
-          axiosInstance.get("/desa-adat"),
-          axiosInstance.get("/kecamatan"),
-          axiosInstance.get("/kabupaten"),
-          axiosInstance.get("/provinsi"),
-          axiosInstance.get("/perkawinan?mode=public")
+          axiosInstance.get("/krama-bali?mode=public", { signal: controller.signal }),
+          axiosInstance.get("/desa-adat", { signal: controller.signal }),
+          axiosInstance.get("/kecamatan", { signal: controller.signal }),
+          axiosInstance.get("/kabupaten", { signal: controller.signal }),
+          axiosInstance.get("/provinsi", { signal: controller.signal }),
+          axiosInstance.get("/perkawinan?mode=public", { signal: controller.signal })
         ]);
 
-        const dataKrama = results[0].status === "fulfilled" 
-          ? results[0].value.data?.data : [];
-        const dataDesa = results[1].status === "fulfilled" 
-          ? results[1].value.data?.data : [];
-        const dataKec = results[2].status === "fulfilled" 
-          ? results[2].value.data?.data : [];
-        const dataKab = results[3].status === "fulfilled" 
-          ? results[3].value.data?.data : [];
-        const dataProv = results[4].status === "fulfilled" 
-          ? results[4].value.data?.data : [];
-        const dataPerkawinan = results[5].status === "fulfilled" 
-          ? results[5].value.data?.data : [];
+        const dataKrama = results[0].status === "fulfilled" ? results[0].value.data?.data : [];
+        const dataDesa = results[1].status === "fulfilled" ? results[1].value.data?.data : [];
+        const dataKec = results[2].status === "fulfilled" ? results[2].value.data?.data : [];
+        const dataKab = results[3].status === "fulfilled" ? results[3].value.data?.data : [];
+        const dataProv = results[4].status === "fulfilled" ? results[4].value.data?.data : [];
+        const dataPerkawinan = results[5].status === "fulfilled" ? results[5].value.data?.data : [];
 
         setKramaList(dataKrama || []);
         setDesaList(dataDesa || []);
@@ -214,7 +242,8 @@ const DataKramaBaru = ({ user }) => {
         setProvinsiList(dataProv || []);
         setPerkawinanListOptions(dataPerkawinan || []);
 
-        const failLoad = results.some(r => r.status === "rejected");
+        const failLoad = results.some(r => r.status === "rejected" && r.reason?.message !== "canceled" && r.reason?.name !== "CanceledError");
+
         if (failLoad) {
           setAlert({
             show: true,
@@ -223,29 +252,86 @@ const DataKramaBaru = ({ user }) => {
           });
         }
       } catch (error) {
-        console.error("Critical Master Data Fetch Error:", error);
-        setAlert({ 
-          show: true, 
-          type: 'error', 
-          message: 'Gagal memuat data master dari server. Periksa koneksi Anda.' 
-        });
+        if (error.name !== "CanceledError") {
+          console.error("Critical Master Data Fetch Error:", error);
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: 'Gagal memuat data master silsilah krama. Periksa koneksi ke server database.' 
+          });
+        }
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchData();
+    return () => {
+      controller.abort();
+    };
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
 
   // HELPER WILAYAH ADAT: Mengambil data lengkap hierarki wilayah adat
   const getWilayahLengkap = (desaId) => {
-    if (!desaId) return null;
+    if (!desaId) return null; 
+
     const desa = desaList.find(d => String(d.id) === String(desaId));
     if (!desa) return null;
 
     const kec = desa.kecamatan_id 
-      ? kecamatanList.find(k => String(k.id) === String(desa.kecamatan_id)) : null;
+      ? kecamatanList.find(k => String(k.id) === String(desa.kecamatan_id)) 
+      : null;
     const kab = kec?.kabupaten_id 
-      ? kabupatenList.find(k => String(k.id) === String(kec.kabupaten_id)) : null;
+      ? kabupatenList.find(k => String(k.id) === String(kec.kabupaten_id)) 
+      : null;
     const prov = kab?.provinsi_id 
-      ? provinsiList.find(p => String(p.id) === String(kab.provinsi_id)) : null;
+      ? provinsiList.find(p => String(p.id) === String(kab.provinsi_id)) 
+      : null;
 
     return {
       kecamatan: kec?.nama_kecamatan || "-",
@@ -254,81 +340,104 @@ const DataKramaBaru = ({ user }) => {
     };
   };
 
-  // HELPER WILAYAH ADAT GENERIC: Melakukan filter desa berdasarkan index spesifik
   const getFilteredDesaManual = (index) => {
     const term = searchDesaPasangan[index] || "";
     if (!term.trim()) return [];
-    return desaList.filter((d) =>
-      d.nama_desa_adat.toLowerCase().includes(term.toLowerCase())
-    );
+    return desaList
+      .filter((d) => d.nama_desa_adat.toLowerCase().includes(term.toLowerCase()))
+      .slice(0, 8);
   };
 
-  // HELPER WILAYAH ADAT: Melakukan filter desa utama berdasarkan search
   const filteredDesa = useMemo(() => {
     if (!searchDesaUtama.trim()) return [];
-    return desaList.filter((d) => 
-      d.nama_desa_adat.toLowerCase().includes(searchDesaUtama.toLowerCase())
-    );
-  }, [desaList, searchDesaUtama]); 
+    return desaList
+      .filter((d) => d.nama_desa_adat.toLowerCase().includes(searchDesaUtama.toLowerCase()))
+      .slice(0, 8);
+  }, [desaList, searchDesaUtama]);
 
-  // HELPER RELASI ORANG TUA: Format tampilan label pencarian anak angkat
-  const getOrangTuaLabel = (anak) => {
-    if (!anak) return "";
+  // HELPER PENGANGKATAN ANAK: Label pencarian anak angkat
+  const getOrangTuaLabel = (data) => {
+    if (!data) return "";
 
-    // Skenario 1: Jika objek anak yang dikirim dari baris data RelasiKrama (sudah menyertakan ayah dan ibu)
-    if (anak.ayah || anak.ibu) {
-      const namaAnak = anak.anak?.nama_lengkap;
-      const namaAyah = anak.ayah?.nama_lengkap;
-      const namaIbu = anak.ibu?.nama_lengkap;
-
-      if (namaAyah && namaIbu) return `${namaAnak} (Ortu: ${namaAyah} & ${namaIbu})`;
-      if (namaAyah) return `${namaAnak} (Ayah: ${namaAyah})`;
-      if (namaIbu) return `${namaAnak} (Ibu: ${namaIbu})`;
+    // skenario 1: jika objek anak yang dikirim dari baris data RelasiKrama (sudah menyertakan ayah dan ibu)
+    if (data.ayah || data.ibu || data.anak) {
+      const namaAnak = data.anak?.nama_lengkap || "Anak";
+      const namaAyah = data.ayah?.nama_lengkap;
+      const namaIbu = data.ibu?.nama_lengkap;
+      if (namaAyah && namaIbu) {
+        return `${namaAnak} (Ortu: ${namaAyah} & ${namaIbu})`;
+      }
+      if (namaAyah) {
+        return `${namaAnak} (Ayah: ${namaAyah})`;
+      }
+      if (namaIbu) {
+        return `${namaAnak} (Ibu: ${namaIbu})`;
+      }
       return namaAnak;
     }
 
-    // Skenario 2: Jika objek anak yang dikirim murni dari KramaBali tunggal dengan relasi orang tua
-    if (anak.relasi_orangtua && anak.relasi_orangtua.length > 0) {
-      const relasiTerakhir = anak.relasi_orangtua[anak.relasi_orangtua.length - 1];
+    // skenario 2: jika objek anak yang dikirim murni dari KramaBali tunggal dengan relasi orang tua
+    if (data.relasi_orangtua && data.relasi_orangtua.length > 0) {
+      const relasiTerakhir = data.relasi_orangtua[data.relasi_orangtua.length - 1];
       const namaAyah = relasiTerakhir.ayah?.nama_lengkap;
       const namaIbu = relasiTerakhir.ibu?.nama_lengkap;
-
-      if (namaAyah && namaIbu) return `${anak.nama_lengkap} (Ortu: ${namaAyah} & ${namaIbu})`;
-      if (namaAyah) return `${anak.nama_lengkap} (Ayah: ${namaAyah})`;
-      if (namaIbu) return `${anak.nama_lengkap} (Ibu: ${namaIbu})`;
+      if (namaAyah && namaIbu) {
+        return `${data.nama_lengkap} (Ortu: ${namaAyah} & ${namaIbu})`;
+      }
+      if (namaAyah) {
+        return `${data.nama_lengkap} (Ayah: ${namaAyah})`;
+      }
+      if (namaIbu) {
+        return `${data.nama_lengkap} (Ibu: ${namaIbu})`;
+      }
     }
-    return `${anak.nama_lengkap}`;
+
+    return `${data.nama_lengkap || ""}`;
   };
 
   // HELPER PERKAWINAN: Mengambil data pasangan terdaftar berdasarkan gender lawan jenis
   const getFilteredPasangan = (index) => {
     if (!kramaData.jenis_kelamin) return [];
-    const targetGender = kramaData.jenis_kelamin === "Laki-laki" 
-      ? "Perempuan" 
-      : "Laki-laki";
+    const targetGender = kramaData.jenis_kelamin === "Laki-laki" ? "Perempuan" : "Laki-laki";
     const term = searchPasangan[index] || "";
     if (!term.trim()) return [];
 
-    return kramaList.filter((k) => 
-      k.jenis_kelamin === targetGender &&
-      k.nama_lengkap.toLowerCase().includes(term.toLowerCase())
-    );
+    return kramaList
+      .filter((k) => 
+        k.jenis_kelamin === targetGender &&
+        k.nama_lengkap.toLowerCase().includes(term.toLowerCase())
+      )
+      .slice(0, 8);
   };
   
-  // HELPER RELASI ORANG TUA: Membuat label text kombinasi pasangan untuk dropdown pilihan orang tua
+  // HELPER RELASI ORANG TUA: Label pasangan orang tua
   const getPerkawinanLabel = (p) => {
     if (!p) return "";
-    const namaSuami = p.suami?.nama_lengkap || "Tidak Diketahui";
-    const namaIstri = p.istri?.nama_lengkap || "Tidak Diketahui";
+    const namaSuami = p.suami?.nama_lengkap;
+    const namaIstri = p.istri?.nama_lengkap;
+
+    // skenario konstruksi
+    let kombinasiNama = "";
+
+    if (namaSuami && namaIstri) {
+      kombinasiNama = `${namaSuami} & ${namaIstri}`;
+    } else if (namaSuami) {
+      kombinasiNama = `${namaSuami} & [Istri Tidak Tercatat]`;
+    } else if (namaIstri) {
+      kombinasiNama = `[Suami Tidak Tercatat] & ${namaIstri}`;
+    } else {
+      kombinasiNama = "[Pasangan Leluhur Tidak Tercatat]";
+    }
     
     let statusDisplay = p.status_perkawinan || "Aktif";
-    if (statusDisplay === "Cerai Hidup") {
-      statusDisplay = "Cerai";
+
+    if (statusDisplay === "Cerai Hidup" || statusDisplay === "Cerai") {
+      statusDisplay = "CERAI HIDUP";
+    } else if (statusDisplay === "Cerai Mati") {
+      statusDisplay = "CERAI MATI";
     }
-    if (statusDisplay === "Cerai Mati") {
-      statusDisplay = "Cerai Mati";
-    }
-    return `${namaSuami} & ${namaIstri} (${statusDisplay})`;
+    
+    return `${kombinasiNama} (${statusDisplay})`;
   };
   
   // HELPER KRAMA UTAMA: Menangani perubahan data input krama utama
@@ -340,7 +449,6 @@ const DataKramaBaru = ({ user }) => {
     }));
   };
 
-  // HELPER KRAMA UTAMA: Menangani perubahan khusus dropdown tipe data
   const handleTipeDataChange = (e) => {
     const targetValue = e.target.value;
     setKramaData((prev) => ({
@@ -348,7 +456,7 @@ const DataKramaBaru = ({ user }) => {
       tipe_data: targetValue,
       nama_panggilan: targetValue === "Leluhur" ? "" : prev.nama_panggilan,
       tanggal_lahir: targetValue === "Leluhur" ? "" : prev.tanggal_lahir,
-      status_hidup: targetValue === "Leluhur" ? "" : prev.status_hidup,
+      status_hidup: targetValue === "Leluhur" ? "Tidak Diketahui" : "Hidup",
     }));
   };
 
@@ -357,22 +465,29 @@ const DataKramaBaru = ({ user }) => {
     const list = perkawinanlist.map((item, idx) => {
       if (idx !== index) return item;
 
-      // membuat salinan objek baru untuk baris yang sedang diedit
       const updatedItem = { ...item };
 
       if (field === "pasangan_id" && value === "NEW_ENTRY") {
         updatedItem.isPasanganBaru = true;
         updatedItem.pasangan_id = "";
+        
+        updatedItem.dataPasanganBaru = {
+          ...updatedItem.dataPasanganBaru,
+          tipe_data: kramaData.tipe_data,
+          status_hidup: kramaData.tipe_data === "Leluhur" ? "Tidak Diketahui" : "Hidup"
+        };
       } else {
-        if (field === "pasangan_id") updatedItem.isPasanganBaru = false;
+        if (field === "pasangan_id") {
+          updatedItem.isPasanganBaru = false;
+        }
         updatedItem[field] = value;
       }
       
-      // setting default jika status perkawinan dirubah ke Cerai Mati
+      // Otomatisasi status hidup ketika cerai mati
       if (field === "status_perkawinan" && value === "Cerai Mati") {
         updatedItem.pihak_meninggal = updatedItem.pihak_meninggal || "Pasangan";
         updatedItem.pilihan_predana = updatedItem.pilihan_predana || "Kembali ke Asal";
-        // setting status hidup pasangan baru sesuai kondisi
+        
         if (updatedItem.isPasanganBaru && updatedItem.pihak_meninggal === "Pasangan") {
           updatedItem.dataPasanganBaru = {
             ...updatedItem.dataPasanganBaru,
@@ -380,10 +495,11 @@ const DataKramaBaru = ({ user }) => {
           };
         }
       }
+      // Otomatisasi pihak yang meninggal
       if (field === "pihak_meninggal" && updatedItem.status_perkawinan === "Cerai Mati" && updatedItem.isPasanganBaru) {
         updatedItem.dataPasanganBaru = {
           ...updatedItem.dataPasanganBaru,
-          status_hidup: value === "Pasangan" ? "Meninggal" : "Hidup"
+          status_hidup: value === "Pasangan" ? "Meninggal" : (kramaData.tipe_data === "Leluhur" ? "Tidak Diketahui" : "Hidup")
         };
       }
       return updatedItem;
@@ -391,7 +507,6 @@ const DataKramaBaru = ({ user }) => {
     setPerkawinanlist(list);
   };
 
-  // HELPER PERKAWINAN: Menangani perubahan data input pasangan baru
   const handlePasanganBaruChange = (index, field, value) => {
     const list = perkawinanlist.map((item, idx) => {
       if (idx !== index) return item;
@@ -411,9 +526,125 @@ const DataKramaBaru = ({ user }) => {
     });
     setPerkawinanlist(list);
   };
+
+  // HELPER RELASI ORANG TUA: Menangani perubahan data input orang tua
+  const handleParentChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "status_diketahui" && value === "Tidak Diketahui") {
+      clearParentData();
+      return;
+    }
+
+    setParentData((prev) => {
+      const updated = { ...prev, [name]: value };
+      const defaultTipeData = kramaData.tipe_data;
+      const defaultStatusHidup = defaultTipeData === "Leluhur" ? "Tidak Diketahui" : "Hidup";
+      
+      // kondisi 1: jika memilih opsi input pasangan orang tua baru
+      if (name === "selected_perkawinan_id" && value === "NEW_ENTRY") {
+        updated.selected_perkawinan_id = null;
+        updated.selected_ayah_id = null;
+        updated.selected_ibu_id = null;
+        updated.isManual = true;
+        updated.manualAyah = { 
+          ...prev.manualAyah, 
+          tipe_data: defaultTipeData, 
+          status_hidup: defaultTipeData === "Leluhur" ? "Meninggal" : "Hidup" 
+        };
+        updated.manualIbu = { 
+          ...prev.manualIbu, 
+          tipe_data: defaultTipeData, 
+          status_hidup: defaultTipeData === "Leluhur" ? "Meninggal" : "Hidup" 
+        };
+      }
+      // kondisi 2: jika memilih opsi input orang tua tunggal baru
+      else if (name === "selected_parent_id" && value === "NEW_ENTRY") {
+        updated.selected_parent_id = null;
+        updated.isManual = true;
+        updated.manualSingle = { 
+          ...prev.manualSingle, 
+          tipe_data: defaultTipeData, 
+          status_hidup: defaultStatusHidup 
+        };
+      }
+      // kondisi 3: jika memilih data pasangan orang tua sah
+      else if (name === "selected_perkawinan_id" && value !== "NEW_ENTRY") {
+        const matchPerkawinan = perkawinanListOptions.find(m => String(m.id) === String(value));
+        updated.isManual = false;
+        updated.selected_ayah_id = matchPerkawinan?.suami_id || null;
+        updated.selected_ibu_id = matchPerkawinan?.istri_id || null;
+      }
+      // kondisi 4: jika memilih data orang tua tunggal sah
+      else if (name === "selected_parent_id" && value !== "NEW_ENTRY") {
+        updated.isManual = false;
+        updated.selected_ayah_id = value;
+      }
+
+      if (name === "jenis_pengangkatan") {
+        updated.isManual = false;
+        updated.selected_perkawinan_id = "";
+        updated.selected_parent_id = "";
+        updated.selected_ayah_id = "";
+        updated.selected_ibu_id = "";
+      }
+      return updated;
+    });
+  };
+
+  const handleManualParentInput = (targetObject, fieldName, value) => {
+    setParentData((prev) => ({
+      ...prev,
+      [targetObject]: { 
+        ...prev[targetObject], 
+        [fieldName]: value
+      }
+    }));
+  };
+
+  // HELPER PENGANGKATAN ANAK: Menangani perubahan data input pengangkatan anak
+  const handleAdoptingChange = (e) => {
+    const { name, value } = e.target;
+
+    setAdoptingData((prev) => {
+      if (name === "anak_angkat_id") {
+        if (value === "NEW_ENTRY") {
+          return {
+            ...prev,
+            anak_angkat_id: "",
+            isAnakManual: true,
+            manualAnak: {
+              ...prev.manualAnak,
+              tipe_data: "Keturunan",
+              status_hidup: "Hidup"
+            }
+          };
+        } else {
+          return {
+            ...prev,
+            anak_angkat_id: value,
+            isAnakManual: false
+          };
+        }
+      }
+      return { ...prev, [name]: value };
+    });
+  };
+
+  const handleManualAnakInput = (field, value) => {
+    setAdoptingData((prev) => ({
+      ...prev,
+      manualAnak: { 
+        ...prev.manualAnak, 
+        [field]: value 
+      }
+    }));
+  };
   
   // HELPER PERKAWINAN: Menambah kolom input pasangan jika poligami
   const tambahBarisPerkawinan = () => {
+    const defaultTipeData = kramaData.tipe_data;
+    const defaultStatusHidup = defaultTipeData === "Leluhur" ? "Tidak Diketahui" : "Hidup";
+
     setPerkawinanlist([...perkawinanlist, {
       id_temp: Date.now(),
       status_perkawinan: "Belum Kawin",
@@ -428,111 +659,26 @@ const DataKramaBaru = ({ user }) => {
         nama_lengkap: "", 
         nama_panggilan: "",
         tanggal_lahir: "", 
-        status_hidup: "Hidup",
+        status_hidup: defaultStatusHidup,
         is_bali: true,
         desa_adat_id: "",
         tempat_asal_khusus: "",
         alamat_luar: "",
-        tipe_data: "Keturunan"
+        tipe_data: defaultTipeData
       }
     }]);
   };
 
-  // HELPER PERKAWINAN: Menghapus baris input perkawinan
   const hapusBarisPerkawinan = (index) => {
     const list = perkawinanlist.filter((_, idx) => idx !== index);
     setPerkawinanlist(list);
   };
 
-  // HELPER RELASI ORANG TUA: Menangani perubahan input form data orang tua
-  const handleParentChange = (e) => {
-    const { name, value } = e.target;
-    if (name === "status_diketahui" && value === "Tidak Diketahui") {
-      clearParentData();
-      return;
-    }
-    setParentData((prev) => {
-      const updated = { 
-        ...prev, 
-        [name]: value 
-      };
-      // Jika memilih opsi input manual baru
-      if (name === "selected_perkawinan_id" && value === "NEW_ENTRY") {
-        updated.selected_perkawinan_id = null;
-        updated.selected_ayah_id = null;
-        updated.selected_ibu_id = null;
-        updated.isManual = true;
-      } 
-      // Jika memilih opsi input manual baru untuk single parent
-      else if (name === "selected_parent_id" && value === "NEW_ENTRY") {
-        updated.selected_parent_id = null;
-        updated.isManual = true;
-      }
-      // Jika memilih data perkawinan yang sudah terdaftar dari database
-      else if (name === "selected_perkawinan_id" && value !== "NEW_ENTRY") {
-        const matchPerkawinan = perkawinanListOptions.find(m => String(m.id) === String(value));
-        updated.isManual = false;
-        updated.selected_ayah_id = matchPerkawinan?.suami_id || null;
-        updated.selected_ibu_id = matchPerkawinan?.istri_id || null;
-      }
-      // Jika memilih data single parent yang sudah terdaftar
-      else if (name === "selected_parent_id" && value !== "NEW_ENTRY") {
-        updated.isManual = false;
-        updated.selected_ayah_id = value;
-      }
-      return updated;
-    });
-  };
-
-  // HELPER RELASI ORANG TUA: Menangani input teks manual data orang tua
-  const handleManualParentInput = (targetObject, fieldName, value) => {
-    setParentData((prev) => ({
-      ...prev,
-      [targetObject]: {
-        ...prev[targetObject], 
-        [fieldName]: value
-      }
-    }));
-  };
-
-  // HELPER PENGANGKATAN ANAK: Menangani perubahan input data pengangkatan anak
-  const handleAdoptingChange = (e) => {
-    const { name, value } = e.target;
-    setAdoptingData((prev) => {
-      if (name === "anak_angkat_id") {
-        if (value === "NEW_ENTRY") {
-          return {
-            ...prev,
-            anak_angkat_id: "",
-            isAnakManual: true
-          };
-        } else {
-          return {
-            ...prev,
-            anak_angkat_id: value,
-            isAnakManual: false
-          };
-        }
-      }
-      return {
-        ...prev, [name]: value
-      };
-    })
-  };
-
-  // HELPER PENGANGKATAN ANAK: Menangani input teks manual data anak angkat
-  const handleManualAnakInput = (field, value) => {
-    setAdoptingData((prev) => ({
-      ...prev,
-      manualAnak: { 
-        ...prev.manualAnak, 
-        [field]: value 
-      }
-    }));
-  };
-
-  // HELPER PERKAWINAN: Membersihkan input form perkawinan
+  // HELPER PERKAWINAN: Membersihkan form input perkawinan
   const clearPerkawinan = (index) => {
+    const defaultTipeData = kramaData.tipe_data;
+    const defaultStatusHidup = defaultTipeData === "Leluhur" ? "Tidak Diketahui" : "Hidup";
+
     const list = perkawinanlist.map((item, idx) => {
       if (idx !== index) return item;
       return {
@@ -549,20 +695,24 @@ const DataKramaBaru = ({ user }) => {
           nama_lengkap: "",
           nama_panggilan: "",
           tanggal_lahir: "",
-          status_hidup: "Hidup", 
+          status_hidup: defaultStatusHidup, 
           is_bali: true,
           desa_adat_id: "",
           tempat_asal_khusus: "",
           alamat_luar: "",
-          tipe_data: "Keturunan"
+          tipe_data: defaultTipeData
         }
       };
     });
     setPerkawinanlist(list);
   };
 
-  // HELPER RELASI ORANG TUA: Membersihkan input form data orang tua
+  // HELPER RELASI ORANG TUA: Membersihkan form input orang tua
   const clearParentData = () => {
+    const defaultTipeData = kramaData.tipe_data;
+    const defaultStatusManual = defaultTipeData === "Leluhur" ? "Meninggal" : "Hidup";
+    const defaultStatusSingle = defaultTipeData === "Leluhur" ? "Tidak Diketahui" : "Hidup";
+
     setParentData({
       status_diketahui: "Tidak Diketahui",
       status_hubungan: "Anak Kandung",
@@ -571,30 +721,31 @@ const DataKramaBaru = ({ user }) => {
       selected_perkawinan_id: "",
       selected_ayah_id: "",
       selected_ibu_id: "",
+      urutan_lahir: "",
       isManual: false,
       manualAyah: { 
         nama_lengkap: "", 
         nama_panggilan: "", 
         jenis_kelamin: "Laki-laki", 
         tanggal_lahir: "", 
-        status_hidup: "Hidup", 
+        status_hidup: defaultStatusManual, 
         is_bali: true, 
         desa_adat_id: "", 
         tempat_asal_khusus: "", 
         alamat_luar: "", 
-        tipe_data: "Keturunan" 
+        tipe_data: defaultTipeData 
       },
       manualIbu: { 
         nama_lengkap: "", 
         nama_panggilan: "", 
         jenis_kelamin: "Perempuan", 
         tanggal_lahir: "", 
-        status_hidup: "Hidup", 
+        status_hidup: defaultStatusManual, 
         is_bali: true, 
         desa_adat_id: "", 
         tempat_asal_khusus: "", 
         alamat_luar: "", 
-        tipe_data: "Keturunan" 
+        tipe_data: defaultTipeData 
       },
       manualPerkawinan: { 
         status_perkawinan: "Kawin", 
@@ -609,17 +760,17 @@ const DataKramaBaru = ({ user }) => {
         nama_panggilan: "", 
         jenis_kelamin: "Laki-laki", 
         tanggal_lahir: "", 
-        status_hidup: "Hidup", 
+        status_hidup: defaultStatusSingle, 
         is_bali: true, 
         desa_adat_id: "", 
         tempat_asal_khusus: "", 
         alamat_luar: "", 
-        tipe_data: "Keturunan" 
+        tipe_data: defaultTipeData 
       }
     });
   };
 
-  // HELPER PENGANGKATAN ANAK: Membersihkan input form pengangkatan anak
+  // HELPER PENGANGKATAN ANAK: Membersihkan form input pengangkatan anak
   const clearAdoptingData = () => {
     setSearchTermAnak("");
     setIsDropdownAnakOpen(false);
@@ -634,7 +785,7 @@ const DataKramaBaru = ({ user }) => {
         jenis_kelamin: "Laki-laki", 
         tanggal_lahir: "", 
         status_hidup: "Hidup", 
-        is_bali: false, 
+        is_bali: true, 
         desa_adat_id: "", 
         tempat_asal_khusus: "", 
         alamat_luar: "", 
@@ -643,9 +794,122 @@ const DataKramaBaru = ({ user }) => {
     });
   };
 
-  // SUBMIT DATA 
-  const saveKrama = async (e) => {
-    e.preventDefault();
+  // HELPER VALIDASI:
+  const validateForm = () => {
+    if (!kramaData.nama_lengkap.trim()) {
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: 'Nama lengkap krama utama (form I) wajib diisi!' 
+      });
+      return false;
+    }
+    
+    if (kramaData.tipe_data === "Keturunan") {
+      if (!kramaData.jenis_kelamin) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Jenis kelamin krama keturunan wajib dipilih!' 
+        });
+        return false;
+      }
+      if (kramaData.is_bali && !kramaData.desa_adat_id) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Krama Bali wajib memilih desa adat asal!' 
+        });
+        return false;
+      }
+      if (!kramaData.is_bali && !kramaData.alamat_luar.trim()) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Krama luar Bali wajib mengisi alamat asal!' 
+        });
+        return false;
+      }
+    }
+
+    for (let i = 0; i < perkawinanlist.length; i++) {
+      const p = perkawinanlist[i];
+      if (p.isPasanganBaru) {
+        if (!p.dataPasanganBaru.nama_lengkap.trim()) {
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: `Nama lengkap pasangan baru pada baris ke-${i + 1} wajib diisi!` 
+          });
+          return false;
+        }
+        if (p.dataPasanganBaru.is_bali && !p.dataPasanganBaru.desa_adat_id) {
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: `Desa Adat asal untuk pasangan baru pada baris ke-${i + 1} wajib dipilih!` 
+          });
+          return false;
+        }
+      }
+    }
+
+    if (parentData.status_diketahui === "Diketahui" && parentData.isManual) {
+      if (parentData.jenis_pengangkatan === "Pasangan") {
+        if (!parentData.manualAyah.nama_lengkap.trim()) {
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: 'Nama lengkap ayah pada pendaftaran baru wajib diisi!' });
+          return false;
+        }
+        if (!parentData.manualIbu.nama_lengkap.trim()) {
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: 'Nama lengkap Ibu pada pendaftaran baru wajib diisi!' 
+          });
+          return false;
+        }
+      } else if (parentData.jenis_pengangkatan === "Single Parent") {
+        if (!parentData.manualSingle.nama_lengkap.trim()) {
+          setAlert({ 
+            show: true, 
+            type: 'error', 
+            message: 'Nama lengkap orang tua tunggal pada pendaftaran baru wajib diisi!' 
+          });
+          return false;
+        }
+      }
+    }
+
+    if (adoptingData.status_pengangkatan === "Ya" && adoptingData.isAnakManual) {
+      if (!adoptingData.manualAnak.nama_lengkap.trim()) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Nama lengkap anak angkat pada pendaftaran baru wajib diisi!' 
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  // SUBMIT DATA: 
+  const saveKrama = async (e, isConfirmed = false) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    
+    if (typeof validateForm === "function" && !validateForm()) return;
+
+    if (!isConfirmed) {
+      setShowSaveConfirmModal(true);
+      return;
+    }
+
+    setShowSaveConfirmModal(false);
     try {
       setIsLoading(true);
       const payloadKrama = { ...kramaData };
@@ -661,12 +925,12 @@ const DataKramaBaru = ({ user }) => {
       }
 
       if (payloadKrama.tipe_data === "Keturunan") {
-        if (payloadKrama.status_hidup === "") {
+        if (!payloadKrama.status_hidup) {
           payloadKrama.status_hidup = "Hidup";
         }
       } else {
-        if (payloadKrama.status_hidup === "") {
-          payloadKrama.status_hidup = null;
+        if (!payloadKrama.status_hidup) {
+          payloadKrama.status_hidup = "Tidak Diketahui";
         }
       }
 
@@ -679,26 +943,25 @@ const DataKramaBaru = ({ user }) => {
       let createdMarriageId = null;
 
       for (const m of perkawinanlist) {
-        // normalisasi string untuk deteksi jenis mutasi hukum adat
         const statusMentah = String(m.status_perkawinan || "").trim().toLowerCase();
         const apakahCerai = statusMentah.includes("cerai");
         const apakahCeraiMati = statusMentah.includes("mati");
 
         if (statusMentah !== "belum kawin" && statusMentah !== "") {
           let spouseId = m.pasangan_id;
-          // membuat pasangan baru jika belum ada di database
+
           if (m.isPasanganBaru) {
             const payloadSpouse = { ...m.dataPasanganBaru };
             if (payloadSpouse.desa_adat_id === "") {
               payloadSpouse.desa_adat_id = null;
             }
-            // setting jenis kelamin dinamis
+            
             let genderPasanganPilihan = "Tidak Diketahui";
-            const jkUtama = kramaData?.jenis_kelamin;
+            const genderUtama = kramaData?.jenis_kelamin;
 
-            if (jkUtama === "Laki-laki") {
+            if (genderUtama === "Laki-laki") {
               genderPasanganPilihan = "Perempuan";
-            } else if (jkUtama === "Perempuan") {
+            } else if (genderUtama === "Perempuan") {
               genderPasanganPilihan = "Laki-laki";
             } else {
               genderPasanganPilihan = m.dataPasanganBaru?.jenis_kelamin || "Tidak Diketahui";
@@ -708,80 +971,96 @@ const DataKramaBaru = ({ user }) => {
               ...payloadSpouse, 
               jenis_kelamin: genderPasanganPilihan
             });
-            spouseId = spouseRes.data.data.id;
+            spouseId = spouseRes.data?.data?.id || spouseRes.data?.id || spouseRes.data?.data?.krama?.id;
           }
-          // payload utama untuk mencatat perkawinan
+
+          if (!spouseId) {
+            console.error("Data pasangan baru tidak ditemukan.");
+            continue;
+          }
+
+          const isKramaUtamaLaki = kramaData?.jenis_kelamin === "Laki-laki";
+          const idSuamiFinal = isKramaUtamaLaki ? mainId : spouseId;
+          const idIstriFinal = isKramaUtamaLaki ? spouseId : mainId;
+
           let payloadP = { 
-            suami_id: kramaData?.jenis_kelamin === "Laki-laki" ? mainId : spouseId,
-            istri_id: kramaData?.jenis_kelamin === "Laki-laki" ? spouseId : mainId,
+            suami_id: idSuamiFinal,
+            istri_id: idIstriFinal,
             status_perkawinan: "Kawin", 
             jenis_perkawinan: m.jenis_perkawinan || "Biasa", 
-            tanggal_perkawinan: m.tanggal_perkawinan || "" 
+            tanggal_perkawinan: m.tanggal_perkawinan || null
           };
-          // eksekusi post pendaftaran status perkawinan
+
           const mRes = await axiosInstance.post("/perkawinan/kawin", payloadP);
-          
           const dataRoot = mRes.data?.data;
-          
-          // Amankan ekstraksi ID murni
           const marriageId = dataRoot?.perkawinan?.id || dataRoot?.id;
           const tanggalKawinEfektif = dataRoot?.perkawinan?.tanggal_perkawinan || dataRoot?.tanggal_perkawinan;
 
           // Proteksi total dari objek gantung
           if (!marriageId || typeof marriageId === "object" || isNaN(parseInt(marriageId))) {
-            console.error("ID Perkawinan meleset, tidak diproses ke perceraian:", marriageId);
+            console.error("Data perkawinan tidak ditemukan, data perceraian tidak diproses:", marriageId);
             continue; 
           }
 
           createdMarriageId = parseInt(marriageId);
 
-          // bypass eksekusi mutasi perceraian historis
           if (apakahCerai && marriageId) {
             try {
               const jenisMutasiFinal = apakahCeraiMati ? "Cerai Mati" : "Cerai Hidup";
               const tglCeraiFinal = m.tanggal_cerai || m.tanggal_perkawinan || tanggalKawinEfektif;
 
-              // 🌟 NORMALISASI FRONTEND: Kirimkan string peran baku ("Purusa"/"Predana") 
-              // bukan "Suami"/"Istri" agar Decision Tree backend tidak melempar Error 500!
               let pihakMeninggalFinal = null;
+
               if (apakahCeraiMati) {
-                const pilihanForm = m.pihak_meninggal || "Pasangan"; 
-                if (m.jenis_perkawinan === "Nyentana") {
-                  // Nyentana: Istri = Purusa, Suami = Predana
-                  pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
+                const pilihanForm = m.pihak_meninggal || "Pasangan";
+                const kramaUtamaPerempuan = kramaData.jenis_kelamin === "Perempuan";
+
+                if (m.jenis_perkawinan === "Pade Gelahang") {
+                  if (isKramaUtamaLaki) {
+                    pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Istri" : "Suami";
+                  } else {
+                    pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Suami" : "Istri";
+                  }
+                } else if (m.jenis_perkawinan === "Nyentana") {
+                  if (kramaUtamaPerempuan) {
+                    pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
+                  } else {
+                    pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Purusa" : "Predana";
+                  }
                 } else {
-                  // Biasa: Suami = Purusa, Istri = Predana
-                  pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
+                  if (kramaUtamaPerempuan) {
+                    pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Purusa" : "Predana";
+                  } else {
+                    pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
+                  }
                 }
               }
 
               let pilihanPredanaFinal = "Kembali ke Asal";
+
               if (m.pilihan_predana === "Tetap di Tempat" || m.pilihan_predana === "Tetap") {
                 pilihanPredanaFinal = "Tetap";
               }
 
               const payloadCeraiBersih = {
+                perkawinan_id: createdMarriageId,
                 status_perkawinan: jenisMutasiFinal,
                 tanggal_cerai: tglCeraiFinal,
-                pihak_meninggal: pihakMeninggalFinal, // Sudah berformat "Purusa"/"Predana"
-                pilihan_predana: pilihanPredanaFinal
+                pihak_meninggal: pihakMeninggalFinal, 
+                pilihan_predana: pilihanPredanaFinal,
+                user_id: user?.id || null,
+                user_role: user?.role || "Krama",
+                user_desa_id: user?.desaAdatId || null
               };
-
-              const cRes = await axiosInstance.put(`/perkawinan/cerai/${marriageId}`, payloadCeraiBersih);
-
-              if (cRes.data.data?.is_pending_update) {
-                console.log("Usulan data perceraian berhasil masuk ke draft antrean!");
-              } else {
-                console.log("Perceraian berhasil dieksekusi langsung oleh sistem.");
-              }
+              
+              await axiosInstance.put(`/perkawinan/cerai/${marriageId}`, payloadCeraiBersih);
             } catch (errError) {
-              const pesanErrorBackend = errError?.response?.data?.message || errError.message;
-              console.error("Gagal mengeksekusi cerai simultan:", pesanErrorBackend);
-              alert(`Gagal memproses perceraian simultan!\nAlasan: ${pesanErrorBackend}`);
+              console.error("Gagal mengeksekusi perceraian simultan:", errError);
             }
           }
         }
       }
+
       // ====================================================================
       // FUNGSI INPUT DATA ORANG TUA PASANGAN/TUNGGAL
       // ====================================================================
@@ -789,14 +1068,15 @@ const DataKramaBaru = ({ user }) => {
 
       if (processParentData) {
         let finalPerkawinanId = parentData.selected_perkawinan_id;
-        let finalSingleParentId = parentData.selected_ayah_id || parentData.selected_ibu_id;
+        let finalSingleParentId = parentData.selected_parent_id || parentData.selected_ayah_id || parentData.selected_ibu_id;
 
         let ayahId = parentData.selected_ayah_id;
         let ibuId = parentData.selected_ibu_id;
 
         if (parentData.isManual) {
-          // Skenario 1: Relasi dengan orang tua berpasangan (Anak Kandung / Angkat Pasangan)
-          if (parentData.status_hubungan === "Anak Kandung" || (parentData.status_hubungan === "Anak Angkat" && parentData.jenis_pengangkatan === "Pasangan")) {
+          if (parentData.status_hubungan === "Anak Kandung" || (
+            parentData.status_hubungan === "Anak Angkat" && parentData.jenis_pengangkatan === "Pasangan"
+          )) {
             // mendaftarkan ayah secara menual
             if (!ayahId) {
               const payloadAyah = { ...parentData.manualAyah };
@@ -817,7 +1097,7 @@ const DataKramaBaru = ({ user }) => {
               }
               const resIbu = await axiosInstance.post("/krama-bali", { 
                 ...payloadIbu, 
-                jenis_kelamin: "Perempuan"
+                jenis_kelamin: "Perempuan" 
               });
               ibuId = resIbu.data.data.id;
             }
@@ -828,105 +1108,69 @@ const DataKramaBaru = ({ user }) => {
                 istri_id: ibuId,
                 status_perkawinan: "Kawin",
                 jenis_perkawinan: parentData.manualPerkawinan.jenis_perkawinan || "Biasa",
-                tanggal_perkawinan: parentData.manualPerkawinan.tanggal_perkawinan || null,
-                data_perubahan: null
+                tanggal_perkawinan: parentData.manualPerkawinan.tanggal_perkawinan || null
               });
 
               const dataPerkawinanSistem = resKawin.data.data?.perkawinan || resKawin.data.data;
-              const newMarriageId = dataPerkawinanSistem?.id;
-              finalPerkawinanId = newMarriageId;
+              finalPerkawinanId = dataPerkawinanSistem?.id;
 
-              // Proses ketika mendaftarkan perceraian secara bersamaan dengan perkawinan
-              if (newMarriageId && parentData.manualPerkawinan.status_perkawinan) {
-                const statusMentah = String(parentData.manualPerkawinan.status_perkawinan).trim().toLowerCase();
-                const apakahCerai = statusMentah.includes("cerai");
-                const apakahCeraiMati = statusMentah.includes("mati");
+              if (finalPerkawinanId && parentData.manualPerkawinan.status_perkawinan) {
+                const statusMentahP = String(parentData.manualPerkawinan.status_perkawinan).trim().toLowerCase();
 
-                if (apakahCerai) {
-                  const userRole = user?.role || "Krama";
-                  const isAdmin = userRole === "Super Admin" || userRole === "Admin Desa";
-                  const jenisMutasiFinal = apakahCeraiMati ? "Cerai Mati" : "Cerai Hidup";
-                  const tglCeraiFinal = parentData.manualPerkawinan.tanggal_cerai || parentData.manualPerkawinan.tanggal_perkawinan || null;
-                  // menentukan pihak meninggal
-                  let pihakMeninggalFinal = null;
-                  if (apakahCeraiMati) {
-                    const pilihanForm = parentData.manualPerkawinan.pihak_meninggal || "Pasangan";
-                    pihakMeninggalFinal = pilihanForm === "Pasangan" ? "Istri" : "Suami";
-                  }
-                  // mengambil pilihan predanan ketika cerai mati
-                  let pilihanPredanaFinal = "Kembali ke Asal";
-                  if (parentData.manualPerkawinan.pilihan_predana === "Tetap di Tempat" || parentData.manualPerkawinan.pilihan_predana === "Tetap") {
-                    pilihanPredanaFinal = "Tetap";
-                  }
+                if (statusMentahP.includes("cerai")) {
+                  const apakahCeraiMatiP = statusMentahP.includes("mati");
+                  const jenisMutasiFinalP = apakahCeraiMatiP ? "Cerai Mati" : "Cerai Hidup";
                   
-                  const payloadDrafPerceraian = {
-                    PERCERAIAN: {
-                      jenis_mutasi: jenisMutasiFinal,
-                      status_perkawinan: jenisMutasiFinal,
-                      tanggal_cerai: tglCeraiFinal,
-                      pihak_meninggal: pihakMeninggalFinal,
-                      pilihan_predana: pilihanPredanaFinal,
-                      is_auto_draft: true
+                  let pihakMeninggalP = null;
+
+                  if (apakahCeraiMatiP) {
+                    const pilihanForm = parentData.manualPerkawinan.pihak_meninggal || "Pasangan";
+                    const kramaUtamaPerempuan = kramaData.jenis_kelamin === "Perempuan";
+
+                    if (parentData.manualPerkawinan.jenis_perkawinan === "Nyentana") {
+                      if (kramaUtamaPerempuan) {
+                        pihakMeninggalP = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
+                      } else {
+                        pihakMeninggalP = pilihanForm === "Pasangan" ? "Purusa" : "Predana";
+                      }
+                    } else {
+                      if (kramaUtamaPerempuan) {
+                        pihakMeninggalP = pilihanForm === "Pasangan" ? "Purusa" : "Predana";
+                      } else {
+                        pihakMeninggalP = pilihanForm === "Pasangan" ? "Predana" : "Purusa";
+                      }
                     }
-                  };
-
-                  let payloadUpdateUtama = {
-                    status_perkawinan: jenisMutasiFinal,
-                    tanggal_cerai: tglCeraiFinal,
-                    is_pending_update: isAdmin ? false : true, 
-                    data_perubahan: payloadDrafPerceraian
-                  };
-
-                  if (apakahCeraiMati) {
-                    payloadUpdateUtama.pihak_meninggal = pihakMeninggalFinal;
-                    payloadUpdateUtama.pilihan_predana = pilihanPredanaFinal;
                   }
 
-                  try {
-                    await axiosInstance.put(`/perkawinan/cerai/${newMarriageId}`, payloadUpdateUtama);
-                  } catch (putError) {
-                    console.error(putError.response?.data);
-                    throw putError; 
-                  }
-
-                  if (!isAdmin) {
-                    await new Promise(resolve => setTimeout(resolve, 250));
-                    await axiosInstance.patch(`/perkawinan/cerai/verifikasi/${newMarriageId}`, {
-                      perkawinan_id: newMarriageId,
-                      status_verifikasi: "Draft",
-                      target_sisi: "super_admin",
-                      status_verifikasi_perceraian: `Diajukan otomatis via form simultan oleh ${userRole}`,
-                      user_role: userRole,
-                      nama_desa_operator: user?.nama_desa || "Admin Desa Setempat"
-                    });
-                  }
+                  await axiosInstance.put(`/perkawinan/cerai/${finalPerkawinanId}`, {
+                    status_perkawinan: jenisMutasiFinalP,
+                    tanggal_cerai: parentData.manualPerkawinan.tanggal_cerai || null,
+                    pihak_meninggal: pihakMeninggalP,
+                    pilihan_predana: parentData.manualPerkawinan.pilihan_predana === "Tetap" ? "Tetap" : "Kembali ke Asal"
+                  });
                 }
               }
             }
-          } 
-          // Skenario 2: Relasi dengan orang tua tunggal
-          else {
+          } else {
             if (!finalSingleParentId) {
-              const payloadSingle = { ...parentData.manualSingle };
-              if (payloadSingle.desa_adat_id === "") {
-                payloadSingle.desa_adat_id = null;
-              }
-              const resSingle = await axiosInstance.post("/krama-bali", payloadSingle);
-              finalSingleParentId = resSingle.data.data.id;
+            const payloadSingle = { ...parentData.manualSingle };
+            if (payloadSingle.desa_adat_id === "") {
+              payloadSingle.desa_adat_id = null;
             }
+            const resSingle = await axiosInstance.post("/krama-bali", payloadSingle);
+            finalSingleParentId = resSingle.data.data.id;
+          }
           }
         }
-        // Menyusun payload relasi anak dengan orang tua baru
-        let safePerkawinanId = null;
-        if (finalPerkawinanId && !isNaN(finalPerkawinanId)) {
-          safePerkawinanId = parseInt(finalPerkawinanId);
-        }
+
+        let safePerkawinanId = finalPerkawinanId && !isNaN(finalPerkawinanId) ? parseInt(finalPerkawinanId) : null;
 
         let payloadR = { 
           anak_id: mainId ? parseInt(mainId) : null,
           status_hubungan: parentData.status_hubungan || "Anak Kandung", 
           tanggal_pengangkatan: parentData.status_hubungan === "Anak Angkat" ? parentData.tanggal_pengangkatan : null,
           perkawinan_id: safePerkawinanId,
+          urutan_lahir: parentData.urutan_lahir ? parseInt(parentData.urutan_lahir) : null,
           status_verifikasi: "Disetujui",
           user_id: user?.id
         };
@@ -939,7 +1183,9 @@ const DataKramaBaru = ({ user }) => {
           } else {
             const parsedId = finalSingleParentId ? parseInt(finalSingleParentId) : null;
             const pk = kramaList?.find(k => k.id === parsedId);
-            if (pk) genderParent = pk.jenis_kelamin;
+            if (pk) {
+              genderParent = pk.jenis_kelamin;
+            }
           }
 
           if (genderParent === "Laki-laki") {
@@ -949,14 +1195,15 @@ const DataKramaBaru = ({ user }) => {
             payloadR.ibu_id = finalSingleParentId ? parseInt(finalSingleParentId) : null;
             payloadR.ayah_id = null;
           }
+
           payloadR.perkawinan_id = null; 
         } else {
           payloadR.ayah_id = ayahId ? parseInt(ayahId) : null;
           payloadR.ibu_id = ibuId ? parseInt(ibuId) : null;
         }
-
         await axiosInstance.post("/relasi-krama", payloadR);
       }
+
       // ====================================================================
       // FUNGSI INPUT DATA PENGANGKATAN ANAK
       // ====================================================================
@@ -964,13 +1211,11 @@ const DataKramaBaru = ({ user }) => {
         if (adoptingData.anak_angkat_id || adoptingData.isAnakManual) {
           let finalAnakId = adoptingData.anak_angkat_id;
           
-          // Skenario jika data anak didaftarkan manual
           if (adoptingData.isAnakManual) {
             const payloadAnak = { ...adoptingData.manualAnak };
             if (payloadAnak.desa_adat_id === "") {
               payloadAnak.desa_adat_id = null;
             }
-            
             const resAnak = await axiosInstance.post("/krama-bali", payloadAnak);
             finalAnakId = resAnak.data.data.id;
           }
@@ -983,18 +1228,16 @@ const DataKramaBaru = ({ user }) => {
             user_id: user?.id
           };
 
-          // Menyesuaikan relasi jika terdapat data perkawinan
-          const perkawinanKramaUtamaId = typeof createdMarriageId !== 'undefined' 
+          // menyesuaikan relasi jika terdapat data perkawinan
+          const perkawinanKramaUtamaId = typeof createdMarriageId !== 'undefined' && createdMarriageId !== null
             ? createdMarriageId 
             : kramaData?.selected_perkawinan_id;
 
           if (perkawinanKramaUtamaId) {
-            // jika berpasangan, ikat anak angkat dengan keluarga perkawinannya
             payloadA.perkawinan_id = parseInt(perkawinanKramaUtamaId);
             payloadA.ayah_id = null;
             payloadA.ibu_id = null;
           } else { 
-            // jika belum berpasangan, tentukan form berdasarkan jenis kelaminnya
             payloadA.perkawinan_id = null;
             if (kramaData.jenis_kelamin === "Laki-laki") {
               payloadA.ayah_id = mainId;
@@ -1007,16 +1250,18 @@ const DataKramaBaru = ({ user }) => {
           await axiosInstance.post("/relasi-krama", payloadA);
         }
       }
+
       navigate("/krama-bali/my-data", { 
-        state: { successMessage: 'Data krama bali berhasil ditambahkan!' } 
+        state: { successMessage: 'Data krama bali beserta data struktural silsilah adat berhasil ditambahkan!' } 
       });
     } catch (error) {
+      console.error("Critical Save Error: ", error);
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || 'Terjadi kesalahan pada sistem.' 
+        message: error.response?.data?.message || 'Terjadi kesalahan sistem saat menyimpan silsilah krama.' 
       });
-      window.scrollTo(0,0);
+      window.scrollTo(0, 0);
     } finally { 
       setIsLoading(false); 
     }
@@ -1028,16 +1273,90 @@ const DataKramaBaru = ({ user }) => {
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Menambahkan Data Krama Bali
+            Pendaftaran Data Krama Bali
           </h2>
           <p className={styles.navSubtitle}>
             Lengkapi formulir dengan data yang sebenarnya dan sah
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -1047,9 +1366,9 @@ const DataKramaBaru = ({ user }) => {
           </div>
         </div>
       </nav>
-      {/* Alert Action */}
+      {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -1098,10 +1417,29 @@ const DataKramaBaru = ({ user }) => {
           )}
         </div>
       )}
-      {/* Form Add Krama Bali */}
       <div className="p-8 flex-1 flex flex-col items-center">
         <div className="w-full max-w-4xl">
           <form onSubmit={saveKrama} className="w-full space-y-8">
+            {/* BANNER NOTIFIKASI KRONOLOGIS SISTEM */}
+            <div className={`${styles.noteForm} animate-fade-in`}>
+              <div className="flex gap-3">
+                <div className="text-blue-600 mt-0.5">
+                  <FaInfoCircle size={18} className="mb-1.5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wide">
+                    Pemberitahuan Penting Penginputan Data Silsilah
+                  </h4>
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    Untuk menjaga akurasi struktur pohon silsilah dan menghindari kegagalan relasi basis data krama, disarankan untuk menginputkan data krama secara <strong>berurutan sesuai kronologis nyata (dari generasi tertua/leluhur terlebih dahulu, baru kemudian generasi keturunan)</strong>.
+                  </p>
+                  <ul className="text-[11px] text-blue-600 list-disc list-inside space-y-0.5 pt-1 italic">
+                    <li>Perhatikan setiap kolom input agar tidak salah memasukkan data krama dan pendukungnya.</li>
+                    <li>Masukkan data Leluhur/Kakek/Nenek/Orang Tua terlebih dahulu agar sistem dapat mencatat data perkawinan mereka.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
             {/* BAGIAN 1: DATA DIRI KRAMA BALI */}
             <section className={styles.section}>
               <h3 className={styles.sectionTitle}>
@@ -1143,7 +1481,6 @@ const DataKramaBaru = ({ user }) => {
                     onChange={handleChange} 
                     className={styles.inputText}
                     placeholder="Contoh: I Wayan Sudarsana" 
-                    required 
                   />
                 </div>
                 {/* Nama Panggilan */}
@@ -1171,8 +1508,7 @@ const DataKramaBaru = ({ user }) => {
                         name="jenis_kelamin" 
                         value={kramaData.jenis_kelamin} 
                         onChange={handleChange} 
-                        className={styles.inputSelect} 
-                        required={kramaData.tipe_data !== "Leluhur"}>
+                        className={styles.inputSelect}>
                         <option value="" disabled>- Pilih -</option>
                         <option value="Laki-laki">Laki-laki</option>
                         <option value="Perempuan">Perempuan</option>
@@ -1210,6 +1546,9 @@ const DataKramaBaru = ({ user }) => {
                         className={styles.inputSelect}>
                         <option value="Hidup">Hidup</option>
                         <option value="Meninggal">Meninggal</option>
+                        {kramaData.tipe_data === "Leluhur" && (
+                          <option value="Tidak Diketahui">Tidak Diketahui</option>
+                        )}
                       </select>
                       <div className={styles.selectIcon}>
                         <FaChevronDown size={12}/>
@@ -1235,7 +1574,7 @@ const DataKramaBaru = ({ user }) => {
                             alamat_luar: e.target.checked ? "" : prev.alamat_luar
                           }));
                           setSearchDesaUtama("");
-                        }} 
+                        }}
                       />
                       <label htmlFor="is_bali" className={styles.checkboxLabel}>
                         Krama ini asal Bali?
@@ -1273,7 +1612,6 @@ const DataKramaBaru = ({ user }) => {
                               setSearchDesaUtama(currentDesaName);
                               setIsDropdownOpen(true);
                             }}
-                            required={kramaData.tipe_data !== "Leluhur"}
                           />
                           <div className={styles.termsIcon}>
                             <FaChevronDown size={12} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1305,7 +1643,7 @@ const DataKramaBaru = ({ user }) => {
                                   ))
                                 ) : (
                                   <div className="px-4 py-3 text-sm text-gray-500 italic bg-white">
-                                    Desa tidak ditemukan.
+                                    Desa adat tidak ditemukan
                                   </div>
                                 )}
                               </div>
@@ -1399,471 +1737,481 @@ const DataKramaBaru = ({ user }) => {
                 )}
               </div>
               <div className="space-y-8">
-                {perkawinanlist.map((m, index) => (
-                  <div key={m.id_temp} className={styles.cardSection}>
-                    {perkawinanlist.length > 1 && (
-                      <button type="button" onClick={() => hapusBarisPerkawinan(index)} className={styles.btnTrashKawin}>
-                        <FaTrash size={14} />
-                      </button>
-                    )}
-                    {/* Status Perkawinan */}
-                    <div className={styles.dualColumn}>
-                      <div className="flex flex-col space-y-1.5">
-                        <label className={styles.labelInputSelect}>
-                          Status Perkawinan {perkawinanlist.length > 1 ? `#${index+1}` : ''} <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <select 
-                            value={m.status_perkawinan} 
-                            onChange={(e) => handlePerkawinanChange(index, "status_perkawinan", e.target.value)} 
-                            className={styles.inputPilihan} 
-                            required>
-                            <option value="Belum Kawin">Belum Kawin</option>
-                            <option value="Kawin">Kawin</option>
-                            <option value="Cerai">Cerai Hidup</option>
-                            <option value="Cerai Mati">Cerai Mati</option>
-                          </select>
-                          <div className={styles.selectIcon}>
-                            <FaChevronDown size={12}/>
-                          </div>
-                        </div>
-                      </div>
-                      {m.status_perkawinan !== "Belum Kawin" && (
-                        <button type="button" onClick={() => {clearPerkawinan(index)}} className={styles.btnResetDetail}>
-                          <FaEraser /> Reset Detail
+                {perkawinanlist.map((m, index) => {
+                  const isPredanaMeninggal = (() => {
+                    if (m.status_perkawinan !== "Cerai Mati") return false;
+                    const kramaUtamaPerempuan = kramaData.jenis_kelamin === "Perempuan";
+                    if (m.jenis_perkawinan === "Nyentana") {
+                      return (!kramaUtamaPerempuan && m.pihak_meninggal === "Krama Utama") || (kramaUtamaPerempuan && m.pihak_meninggal === "Pasangan");
+                    } else {
+                      return (kramaUtamaPerempuan && m.pihak_meninggal === "Krama Utama") || (!kramaUtamaPerempuan && m.pihak_meninggal === "Pasangan");
+                    }
+                  })();
+
+                  const isGenderPredana = m.jenis_perkawinan === "Nyentana" ? "Laki-laki" : "Perempuan";
+
+                  return (
+                    <div key={m.id_temp} className={styles.cardSection}>
+                      {perkawinanlist.length > 1 && (
+                        <button type="button" onClick={() => hapusBarisPerkawinan(index)} className={styles.btnTrashKawin}>
+                          <FaTrash size={14} />
                         </button>
                       )}
-                    </div>
-                    {/* Jika Status Kawin/Cerai/Cerai Mati */}
-                    {m.status_perkawinan !== "Belum Kawin" && (
-                      <div className={`${styles.popupInput} animate-fade-in`}>
-                        {/* Jenis Perkawinan & Tanggal Perkawinan */}
-                        <div className={styles.dualColumn}>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className={styles.labelInputSelect}>
-                              Jenis Perkawinan <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                              <select 
-                                value={m.jenis_perkawinan} 
-                                onChange={(e) => handlePerkawinanChange(index, "jenis_perkawinan", e.target.value)} 
-                                className={styles.inputPilihan} 
-                                required>
-                                <option value="Biasa">Biasa</option>
-                                <option value="Nyentana">Nyentana</option>
-                                <option value="Pade Gelahang">Pade Gelahang</option>
-                              </select>
-                              <div className={styles.selectIcon}>
-                                <FaChevronDown size={12} />
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col space-y-1.5">
-                            <label className={styles.labelInputSelect}>
-                              Tanggal Perkawinan 
-                            </label>
-                            <input 
-                              type="date" 
-                              value={m.tanggal_perkawinan} 
-                              onChange={(e) => handlePerkawinanChange(index, "tanggal_perkawinan", e.target.value)} 
-                              className={styles.inputCalendar}
-                            />
-                          </div>
-                        </div>
-                        {/* Pencarian Nama Pasangan Terdaftar */}
-                        <div className="flex flex-col space-y-1.5 relative">
+                      {/* Status Perkawinan */}
+                      <div className={styles.dualColumn}>
+                        <div className="flex flex-col space-y-1.5">
                           <label className={styles.labelInputSelect}>
-                            Nama Pasangan <span className="text-red-500">*</span>
+                            Status Perkawinan {perkawinanlist.length > 1 ? `#${index+1}` : ''} <span className="text-red-500">*</span>
                           </label>
                           <div className="relative">
-                            <input
-                              type="text"
-                              className={styles.inputText}
-                              placeholder="Ketikkan nama pasangan terlebih dahulu..."
-                              value={openDropdownIndex === index ? (searchPasangan[index] || "") 
-                                : m.isPasanganBaru ? " Data Pasangan Baru" 
-                                : (kramaList.find(k => String(k.id) === String(m.pasangan_id))?.nama_lengkap || "")
-                              }
-                              onChange={(e) => {
-                                setSearchPasangan({ ...searchPasangan, [index]: e.target.value }); 
-                                setOpenDropdownIndex(index); 
-                              }}
-                              onFocus={() => {
-                                setSearchPasangan({ ...searchPasangan, [index]: "" });
-                                setOpenDropdownIndex(index);
-                              }}
-                              required={m.status_perkawinan !== "Belum Kawin" && !m.isPasanganBaru}
-                            />
-                            <div className={styles.termsIcon}>
-                              <FaChevronDown size={12} className={`transition-transform ${openDropdownIndex === index ? 'rotate-180' : ''}`} />
+                            <select 
+                              value={m.status_perkawinan} 
+                              onChange={(e) => handlePerkawinanChange(index, "status_perkawinan", e.target.value)} 
+                              className={styles.inputPilihan} 
+                              required>
+                              <option value="Belum Kawin">Belum Kawin</option>
+                              <option value="Kawin">Kawin</option>
+                              <option value="Cerai">Cerai Hidup</option>
+                              <option value="Cerai Mati">Cerai Mati</option>
+                            </select>
+                            <div className={styles.selectIcon}>
+                              <FaChevronDown size={12}/>
                             </div>
-                            {/* Dropdown Hasil Pencarian Pasangan */}
-                            {openDropdownIndex === index && (
-                              <>
-                                <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownIndex(null)}></div>
-                                <div className={styles.dropdownHasilPasangan}>
-                                  <div
-                                    className={styles.listHasilTerms}
-                                    onClick={() => {
-                                      handlePerkawinanChange(index, "pasangan_id", "NEW_ENTRY");
-                                      setOpenDropdownIndex(null);
-                                      setSearchPasangan({ ...searchPasangan, [index]: "" });
-                                    }}>
-                                    <span className="font-bold text-blue-600">+ Input Pasangan Baru</span>
-                                  </div>
-                                  {/* Hasil Filter Lawan Jenis*/}
-                                  {getFilteredPasangan(index).length > 0 ? (
-                                    getFilteredPasangan(index).map((k) => (
-                                      <div
-                                        key={k.id}
-                                        className={styles.filterHasilTerms}
-                                        onClick={() => {
-                                          handlePerkawinanChange(index, "pasangan_id", k.id);
-                                          setOpenDropdownIndex(null);
-                                          setSearchPasangan({ ...searchPasangan, [index]: k.nama_lengkap });
-                                        }}>
-                                        <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
-                                        <p className="text-[10px] text-gray-500 uppercase italic">
-                                          {k.desa_adat_id 
-                                            ? (desaList.find(d => String(d.id) === String(k.desa_adat_id))?.nama_desa_adat || "Asal Bali")
-                                            : (k.alamat_luar || "Luar Bali")
-                                          } • {k.nama_panggilan || k.tipe_data}
-                                        </p>
-                                      </div>
-                                    ))
-                                  ) : (
-                                    <div className="px-4 py-2.5 text-xs text-gray-400 italic bg-white">
-                                      Nama pasangan tidak ditemukan.
-                                    </div>
-                                  )}
-                                </div>
-                              </>
-                            )}
                           </div>
                         </div>
-                        {/* Data Detail jika Pasangan Baru */}
-                        {m.isPasanganBaru && (
-                          <div className={`${styles.cardPasanganBaru} animate-fade-in shadow-inner`}>
-                            <h4 className={styles.titleCardPasangan}>
-                              <FaInfoCircle/> Informasi Pasangan Baru
-                            </h4>
-                            <div className="space-y-5 mt-3">
-                              {/* Tipe Data Pasangan Baru*/}
-                              <div className="flex flex-col space-y-1">
-                                <label className={styles.labelInput}>
-                                  Tipe Data Pasangan <span className="text-red-500">*</span>
-                                </label>
-                                <div className="relative">
-                                  <select 
-                                    name="tipe_data" 
-                                    value={m.dataPasanganBaru.tipe_data || ""} 
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      handlePerkawinanChange(index, "dataPasanganBaru", {
-                                        ...m.dataPasanganBaru,
-                                        tipe_data: val
-                                      });
-                                      if (val === "Leluhur") {
-                                        handlePerkawinanChange(index, "dataPasanganBaru", {
-                                          ...m.dataPasanganBaru,
-                                          tipe_data: val,
-                                          status_hidup: "Meninggal"
-                                        });
-                                      }
-                                    }}
-                                    className={styles.inputSelect} 
-                                    required={m.isPasanganBaru}>
-                                    <option value="Keturunan">Keturunan</option>
-                                    <option value="Leluhur">Leluhur</option>
-                                  </select>
-                                  <div className={styles.selectIcon}>
-                                    <FaChevronDown size={12}/>
+                        {m.status_perkawinan !== "Belum Kawin" && (
+                          <button type="button" onClick={() => {clearPerkawinan(index)}} className={styles.btnResetDetail}>
+                            <FaEraser /> Reset Detail
+                          </button>
+                        )}
+                      </div>
+                      {m.status_perkawinan !== "Belum Kawin" && (
+                        <div className={`${styles.popupInput} animate-fade-in`}>
+                          {/* Jenis Perkawinan & Tanggal Perkawinan */}
+                          <div className={styles.dualColumn}>
+                            <div className="flex flex-col space-y-1.5">
+                              <label className={styles.labelInputSelect}>
+                                Jenis Perkawinan <span className="text-red-500">*</span>
+                              </label>
+                              <div className="relative">
+                                <select 
+                                  value={m.jenis_perkawinan} 
+                                  onChange={(e) => handlePerkawinanChange(index, "jenis_perkawinan", e.target.value)} 
+                                  className={styles.inputPilihan} 
+                                  required>
+                                  <option value="Biasa">Biasa</option>
+                                  <option value="Nyentana">Nyentana</option>
+                                  <option value="Pade Gelahang">Pade Gelahang</option>
+                                </select>
+                                <div className={styles.selectIcon}>
+                                  <FaChevronDown size={12} />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex flex-col space-y-1.5">
+                              <label className={styles.labelInputSelect}>
+                                Tanggal Perkawinan 
+                              </label>
+                              <input 
+                                type="date" 
+                                value={m.tanggal_perkawinan} 
+                                onChange={(e) => handlePerkawinanChange(index, "tanggal_perkawinan", e.target.value)} 
+                                className={styles.inputCalendar}
+                              />
+                            </div>
+                          </div>
+                          {/* Pencarian Nama Pasangan */}
+                          <div className="flex flex-col space-y-1.5 relative">
+                            <label className={styles.labelInputSelect}>
+                              Nama Pasangan <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                className={styles.inputText}
+                                placeholder="Ketikkan nama pasangan terlebih dahulu..."
+                                value={openDropdownIndex === index ? (searchPasangan[index] || "") 
+                                  : m.isPasanganBaru ? "Data Pasangan Baru" 
+                                  : (kramaList.find(k => String(k.id) === String(m.pasangan_id))?.nama_lengkap || "")
+                                }
+                                onChange={(e) => {
+                                  setSearchPasangan({ ...searchPasangan, [index]: e.target.value }); 
+                                  setOpenDropdownIndex(index); 
+                                }}
+                                onFocus={() => {
+                                  setSearchPasangan({ ...searchPasangan, [index]: "" });
+                                  setOpenDropdownIndex(index);
+                                }}
+                                required={m.status_perkawinan !== "Belum Kawin" && !m.isPasanganBaru}
+                              />
+                              <div className={styles.termsIcon}>
+                                <FaChevronDown size={12} className={`transition-transform ${openDropdownIndex === index ? 'rotate-180' : ''}`} />
+                              </div>
+                              {/* Dropdown Hasil Pencarian Pasangan */}
+                              {openDropdownIndex === index && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownIndex(null)}></div>
+                                  <div className={styles.dropdownHasilPasangan}>
+                                    <div
+                                      className={styles.listHasilTerms}
+                                      onClick={() => {
+                                        handlePerkawinanChange(index, "pasangan_id", "NEW_ENTRY");
+                                        setOpenDropdownIndex(null);
+                                        setSearchPasangan({ ...searchPasangan, [index]: "" });
+                                      }}>
+                                      <span className="font-bold text-blue-600">
+                                        + Input Pasangan Baru
+                                      </span>
+                                    </div>
+                                    {getFilteredPasangan(index).length > 0 ? (
+                                      getFilteredPasangan(index).map((k) => (
+                                        <div
+                                          key={k.id}
+                                          className={styles.filterHasilTerms}
+                                          onClick={() => {
+                                            handlePerkawinanChange(index, "pasangan_id", k.id);
+                                            setOpenDropdownIndex(null);
+                                            setSearchPasangan({ ...searchPasangan, [index]: k.nama_lengkap });
+                                          }}>
+                                          <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
+                                          <p className="text-[10px] text-gray-500 uppercase italic">
+                                            {k.is_bali 
+                                              ? (desaList.find(d => String(d.id) === String(k.desa_adat_id))?.nama_desa_adat || "Asal Bali")
+                                              : (k.alamat_luar || "Luar Bali")
+                                            } • {k.nama_panggilan || k.tipe_data}
+                                          </p>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="px-4 py-2.5 text-xs text-gray-400 italic bg-white">
+                                        Nama pasangan tidak ditemukan
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
-                                <p className={styles.noted}>
-                                  * Pilih tipe data krama yang sesuai
-                                </p>
-                              </div>
-                              {/* Nama Lengkap Pasangan Baru*/}
-                              <div className="flex flex-col space-y-1">
-                                <label className={styles.labelInput}>
-                                  Nama Lengkap <span className="text-red-500">*</span>
-                                </label>
-                                <input 
-                                  type="text" 
-                                  value={m.dataPasanganBaru.nama_lengkap || ""} 
-                                  onChange={(e) => handlePasanganBaruChange(index, "nama_lengkap", e.target.value)} 
-                                  className={styles.inputText}
-                                  placeholder="Contoh: Ni Made Sri Utami" 
-                                  required 
-                                />
-                              </div>
-                              {/* Nama Panggilan Pasangn Baru */}
-                              <div className="flex flex-col space-y-1">
-                                <label className={styles.labelInput}>
-                                  Nama Panggilan
-                                </label>
-                                <input 
-                                  type="text" 
-                                  value={m.dataPasanganBaru.nama_panggilan || ""} 
-                                  onChange={(e) => handlePasanganBaruChange(index, "nama_panggilan", e.target.value)} 
-                                  className={styles.inputText}
-                                  placeholder="Contoh: Sri Utami" 
-                                />
-                              </div>
-                              <div className={styles.dualInput}>
-                                {/* Tanggal Lahir Pasangan Baru */}
-                                <div className="flex flex-col space-y-1.5">
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {/* Data Detail jika Pasangan Baru */}
+                          {m.isPasanganBaru && (
+                            <div className={`${styles.cardPasanganBaru} animate-fade-in shadow-inner`}>
+                              <h4 className={styles.titleCardPasangan}>
+                                <FaInfoCircle/> Informasi Pasangan Baru
+                              </h4>
+                              <div className="space-y-5 mt-3">
+                                {/* Tipe Data Pasangan Baru*/}
+                                <div className="flex flex-col space-y-1">
                                   <label className={styles.labelInput}>
-                                    Tanggal Lahir
-                                  </label>
-                                  <input 
-                                    type="date" 
-                                    value={m.dataPasanganBaru.tanggal_lahir || ""} 
-                                    onChange={(e) => handlePasanganBaruChange(index, "tanggal_lahir", e.target.value)} 
-                                    className={styles.inputCalendar} 
-                                  />
-                                </div>
-                                {/* Status Hidup Pasangan Baru*/}
-                                <div className="flex flex-col space-y-1.5">
-                                  <label className={styles.labelInput}>
-                                    Status Hidup 
+                                    Tipe Data Pasangan <span className="text-red-500">*</span>
                                   </label>
                                   <div className="relative">
                                     <select 
-                                      value={m.dataPasanganBaru.status_hidup || ""} 
-                                      onChange={(e) => handlePasanganBaruChange(index, "status_hidup", e.target.value)} 
-                                      className={styles.inputSelect}>
-                                      <option value="Hidup">Hidup</option>
-                                      <option value="Meninggal">Meninggal</option>
+                                      name="tipe_data" 
+                                      value={m.dataPasanganBaru.tipe_data || ""} 
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        handlePerkawinanChange(index, "dataPasanganBaru", {
+                                          ...m.dataPasanganBaru,
+                                          tipe_data: val,
+                                          status_hidup: val === "Leluhur" ? "Tidak Diketahui" : "Hidup"
+                                        });
+                                      }}
+                                      className={styles.inputSelect} 
+                                      required={m.isPasanganBaru}>
+                                      <option value="Keturunan">Keturunan</option>
+                                      <option value="Leluhur">Leluhur</option>
                                     </select>
                                     <div className={styles.selectIcon}>
                                       <FaChevronDown size={12}/>
                                     </div>
                                   </div>
-                                </div>
-                              </div>
-                              {/* IS BALI Pasangan Baru */}
-                              <div className={styles.checkbox}>
-                                <div className="flex items-center gap-3">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={m.dataPasanganBaru.is_bali || false} 
-                                    id={`is_bali_pasangan_${index}`} 
-                                    className={styles.checkboxInput} 
-                                    onChange={(e) => {
-                                      const isChecked = e.target.checked;
-                                      const updatedDataPasangan = {
-                                        ...m.dataPasanganBaru,
-                                        is_bali: isChecked,
-                                        desa_adat_id: isChecked ? m.dataPasanganBaru.desa_adat_id : "",
-                                        alamat_luar: isChecked ? "" : m.dataPasanganBaru.alamat_luar
-                                      };
-                                      handlePasanganBaruChange(index, "dataPasanganBaruUtuh", updatedDataPasangan);
-                                      setSearchDesaPasangan(prev => ({ ...prev, [index]: "" }));
-                                    }}
-                                  />
-                                  <label htmlFor={`is_bali_pasangan_${index}`} className={styles.checkboxLabel}>
-                                    Krama ini asal Bali?
-                                  </label>
-                                </div>
-                                <p className={styles.checkboxNote}>
-                                  {m.dataPasanganBaru.tipe_data === "Leluhur" 
-                                    ? "* Centang jika krama berasal dari Bali tetapi wilayah asal bersifat opsional jika data tidak diketahui."
-                                    : "* Centang jika krama berasal dari Bali."
-                                  }
-                                </p>
-                              </div>
-                              {m.dataPasanganBaru.is_bali ? (
-                                <div className="space-y-4 animate-fade-in">
-                                  <div className="flex flex-col space-y-1.5 relative">
-                                    <label className={styles.labelInput}>
-                                      Desa Adat Asal {m.dataPasanganBaru.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
-                                    </label>
-                                    <div className="relative">
-                                      <input
-                                        type="text"
-                                        className={styles.termsDesaAdat}
-                                        placeholder="Cari wilayah desa adat..."
-                                        value={openDesaDropdownIndex === index 
-                                          ? (searchDesaPasangan[index] || "") 
-                                          : (desaList.find(d => String(d.id) === String(m.dataPasanganBaru.desa_adat_id))?.nama_desa_adat || "")
-                                        }
-                                        onChange={(e) => {
-                                          setSearchDesaPasangan({ ...searchDesaPasangan, [index]: e.target.value }); 
-                                          setOpenDesaDropdownIndex(index);
-                                        }}
-                                        onFocus={() => {
-                                          setSearchDesaPasangan({ ...searchDesaPasangan, [index]: "" });
-                                          setOpenDesaDropdownIndex(index);
-                                        }}
-                                      />
-                                      <div className={styles.termsIcon}>
-                                        <FaChevronDown size={12} className={`transition-transform ${openDesaDropdownIndex === index ? 'rotate-180' : ''}`} />
-                                      </div>
-                                      {/* Dropdown Hasil Pencarian Desa Pangan*/}
-                                      {openDesaDropdownIndex === index && (
-                                        <>
-                                          <div className="fixed inset-0 z-40" onClick={() => setOpenDesaDropdownIndex(null)}></div>
-                                          <div className={styles.dropdownResult}>
-                                            {getFilteredDesaManual(index).length > 0 ? (
-                                              getFilteredDesaManual(index).map((d) => (
-                                                <div 
-                                                  key={d.id} 
-                                                  className={styles.dropdownItems} 
-                                                  onClick={() => {
-                                                    handlePasanganBaruChange(index, "desa_adat_id", d.id); 
-                                                    setSearchDesaPasangan({ ...searchDesaPasangan, [index]: d.nama_desa_adat }); 
-                                                    setOpenDesaDropdownIndex(null); 
-                                                  }}>
-                                                  <p className="text-sm font-bold text-gray-800">{d.nama_desa_adat}</p>
-                                                  {(() => {
-                                                    const wil = getWilayahLengkap(d.id);
-                                                    return wil && <p className={styles.descDesaAdat}>{wil.kecamatan} • {wil.kabupaten}</p>;
-                                                  })()}
-                                                </div>
-                                              ))
-                                            ) : (
-                                              <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                                Desa adat tidak ditemukan.
-                                              </div>
-                                            )}
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {/* Info Detail Wilayah Adat Pasangan */}
-                                  {m.dataPasanganBaru.desa_adat_id && (() => {
-                                    const wilayah = getWilayahLengkap(m.dataPasanganBaru.desa_adat_id);
-                                    return wilayah && (
-                                      <div className="bg-amber-50 shadow-inner p-3 rounded grid grid-cols-3 gap-2 text-xs border border-gray-200 mt-2">
-                                        <div>
-                                          <span className="block text-[10px] uppercase text-gray-400">
-                                            Kecamatan
-                                          </span>
-                                          <strong>{wilayah.kecamatan}</strong>
-                                        </div>
-                                        <div>
-                                          <span className="block text-[10px] uppercase text-gray-400">
-                                            Kabupaten
-                                          </span>
-                                          <strong>{wilayah.kabupaten}</strong>
-                                        </div>
-                                        <div>
-                                          <span className="block text-[10px] uppercase text-gray-400">
-                                            Provinsi
-                                          </span>
-                                        <strong>{wilayah.provinsi}</strong>
-                                      </div>
-                                      </div>
-                                    );
-                                  })()}
-                                  <div className="flex flex-col space-y-1.5">
-                                    <label className={styles.labelInput}>
-                                      Tempat Asal Khusus
-                                    </label>
-                                    <input 
-                                      name="tempat_asal_khusus" 
-                                      value={m.dataPasanganBaru.tempat_asal_khusus || ""} 
-                                      onChange={(e) => handlePasanganBaruChange(index, "tempat_asal_khusus", e.target.value)} 
-                                      className={styles.inputText} 
-                                      placeholder="Contoh: Puri Agung Bangli" 
-                                    />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col space-y-1.5 animate-fade-in">
-                                  <label className={styles.labelInput}>
-                                    Alamat Luar Bali {m.dataPasanganBaru.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
-                                  </label>
-                                  <input 
-                                    value={m.dataPasanganBaru.alamat_luar || ""} 
-                                    onChange={(e) => handlePasanganBaruChange(index, "alamat_luar", e.target.value)} 
-                                    className={styles.inputText} 
-                                    placeholder="Jl. Raya No. 1/Unit 3, 100 George Street Sydney..." 
-                                    required={!m.dataPasanganBaru.is_bali && m.dataPasanganBaru.tipe_data !== "Leluhur"}
-                                  />
                                   <p className={styles.noted}>
-                                    * Diisi dengan alamat lengkap asal krama, baik dalam negeri maupun luar negeri
+                                    * Pilih tipe data krama yang sesuai
                                   </p>
                                 </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {/* KOLOM DETAIL PERCERAIAN */}
-                        {(m.status_perkawinan === "Cerai" || m.status_perkawinan === "Cerai Mati") && (
-                          <div className={styles.inputContent}>
-                            <div className="flex flex-col space-y-1.5">
-                              <label className={styles.labelInputSelect}>
-                                Tanggal Perceraian
-                              </label>
-                              <input 
-                                type="date" 
-                                value={m.tanggal_cerai || ""} 
-                                onChange={(e) => handlePerkawinanChange(index, "tanggal_cerai", e.target.value)} 
-                                className={styles.inputCalendar}
-                              />
-                            </div>
-                            {m.status_perkawinan === "Cerai Mati" && (
-                              <div className="space-y-3">
-                                <div className={styles.dualColumn}>
+                                {/* Nama Lengkap Pasangan Baru*/}
+                                <div className="flex flex-col space-y-1">
+                                  <label className={styles.labelInput}>
+                                    Nama Lengkap <span className="text-red-500">*</span>
+                                  </label>
+                                  <input 
+                                    type="text" 
+                                    value={m.dataPasanganBaru.nama_lengkap || ""} 
+                                    onChange={(e) => handlePasanganBaruChange(index, "nama_lengkap", e.target.value)} 
+                                    className={styles.inputText}
+                                    placeholder="Contoh: Ni Made Sri Utami" 
+                                    required 
+                                  />
+                                </div>
+                                {/* Nama Panggilan Pasangan Baru */}
+                                <div className="flex flex-col space-y-1">
+                                  <label className={styles.labelInput}>
+                                    Nama Panggilan
+                                  </label>
+                                  <input 
+                                    type="text" 
+                                    value={m.dataPasanganBaru.nama_panggilan || ""} 
+                                    onChange={(e) => handlePasanganBaruChange(index, "nama_panggilan", e.target.value)} 
+                                    className={styles.inputText}
+                                    placeholder="Contoh: Sri Utami" 
+                                  />
+                                </div>
+                                <div className={styles.dualInput}>
+                                  {/* Tanggal Lahir Pasangan Baru */}
                                   <div className="flex flex-col space-y-1.5">
-                                    <label className={styles.labelInputSelect}>
-                                      Pihak Meninggal <span className="text-red-500">*</span>
+                                    <label className={styles.labelInput}>
+                                      Tanggal Lahir
                                     </label>
-                                    <div className="relative">
-                                      <select 
-                                        value={m.pihak_meninggal || ""} 
-                                        onChange={(e) => handlePerkawinanChange(index, "pihak_meninggal", e.target.value)} 
-                                        className={styles.inputPilihan} 
-                                        required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
-                                        <option value="Pasangan">Pasangan</option>
-                                        <option value="Krama Utama">Krama Utama (Form I)</option>
-                                      </select>
-                                      <div className={styles.selectIcon}>
-                                        <FaChevronDown />
-                                      </div>
-                                    </div>
+                                    <input 
+                                      type="date" 
+                                      value={m.dataPasanganBaru.tanggal_lahir || ""} 
+                                      onChange={(e) => handlePasanganBaruChange(index, "tanggal_lahir", e.target.value)} 
+                                      className={styles.inputCalendar} 
+                                    />
                                   </div>
+                                  {/* Status Hidup Pasangan Baru*/}
                                   <div className="flex flex-col space-y-1.5">
-                                    <label className={styles.labelInputSelect}>
-                                      Ketetapan Silsilah Predana <span className="text-red-500">*</span>
+                                    <label className={styles.labelInput}>
+                                      Status Hidup 
                                     </label>
                                     <div className="relative">
                                       <select 
-                                        value={m.pilihan_predana || ""} 
-                                        onChange={(e) => handlePerkawinanChange(index, "pilihan_predana", e.target.value)} 
-                                        className={styles.inputPilihan} 
-                                        required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
-                                        <option value="Tetap">Tetap di Purusa</option>
-                                        <option value="Kembali ke Asal">Kembali ke Asal</option>
+                                        value={m.dataPasanganBaru.status_hidup || ""} 
+                                        onChange={(e) => handlePasanganBaruChange(index, "status_hidup", e.target.value)} 
+                                        className={styles.inputSelect}>
+                                        <option value="Hidup">Hidup</option>
+                                        <option value="Meninggal">Meninggal</option>
+                                        {m.dataPasanganBaru.tipe_data === "Leluhur" && (
+                                          <option value="Tidak Diketahui">Tidak Diketahui</option>
+                                        )}
                                       </select>
                                       <div className={styles.selectIcon}>
-                                        <FaChevronDown />
+                                        <FaChevronDown size={12}/>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
-                                {/* Catatan Adat Otomatis */}
-                                {((kramaData.jenis_kelamin === "Laki-laki" && m.pihak_meninggal === "Pasangan") || 
-                                  (kramaData.jenis_kelamin === "Perempuan" && m.pihak_meninggal === "Krama Utama")) && (
-                                  <div className={styles.notedPredana}>
-                                    <strong>Catatan Adat:</strong> Karena pihak Perempuan (Predana) yang meninggal dalam status pernikahan aktif, 
-                                    disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat, swadharma dan 
-                                    kedudukan silsilah pihak Perempuan (Predana) secara mutlak tetap berada di pihak keluarga suami (Purusa).
+                                {/* IS BALI Pasangan Baru */}
+                                <div className={styles.checkbox}>
+                                  <div className="flex items-center gap-3">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={m.dataPasanganBaru.is_bali || false} 
+                                      id={`is_bali_pasangan_${index}`} 
+                                      className={styles.checkboxInput} 
+                                      onChange={(e) => {
+                                        const isChecked = e.target.checked;
+                                        const updatedDataPasangan = {
+                                          ...m.dataPasanganBaru,
+                                          is_bali: isChecked,
+                                          desa_adat_id: isChecked ? m.dataPasanganBaru.desa_adat_id : "",
+                                          alamat_luar: isChecked ? "" : m.dataPasanganBaru.alamat_luar
+                                        };
+                                        handlePasanganBaruChange(index, "dataPasanganBaruUtuh", updatedDataPasangan);
+                                        setSearchDesaPasangan(prev => ({ ...prev, [index]: "" }));
+                                      }}
+                                    />
+                                    <label htmlFor={`is_bali_pasangan_${index}`} className={styles.checkboxLabel}>
+                                      Krama ini asal Bali?
+                                    </label>
+                                  </div>
+                                  <p className={styles.checkboxNote}>
+                                    {m.dataPasanganBaru.tipe_data === "Leluhur" 
+                                      ? "* Centang jika krama berasal dari Bali tetapi wilayah asal bersifat opsional jika data tidak diketahui."
+                                      : "* Centang jika krama berasal dari Bali."
+                                    }
+                                  </p>
+                                </div>
+                                {m.dataPasanganBaru.is_bali ? (
+                                  <div className="space-y-4 animate-fade-in">
+                                    <div className="flex flex-col space-y-1.5 relative">
+                                      <label className={styles.labelInput}>
+                                        Desa Adat Asal {m.dataPasanganBaru.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                      </label>
+                                      <div className="relative">
+                                        <input
+                                          type="text"
+                                          className={styles.termsDesaAdat}
+                                          placeholder="Cari wilayah desa adat..."
+                                          value={openDesaDropdownIndex === index 
+                                            ? (searchDesaPasangan[index] || "") 
+                                            : (desaList.find(d => String(d.id) === String(m.dataPasanganBaru.desa_adat_id))?.nama_desa_adat || "")
+                                          }
+                                          onChange={(e) => {
+                                            setSearchDesaPasangan({ ...searchDesaPasangan, [index]: e.target.value }); 
+                                            setOpenDesaDropdownIndex(index);
+                                          }}
+                                          onFocus={() => {
+                                            setSearchDesaPasangan({ ...searchDesaPasangan, [index]: "" });
+                                            setOpenDesaDropdownIndex(index);
+                                          }}
+                                        />
+                                        <div className={styles.termsIcon}>
+                                          <FaChevronDown size={12} className={`transition-transform ${openDesaDropdownIndex === index ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {/* Dropdown Hasil Pencarian Desa Pasangan*/}
+                                        {openDesaDropdownIndex === index && (
+                                          <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setOpenDesaDropdownIndex(null)}></div>
+                                            <div className={styles.dropdownResult}>
+                                              {getFilteredDesaManual(index).length > 0 ? (
+                                                getFilteredDesaManual(index).map((d) => (
+                                                  <div 
+                                                    key={d.id} 
+                                                    className={styles.dropdownItems} 
+                                                    onClick={() => {
+                                                      handlePasanganBaruChange(index, "desa_adat_id", d.id); 
+                                                      setSearchDesaPasangan({ ...searchDesaPasangan, [index]: d.nama_desa_adat }); 
+                                                      setOpenDesaDropdownIndex(null); 
+                                                    }}>
+                                                    <p className="text-sm font-bold text-gray-800">{d.nama_desa_adat}</p>
+                                                    {(() => {
+                                                      const wil = getWilayahLengkap(d.id);
+                                                      return wil && <p className={styles.descDesaAdat}>{wil.kecamatan} • {wil.kabupaten}</p>;
+                                                    })()}
+                                                  </div>
+                                                ))
+                                              ) : (
+                                                <div className="px-4 py-3 text-sm text-gray-500 italic">
+                                                  Desa adat tidak ditemukan
+                                                </div>
+                                              )}
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {/* Info Detail Wilayah Adat Pasangan */}
+                                    {m.dataPasanganBaru.desa_adat_id && (() => {
+                                      const wilayah = getWilayahLengkap(m.dataPasanganBaru.desa_adat_id);
+                                      return wilayah && (
+                                        <div className="bg-amber-50 shadow-inner p-3 rounded grid grid-cols-3 gap-2 text-xs border border-gray-200 mt-2">
+                                          <div>
+                                            <span className="block text-[10px] uppercase text-gray-400">
+                                              Kecamatan
+                                            </span>
+                                            <strong>{wilayah.kecamatan}</strong>
+                                          </div>
+                                          <div>
+                                            <span className="block text-[10px] uppercase text-gray-400">
+                                              Kabupaten
+                                            </span>
+                                            <strong>{wilayah.kabupaten}</strong>
+                                          </div>
+                                          <div>
+                                            <span className="block text-[10px] uppercase text-gray-400">
+                                              Provinsi
+                                            </span>
+                                          <strong>{wilayah.provinsi}</strong>
+                                        </div>
+                                        </div>
+                                      );
+                                    })()}
+                                    <div className="flex flex-col space-y-1.5">
+                                      <label className={styles.labelInput}>
+                                        Tempat Asal Khusus
+                                      </label>
+                                      <input 
+                                        name="tempat_asal_khusus" 
+                                        value={m.dataPasanganBaru.tempat_asal_khusus || ""} 
+                                        onChange={(e) => handlePasanganBaruChange(index, "tempat_asal_khusus", e.target.value)} 
+                                        className={styles.inputText} 
+                                        placeholder="Contoh: Puri Agung Bangli" 
+                                      />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col space-y-1.5 animate-fade-in">
+                                    <label className={styles.labelInput}>
+                                      Alamat Luar Bali {m.dataPasanganBaru.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                    </label>
+                                    <input 
+                                      value={m.dataPasanganBaru.alamat_luar || ""} 
+                                      onChange={(e) => handlePasanganBaruChange(index, "alamat_luar", e.target.value)} 
+                                      className={styles.inputText} 
+                                      placeholder="Jl. Raya No. 1/Unit 3, 100 George Street Sydney..." 
+                                      required={!m.dataPasanganBaru.is_bali && m.dataPasanganBaru.tipe_data !== "Leluhur"}
+                                    />
+                                    <p className={styles.noted}>
+                                      * Diisi dengan alamat lengkap asal krama, baik dalam negeri maupun luar negeri
+                                    </p>
                                   </div>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        )}
-                        
-                      </div>
-                    )}
-                  </div>
-                ))}
+                            </div>
+                          )}
+                          {/* KOLOM DETAIL PERCERAIAN */}
+                          {(m.status_perkawinan === "Cerai" || m.status_perkawinan === "Cerai Mati") && (
+                            <div className={styles.inputContent}>
+                              <div className="flex flex-col space-y-1.5">
+                                <label className={styles.labelInputSelect}>
+                                  Tanggal Perceraian
+                                </label>
+                                <input 
+                                  type="date" 
+                                  value={m.tanggal_cerai || ""} 
+                                  onChange={(e) => handlePerkawinanChange(index, "tanggal_cerai", e.target.value)} 
+                                  className={styles.inputCalendar}
+                                />
+                              </div>
+                              {m.status_perkawinan === "Cerai Mati" && (
+                                <div className="space-y-3">
+                                  <div className={styles.dualColumn}>
+                                    <div className="flex flex-col space-y-1.5">
+                                      <label className={styles.labelInputSelect}>
+                                        Pihak Meninggal <span className="text-red-500">*</span>
+                                      </label>
+                                      <div className="relative">
+                                        <select 
+                                          value={m.pihak_meninggal || ""} 
+                                          onChange={(e) => handlePerkawinanChange(index, "pihak_meninggal", e.target.value)} 
+                                          className={styles.inputPilihan} 
+                                          required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
+                                          <option value="Pasangan">Pasangan</option>
+                                          <option value="Krama Utama">Krama Utama (Form I)</option>
+                                        </select>
+                                        <div className={styles.selectIcon}>
+                                          <FaChevronDown />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col space-y-1.5">
+                                      <label className={styles.labelInputSelect}>
+                                        Ketetapan Silsilah Predana <span className="text-red-500">*</span>
+                                      </label>
+                                      <div className="relative">
+                                        <select 
+                                          value={m.pilihan_predana || ""} 
+                                          onChange={(e) => handlePerkawinanChange(index, "pilihan_predana", e.target.value)} 
+                                          className={styles.inputPilihan} 
+                                          required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
+                                          <option value="Tetap">Tetap di Purusa</option>
+                                          <option value="Kembali ke Asal">Kembali ke Asal</option>
+                                        </select>
+                                        <div className={styles.selectIcon}>
+                                          <FaChevronDown />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {/* Catatan Adat Otomatis */}
+                                  {isPredanaMeninggal && (
+                                    <div className={styles.notedPredana}>
+                                      <strong>Catatan Adat:</strong> Karena pihak <strong>{isGenderPredana} (Predana)</strong> yang meninggal dalam status pernikahan aktif, 
+                                      disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat Bali, swadharma dan 
+                                      kedudukan silsilah pihak Predana secara mutlak tetap berada di pihak keluarga penegak garis keturunan (Purusa).
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </section>
             {/* BAGIAN 3: DATA ORANG TUA */}
@@ -1884,8 +2232,7 @@ const DataKramaBaru = ({ user }) => {
                         value={parentData.status_diketahui}
                         onChange={handleParentChange}
                         className={styles.inputPilihan}
-                        required
-                      >
+                        required>
                         <option value="Tidak Diketahui">Tidak Diketahui</option>
                         <option value="Diketahui">Diketahui</option>
                       </select>
@@ -1900,7 +2247,7 @@ const DataKramaBaru = ({ user }) => {
                     </button>
                   )}
                 </div>
-                {/* Form Input Orang Tua */}
+                {/* Form Input Relasi Orang Tua */}
                 {parentData.status_diketahui === "Diketahui" && (
                   <div className={`${styles.popupInput} animate-fade-in`}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1914,8 +2261,7 @@ const DataKramaBaru = ({ user }) => {
                             name="status_hubungan"
                             value={parentData.status_hubungan}
                             onChange={handleParentChange}
-                            className={styles.inputPilihan}
-                          >
+                            className={styles.inputPilihan}>
                             <option value="Anak Kandung">Anak Kandung</option>
                             <option value="Anak Angkat">Anak Angkat</option>
                           </select>
@@ -1924,22 +2270,22 @@ const DataKramaBaru = ({ user }) => {
                           </div>
                         </div>
                       </div>
-                      {/* Jenis Pengangkatan */}
-                      {parentData.status_hubungan === "Anak Angkat" && (
+                      {/* Struktur Orang Tua/Jenis Pengangkatan */}
+                      {(parentData.status_hubungan === "Anak Angkat" || kramaData.tipe_data === "Leluhur") && (
                         <div className="flex flex-col space-y-1.5 animate-fade-in">
                           <label className={styles.labelInputSelect}>
-                            Jenis Pengangkatan <span className="text-red-500">*</span>
+                            {parentData.status_hubungan === "Anak Kandung" ? "Struktur Orang Tua" : "Jenis Pengangkatan"} <span className="text-red-500">*</span>
                           </label>
                           <div className="relative">
                             <select
                               name="jenis_pengangkatan"
                               value={parentData.jenis_pengangkatan}
                               onChange={handleParentChange}
-                              className={styles.inputPilihan}
-                              required={parentData.status_diketahui === "Diketahui" && parentData.status_hubungan === "Anak Angkat"}
-                            >
+                              className={styles.inputPilihan}>
                               <option value="Pasangan">Pasangan Suami Istri</option>
-                              <option value="Tunggal">Orang Tua Tunggal</option>
+                              <option value="Tunggal">
+                                {parentData.status_hubungan === "Anak Kandung" ? "Leluhur Tunggal/Anonim Pasangan" : "Orang Tua Tunggal"}
+                              </option>
                             </select>
                             <div className={styles.selectIcon}>
                               <FaChevronDown size={12} />
@@ -1948,13 +2294,12 @@ const DataKramaBaru = ({ user }) => {
                         </div>
                       )}
                     </div>
-                    {/* Nama Orang Tua */}
                     <div className="flex flex-col space-y-4">
                       {(parentData.status_hubungan === "Anak Kandung" || 
-                        (parentData.status_hubungan === "Anak Angkat" && parentData.jenis_pengangkatan === "Pasangan")) 
-                      ? (
+                        (parentData.status_hubungan === "Anak Angkat" && parentData.jenis_pengangkatan === "Pasangan")
+                      ) && parentData.jenis_pengangkatan !== "Tunggal" ? (
                         <>
-                          {/* Pasangan Suami-Istri */}
+                          {/* Nama Orang Tua untuk Anak Kandung Keturunan */}
                           <div className="flex flex-col space-y-1.5">
                             <label className={styles.labelInputSelect}>
                               Nama Orang Tua <span className="text-red-500">*</span>
@@ -1975,12 +2320,10 @@ const DataKramaBaru = ({ user }) => {
                                   setIsDropdownOpen(true);
                                 }}
                                 onFocus={() => setIsDropdownOpen(true)}
-                                required={parentData.status_diketahui === "Diketahui" && !parentData.isManual}
                               />
                               <div className={styles.termsIcon}>
                                 <FaChevronDown size={12} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                               </div>
-                              {/* Dropdown Hasil Pencarian */}
                               {isDropdownOpen && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)}></div>
@@ -1991,13 +2334,11 @@ const DataKramaBaru = ({ user }) => {
                                         handleParentChange({ target: { name: "selected_perkawinan_id", value: "NEW_ENTRY" } });
                                         setIsDropdownOpen(false);
                                         setSearchOrangTuaTerm("");
-                                      }}
-                                    >
+                                      }}>
                                       <span className="font-bold text-blue-600">
                                         + Input Orang Tua Baru
                                       </span>
                                     </div>
-                                    {/* Filter List Perkawinan */}
                                     {perkawinanListOptions
                                       .filter(m => getPerkawinanLabel(m).toLowerCase().includes(searchOrangTuaTerm.toLowerCase()))
                                       .map((m) => (
@@ -2008,8 +2349,7 @@ const DataKramaBaru = ({ user }) => {
                                             handleParentChange({ target: { name: "selected_perkawinan_id", value: m.id } });
                                             setIsDropdownOpen(false);
                                             setSearchOrangTuaTerm("");
-                                          }}
-                                        >
+                                          }}>
                                           <p className="font-bold text-gray-800">
                                             {getPerkawinanLabel(m)}
                                           </p>
@@ -2021,7 +2361,7 @@ const DataKramaBaru = ({ user }) => {
                                     }
                                     {perkawinanListOptions.filter(m => getPerkawinanLabel(m).toLowerCase().includes(searchOrangTuaTerm.toLowerCase())).length === 0 && (
                                       <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                        Data perkawinan tidak ditemukan.
+                                        Data orang tua tidak ditemukan
                                       </div>
                                     )}
                                   </div>
@@ -2029,6 +2369,32 @@ const DataKramaBaru = ({ user }) => {
                               )}
                             </div>
                           </div>
+                          {/* Informasi Pasangan Orang Tua Terpilih */}
+                          {!isDropdownOpen && parentData.selected_perkawinan_id && !parentData.isManual && (
+                            (() => {
+                              const p = perkawinanListOptions.find(m => String(m.id) === String(parentData.selected_perkawinan_id));
+                              if (!p) return null;
+
+                              return (
+                                <div className={`${styles.asalSingleParent} animate-fade-in`}>
+                                  <p className="text-gray-800 font-bold text-xs mb-1">
+                                    Informasi Perkawinan Orang Tua:
+                                  </p>
+                                  <div className="grid grid-cols-3 gap-2 text-[11px] text-gray-600">
+                                    <p>Status Perkawinan: <span className="font-semibold text-blue-800">
+                                      {p.status_perkawinan || "-"}
+                                    </span></p>
+                                    <p>Jenis Perkawinan: <span className="font-semibold text-blue-800">
+                                      {p.jenis_perkawinan || "-"}
+                                    </span></p>
+                                    <p>Tanggal Perkawinan: <span className="font-semibold text-blue-800">
+                                      {p.tanggal_perkawinan ? formatDate(p.tanggal_perkawinan) : "-"}
+                                    </span></p>
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          )}
                           {/* Input Data Orang Tua dan Perkawinan */}
                           {parentData.isManual && (
                             <div className="mt-6 space-y-6 animate-fade-in">
@@ -2049,8 +2415,7 @@ const DataKramaBaru = ({ user }) => {
                                         value={parentData.manualAyah.tipe_data} 
                                         onChange={(e) => handleManualParentInput("manualAyah", "tipe_data", e.target.value)} 
                                         className={styles.inputSelect} 
-                                        required={parentData.isManual}
-                                      >
+                                        required={parentData.isManual}>
                                         <option value="Keturunan">Keturunan</option>
                                         <option value="Leluhur">Leluhur</option>
                                       </select>
@@ -2079,7 +2444,7 @@ const DataKramaBaru = ({ user }) => {
                                   {/* Nama Panggilan */}
                                   <div className="flex flex-col space-y-1">
                                     <label className={styles.labelInput}>
-                                      Nama Panggilan {parentData.manualAyah.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                      Nama Panggilan
                                     </label>
                                     <input 
                                       type="text" 
@@ -2087,22 +2452,20 @@ const DataKramaBaru = ({ user }) => {
                                       onChange={(e) => handleManualParentInput("manualAyah", "nama_panggilan", e.target.value)} 
                                       className={styles.inputText}
                                       placeholder="Contoh: Sudarsana" 
-                                      required={parentData.isManual && parentData.manualAyah.tipe_data !== "Leluhur"}
                                     />
                                   </div>
                                   <div className={styles.dualInput}>
                                     {/* Jenis Kelamin */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInput}>
-                                        Jenis Kelamin <span className="text-red-500">*</span>
+                                        Jenis Kelamin {parentData.manualAyah.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
                                       </label>
                                       <div className="relative">
                                         <select 
                                           value={parentData.manualAyah.jenis_kelamin} 
                                           onChange={(e) => handleManualParentInput("manualAyah", "jenis_kelamin", e.target.value)} 
                                           className={styles.inputSelect} 
-                                          required={parentData.isManual}
-                                        >
+                                          required={parentData.manualAyah.tipe_data !== "Leluhur"}>
                                           <option value="Laki-laki">Laki-laki</option>
                                           <option value="Perempuan">Perempuan</option>
                                         </select>
@@ -2114,14 +2477,13 @@ const DataKramaBaru = ({ user }) => {
                                     {/* Tanggal Lahir */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInput}>
-                                        Tanggal Lahir {parentData.manualAyah.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                        Tanggal Lahir
                                       </label>
                                       <input 
                                         type="date" 
                                         value={parentData.manualAyah.tanggal_lahir} 
                                         onChange={(e) => handleManualParentInput("manualAyah", "tanggal_lahir", e.target.value)} 
-                                        className={styles.inputText} 
-                                        required={parentData.isManual && parentData.manualAyah.tipe_data !== "Leluhur"}
+                                        className={styles.inputCalendar} 
                                       />
                                     </div>
                                   </div>
@@ -2129,17 +2491,18 @@ const DataKramaBaru = ({ user }) => {
                                     {/* Status Hidup */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInput}>
-                                        Status Hidup {parentData.manualAyah.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                        Status Hidup
                                       </label>
                                       <div className="relative">
                                         <select 
                                           value={parentData.manualAyah.status_hidup} 
                                           onChange={(e) => handleManualParentInput("manualAyah", "status_hidup", e.target.value)} 
-                                          className={styles.inputSelect} 
-                                          required={parentData.isManual && parentData.manualAyah.tipe_data !== "Leluhur"}
-                                        >
+                                          className={styles.inputSelect}>
                                           <option value="Hidup">Hidup</option>
                                           <option value="Meninggal">Meninggal</option>
+                                          {parentData.manualAyah.tipe_data === "Leluhur" && (
+                                            <option value="Tidak Diketahui">Tidak Diketahui</option>
+                                          )}
                                         </select>
                                         <div className={styles.selectIcon}>
                                           <FaChevronDown size={12}/>
@@ -2151,9 +2514,9 @@ const DataKramaBaru = ({ user }) => {
                                         <input 
                                           type="checkbox" 
                                           checked={parentData.manualAyah.is_bali} 
-                                          onChange={(e) => handleManualParentInput("manualAyah", "is_bali", e.target.checked)} 
                                           id="is_bali_ayah_manual" 
                                           className={styles.checkboxInput} 
+                                          onChange={(e) => handleManualParentInput("manualAyah", "is_bali", e.target.checked)} 
                                         />
                                         <label htmlFor="is_bali_ayah_manual" className={styles.checkboxLabel}>
                                           Krama ini asal Bali?
@@ -2191,7 +2554,7 @@ const DataKramaBaru = ({ user }) => {
                                           <div className={styles.termsIcon}>
                                             <FaChevronDown size={12} className={`transition-transform ${openDesaDropdownIndex === "manualAyah" ? 'rotate-180' : ''}`} />
                                           </div>
-                                          {/* Dropdown Hasil Pencarian Desa Pangan*/}
+                                          {/* Dropdown Hasil Pencarian */}
                                           {openDesaDropdownIndex === "manualAyah" && (
                                             <>
                                               <div className="fixed inset-0 z-40" onClick={() => setOpenDesaDropdownIndex(null)}></div>
@@ -2210,7 +2573,6 @@ const DataKramaBaru = ({ user }) => {
                                                       <p className="text-sm font-bold text-gray-800">
                                                         {d.nama_desa_adat}
                                                       </p>
-                                                      {/* Menampilkan Informasi Wilayah Adat */}
                                                       {(() => {
                                                         const wil = getWilayahLengkap(d.id);
                                                         return wil && <p className={styles.descDesaAdat}>{wil.kecamatan} • {wil.kabupaten}</p>;
@@ -2219,7 +2581,7 @@ const DataKramaBaru = ({ user }) => {
                                                   ))
                                                 ) : (
                                                   <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                                    Desa adat tidak ditemukan.
+                                                    Desa adat tidak ditemukan
                                                   </div>
                                                 )}
                                               </div>
@@ -2227,7 +2589,7 @@ const DataKramaBaru = ({ user }) => {
                                           )}
                                         </div>
                                       </div>
-                                      {/* Info Detail Wilayah Adat Pasangan */}
+                                      {/* Info Wilayah Adat Pasangan */}
                                       {parentData.manualAyah.desa_adat_id && (() => {
                                         const wilayah = getWilayahLengkap(parentData.manualAyah.desa_adat_id);
                                         return wilayah && (
@@ -2276,7 +2638,7 @@ const DataKramaBaru = ({ user }) => {
                                         onChange={(e) => handleManualParentInput("manualAyah", "alamat_luar", e.target.value)} 
                                         className={styles.inputText} 
                                         placeholder="Jl. Raya No. 1/Unit 3, 100 George Street Sydney..." 
-                                        required={parentData.isManual && !parentData.manualAyah.is_bali && parentData.manualAyah.tipe_data !== "Leluhur"}
+                                        required={parentData.manualAyah.tipe_data !== "Leluhur"}
                                       />
                                       <p className={styles.noted}>
                                         * Diisi dengan alamat lengkap asal krama, baik dalam negeri maupun luar negeri
@@ -2302,8 +2664,7 @@ const DataKramaBaru = ({ user }) => {
                                         value={parentData.manualIbu.tipe_data} 
                                         onChange={(e) => handleManualParentInput("manualIbu", "tipe_data", e.target.value)} 
                                         className={styles.inputSelect} 
-                                        required={parentData.isManual}
-                                      >
+                                        required={parentData.isManual}>
                                         <option value="Keturunan">Keturunan</option>
                                         <option value="Leluhur">Leluhur</option>
                                       </select>
@@ -2332,7 +2693,7 @@ const DataKramaBaru = ({ user }) => {
                                   {/* Nama Panggilan */}
                                   <div className="flex flex-col space-y-1">
                                     <label className={styles.labelInput}>
-                                      Nama Panggilan {parentData.manualIbu.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                      Nama Panggilan
                                     </label>
                                     <input 
                                       type="text" 
@@ -2340,22 +2701,20 @@ const DataKramaBaru = ({ user }) => {
                                       onChange={(e) => handleManualParentInput("manualIbu", "nama_panggilan", e.target.value)} 
                                       className={styles.inputText}
                                       placeholder="Contoh: Sri Utami" 
-                                      required={parentData.isManual && parentData.manualIbu.tipe_data !== "Leluhur"}
                                     />
                                   </div>
                                   <div className={styles.dualInput}>
                                     {/* Jenis Kelamin */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInput}>
-                                        Jenis Kelamin <span className="text-red-500">*</span>
+                                        Jenis Kelamin {parentData.manualIbu.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
                                       </label>
                                       <div className="relative">
                                         <select 
                                           value={parentData.manualIbu.jenis_kelamin} 
                                           onChange={(e) => handleManualParentInput("manualIbu", "jenis_kelamin", e.target.value)} 
                                           className={styles.inputSelect} 
-                                          required={parentData.isManual}
-                                        >
+                                          required={parentData.manualIbu.tipe_data === "Leluhur"}>
                                           <option value="Laki-laki">Laki-laki</option>
                                           <option value="Perempuan">Perempuan</option>
                                         </select>
@@ -2367,14 +2726,13 @@ const DataKramaBaru = ({ user }) => {
                                     {/* Tanggal Lahir */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInput}>
-                                        Tanggal Lahir {parentData.manualIbu.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                        Tanggal Lahir
                                       </label>
                                       <input 
                                         type="date" 
                                         value={parentData.manualIbu.tanggal_lahir} 
                                         onChange={(e) => handleManualParentInput("manualIbu", "tanggal_lahir", e.target.value)} 
                                         className={styles.inputText} 
-                                        required={parentData.isManual && parentData.manualIbu.tipe_data !== "Leluhur"}
                                       />
                                     </div>
                                   </div>
@@ -2382,17 +2740,18 @@ const DataKramaBaru = ({ user }) => {
                                     {/* Status Hidup */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInput}>
-                                        Status Hidup {parentData.manualIbu.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                        Status Hidup
                                       </label>
                                       <div className="relative">
                                         <select 
                                           value={parentData.manualIbu.status_hidup} 
                                           onChange={(e) => handleManualParentInput("manualIbu", "status_hidup", e.target.value)} 
-                                          className={styles.inputSelect} 
-                                          required={parentData.isManual && parentData.manualIbu.tipe_data !== "Leluhur"}
-                                        >
+                                          className={styles.inputSelect}>
                                           <option value="Hidup">Hidup</option>
                                           <option value="Meninggal">Meninggal</option>
+                                          {parentData.manualIbu.tipe_data === "Leluhur" && (
+                                            <option value="Tidak Diketahui">Tidak Diketahui</option>
+                                          )}
                                         </select>
                                         <div className={styles.selectIcon}>
                                           <FaChevronDown size={12}/>
@@ -2404,9 +2763,9 @@ const DataKramaBaru = ({ user }) => {
                                         <input 
                                           type="checkbox" 
                                           checked={parentData.manualIbu.is_bali} 
-                                          onChange={(e) => handleManualParentInput("manualIbu", "is_bali", e.target.checked)} 
                                           id="is_bali_ibu_manual" 
                                           className={styles.checkboxInput} 
+                                          onChange={(e) => handleManualParentInput("manualIbu", "is_bali", e.target.checked)} 
                                         />
                                         <label htmlFor="is_bali_ibu_manual" className={styles.checkboxLabel}>
                                           Krama ini asal Bali?
@@ -2444,7 +2803,7 @@ const DataKramaBaru = ({ user }) => {
                                           <div className={styles.termsIcon}>
                                             <FaChevronDown size={12} className={`transition-transform ${openDesaDropdownIndex === "manualIbu" ? 'rotate-180' : ''}`} />
                                           </div>
-                                          {/* Dropdown Hasil Pencarian Desa Pangan*/}
+                                          {/* Dropdown Hasil Pencarian */}
                                           {openDesaDropdownIndex === "manualIbu" && (
                                             <>
                                               <div className="fixed inset-0 z-40" onClick={() => setOpenDesaDropdownIndex(null)}></div>
@@ -2463,7 +2822,6 @@ const DataKramaBaru = ({ user }) => {
                                                       <p className="text-sm font-bold text-gray-800">
                                                         {d.nama_desa_adat}
                                                       </p>
-                                                      {/* Menampilkan Informasi Wilayah Adat */}
                                                       {(() => {
                                                         const wil = getWilayahLengkap(d.id);
                                                         return wil && <p className={styles.descDesaAdat}>{wil.kecamatan} • {wil.kabupaten}</p>;
@@ -2472,7 +2830,7 @@ const DataKramaBaru = ({ user }) => {
                                                   ))
                                                 ) : (
                                                   <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                                    Desa adat tidak ditemukan.
+                                                    Desa adat tidak ditemukan
                                                   </div>
                                                 )}
                                               </div>
@@ -2480,7 +2838,7 @@ const DataKramaBaru = ({ user }) => {
                                           )}
                                         </div>
                                       </div>
-                                      {/* Info Detail Wilayah Adat Pasangan */}
+                                      {/* Info Wilayah Adat Pasangan */}
                                       {parentData.manualIbu.desa_adat_id && (() => {
                                         const wilayah = getWilayahLengkap(parentData.manualIbu.desa_adat_id);
                                         return wilayah && (
@@ -2554,8 +2912,7 @@ const DataKramaBaru = ({ user }) => {
                                         value={parentData.manualPerkawinan.status_perkawinan}
                                         onChange={(e) => handleManualParentInput("manualPerkawinan", "status_perkawinan", e.target.value)}
                                         className={styles.inputPilihan} 
-                                        required
-                                      >
+                                        required>
                                         <option value="Kawin">Kawin</option>
                                         <option value="Cerai">Cerai Hidup</option>
                                         <option value="Cerai Mati">Cerai Mati</option>
@@ -2576,8 +2933,7 @@ const DataKramaBaru = ({ user }) => {
                                           value={parentData.manualPerkawinan.jenis_perkawinan || "Biasa"}
                                           onChange={(e) => handleManualParentInput("manualPerkawinan", "jenis_perkawinan", e.target.value)}
                                           className={styles.inputPilihan}
-                                          required
-                                        >
+                                          required>
                                           <option value="Biasa">Biasa</option>
                                           <option value="Nyentana">Nyentana</option>
                                           <option value="Pade Gelahang">Pade Gelahang</option>
@@ -2590,31 +2946,28 @@ const DataKramaBaru = ({ user }) => {
                                     {/* Tanggal Perkawinan */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInputSelect}>
-                                        Tanggal Perkawinan {parentData.manualAyah.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                        Tanggal Perkawinan
                                       </label>
                                       <input
                                         type="date"
                                         value={parentData.manualPerkawinan.tanggal_perkawinan || ""}
                                         onChange={(e) => handleManualParentInput("manualPerkawinan", "tanggal_perkawinan", e.target.value)}
                                         className={styles.inputCalendar}
-                                        required={parentData.manualAyah.tipe_data !== "Leluhur"}
                                       />
                                     </div>
                                   </div>
-                                  {(parentData.manualPerkawinan.status_perkawinan === "Cerai" ||
-                                    parentData.manualPerkawinan.status_perkawinan === "Cerai Mati") && (
+                                  {(parentData.manualPerkawinan.status_perkawinan === "Cerai" ||parentData.manualPerkawinan.status_perkawinan === "Cerai Mati") && (
                                     <div className={`${styles.popupInput} animate-fade-in`}>
                                       {/* Tanggal Cerai */}
                                       <div className="flex flex-col space-y-1.5">
                                         <label className={styles.labelInputSelect}>
-                                          {parentData.manualPerkawinan.status_perkawinan === "Cerai" ? "Tanggal Perceraian" : "Tanggal Kematian/Wafat"} <span className="text-red-500">*</span>
+                                          Tanggal Perceraian
                                         </label>
                                         <input
                                           type="date"
                                           value={parentData.manualPerkawinan.tanggal_cerai || ""}
                                           onChange={(e) => handleManualParentInput("manualPerkawinan", "tanggal_cerai", e.target.value)}
                                           className={styles.inputCalendar}
-                                          required
                                         />
                                       </div>
                                       {parentData.manualPerkawinan.status_perkawinan === "Cerai Mati" && (
@@ -2627,13 +2980,12 @@ const DataKramaBaru = ({ user }) => {
                                               </label>
                                               <div className="relative">
                                                 <select
-                                                  value={parentData.manualPerkawinan.pihak_meninggal || "Pasangan"}
+                                                  value={parentData.manualPerkawinan.pihak_meninggal || ""}
                                                   onChange={(e) => handleManualParentInput("manualPerkawinan", "pihak_meninggal", e.target.value)}
                                                   className={styles.inputPilihan}
-                                                  required
-                                                >
-                                                  <option value="Pasangan">Ibu</option>
-                                                  <option value="Krama Utama">Ayah</option>
+                                                  required={parentData.manualPerkawinan.status_perkawinan === "Cerai Mati" && parentData.manualAyah.tipe_data !== "Leluhur" && parentData.manualIbu.tipe_data !== "Leluhur"}>
+                                                  <option value="Pasangan">Predana</option>
+                                                  <option value="Krama Utama">Purusa</option>
                                                 </select>
                                                 <div className={styles.selectIcon}>
                                                   <FaChevronDown />
@@ -2650,8 +3002,7 @@ const DataKramaBaru = ({ user }) => {
                                                   value={parentData.manualPerkawinan.pilihan_predana || ""}
                                                   onChange={(e) => handleManualParentInput("manualPerkawinan", "pilihan_predana", e.target.value)}
                                                   className={styles.inputPilihan}
-                                                  required
-                                                >
+                                                  required={parentData.manualPerkawinan.status_perkawinan === "Cerai Mati" && parentData.manualAyah.tipe_data !== "Leluhur" && parentData.manualIbu.tipe_data !== "Leluhur"}>
                                                   <option value="Tetap">Tetap di Purusa</option>
                                                   <option value="Kembali ke Asal">Kembali ke Asal</option>
                                                 </select>
@@ -2661,13 +3012,22 @@ const DataKramaBaru = ({ user }) => {
                                               </div>
                                             </div>
                                           </div>
-                                          {parentData.manualPerkawinan.pihak_meninggal === "Pasangan" && (
-                                            <div className={styles.notedPredana}>
-                                              <strong>Catatan Adat:</strong> Karena pihak Perempuan (Ibu/Predana) yang meninggal dalam status pernikahan aktif, 
-                                              disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat, swadharma dan 
-                                              kedudukan silsilah pihak Perempuan (Ibu/Predana) secara mutlak tetap berada di pihak keluarga suami (Ayah/Purusa).
-                                            </div>
-                                            )}
+                                          {/* Catatan Adat Otomatis */}
+                                          {(() => {
+                                            if (parentData.manualPerkawinan.status_perkawinan !== "Cerai Mati") return null;
+                                            const jenisP = parentData.manualPerkawinan.jenis_perkawinan;
+                                            const mati = parentData.manualPerkawinan.pihak_meninggal || "Pasangan";
+                                            const isPredanaMeninggal = jenisP === "Nyentana" ? mati === "Krama Utama" : mati === "Pasangan";
+                                            const isGenderPredana = jenisP === "Nyentana" ? "Laki-laki" : "Perempuan";
+
+                                            return isPredanaMeninggal ? (
+                                              <div className={styles.notedPredana}>
+                                                <strong>Catatan Adat:</strong> Karena pihak <strong>{isGenderPredana} (Predana)</strong> yang meninggal dalam status pernikahan aktif, 
+                                                disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat Bali, swadharma dan 
+                                                kedudukan silsilah pihak Predana secara mutlak tetap berada di pihak keluarga penegak garis keturunan (Purusa).
+                                              </div>
+                                            ) : null;
+                                          })()}
                                         </div>  
                                       )}
                                     </div>
@@ -2679,16 +3039,16 @@ const DataKramaBaru = ({ user }) => {
                         </>
                       ) : (
                         <>
-                          {/* Orang Tua Tunggal */}
+                          {/* Nama Orang Tua Tunggal */}
                           <div className="flex flex-col space-y-1.5 relative">
                             <label className={styles.labelInputSelect}>
-                              Nama Orang Tua <span className="text-red-500">*</span>
+                              Nama Orang Tua/Leluhur Purusa <span className="text-red-500">*</span>
                             </label>
                             <div className="relative">
                               <input
                                 type="text"
                                 className={styles.inputText}
-                                placeholder="Ketikkan nama orang tua ..."
+                                placeholder="Ketikkan nama orang tua/leluhur purusa tunggal ..."
                                 value={isDropdownOpen ? searchOrangTuaTerm 
                                   : parentData.isManual ? "Data Orang Tua Baru"
                                   : (kramaList.find(k => String(k.id) === String(parentData.selected_parent_id))?.nama_lengkap || (parentData.isManual ? "" : ""))
@@ -2703,7 +3063,6 @@ const DataKramaBaru = ({ user }) => {
                               <div className={styles.termsIcon}>
                                 <FaChevronDown size={12} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                               </div>
-                              {/* Hasil Pencarian Orang Tua Tunggal */}
                               {isDropdownOpen && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)}></div>
@@ -2714,13 +3073,11 @@ const DataKramaBaru = ({ user }) => {
                                         handleParentChange({ target: { name: "selected_parent_id", value: "NEW_ENTRY" } });
                                         setIsDropdownOpen(false);
                                         setSearchOrangTuaTerm("");
-                                      }}
-                                    >
+                                      }}>
                                       <span className="font-bold text-blue-600">
                                         + Input Orang Tua Baru
                                       </span>
                                     </div>
-                                    {/* Filter List Krama */}
                                     {kramaList
                                       .filter(k => k.nama_lengkap.toLowerCase().includes(searchOrangTuaTerm.toLowerCase()))
                                       .slice(0, 10).map((k) => {
@@ -2733,13 +3090,12 @@ const DataKramaBaru = ({ user }) => {
                                               handleParentChange({ target: { name: "selected_parent_id", value: k.id } });
                                               setIsDropdownOpen(false);
                                               setSearchOrangTuaTerm("");
-                                            }}
-                                          >
+                                            }}>
                                             <p className="font-bold text-gray-800">
                                               {k.nama_lengkap}
                                             </p>
                                             <p className="text-[10px] text-gray-500 uppercase italic">
-                                              {k.jenis_kelamin} • {namaDesaKrama}
+                                              {k.jenis_kelamin} • {k.tipe_data !== "Leluhur" && ` • ${namaDesaKrama}`} • {k.tipe_data}
                                             </p>
                                           </div>
                                         );
@@ -2747,26 +3103,27 @@ const DataKramaBaru = ({ user }) => {
                                     }
                                     {kramaList.filter(k => k.nama_lengkap.toLowerCase().includes(searchOrangTuaTerm.toLowerCase())).length === 0 && (
                                       <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                        Nama krama tidak ditemukan.
+                                        Nama krama tidak ditemukan
                                       </div>
                                     )}
                                   </div>
                                 </>
                               )}
                             </div>
+                            {/* Informasi Detail Orang Tua Terpilih */}
                             {!isDropdownOpen && parentData.selected_parent_id && !parentData.isManual && (
                               (() => {
                                 const currentSingleId = parentData.selected_ayah_id || parentData.selected_ibu_id;
                                 const kramaTerpilih = kramaList.find(k => String(k.id) === String(currentSingleId));
-                                if (!kramaTerpilih || !kramaTerpilih.desa_adat_id) {
-                                  return null;
-                                }
+
+                                if (!kramaTerpilih || !kramaTerpilih.desa_adat_id) return null;
+
                                 const w = getWilayahLengkap(kramaTerpilih.desa_adat_id);
                                 const namaDesa = desaList.find(d => String(d.id) === String(kramaTerpilih.desa_adat_id))?.nama_desa_adat;
+
                                 return (
                                   <div className={`${styles.asalSingleParent} animate-fade-in`}>
                                     {kramaTerpilih?.desa_adat_id ? (
-                                      /* SKENARIO A: JIKA KRAMA ASAL BALI */
                                       <>
                                         <p className="text-gray-700 font-semibold">
                                           Wilayah Asal Orang Tua:  <span className="text-amber-900 font-bold">{namaDesa || "Tidak Diketahui"}</span>
@@ -2778,7 +3135,6 @@ const DataKramaBaru = ({ user }) => {
                                         )}
                                       </>
                                     ) : (
-                                      /* SKENARIO B: JIKA KRAMA ASAL LUAR BALI */
                                       <>
                                         <p className="text-gray-700 font-semibold">
                                           Wilayah Asal Orang Tua:  <span className="text-blue-700 font-bold">Luar Bali</span>
@@ -2812,8 +3168,7 @@ const DataKramaBaru = ({ user }) => {
                                     value={parentData.manualSingle.tipe_data} 
                                     onChange={(e) => handleManualParentInput("manualSingle", "tipe_data", e.target.value)} 
                                     className={styles.inputSelect} 
-                                    required={parentData.isManual}
-                                  >
+                                    required={parentData.isManual}>
                                     <option value="Keturunan">Keturunan</option>
                                     <option value="Leluhur">Leluhur</option>
                                   </select>
@@ -2842,7 +3197,7 @@ const DataKramaBaru = ({ user }) => {
                               {/* Nama Panggilan */}
                               <div className="flex flex-col space-y-1">
                                 <label className={styles.labelInput}>
-                                  Nama Panggilan {parentData.manualSingle.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                  Nama Panggilan
                                 </label>
                                 <input 
                                   type="text" 
@@ -2850,22 +3205,20 @@ const DataKramaBaru = ({ user }) => {
                                   onChange={(e) => handleManualParentInput("manualSingle", "nama_panggilan", e.target.value)} 
                                   className={styles.inputText}
                                   placeholder="Contoh: Sri Utami" 
-                                  required={parentData.isManual && parentData.manualSingle.tipe_data !== "Leluhur"}
                                 />
                               </div>
                               <div className={styles.dualInput}>
                                 {/* Jenis Kelamin */}
                                 <div className="flex flex-col space-y-1.5">
                                   <label className={styles.labelInput}>
-                                    Jenis Kelamin <span className="text-red-500">*</span>
+                                    Jenis Kelamin {parentData.manualSingle.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
                                   </label>
                                   <div className="relative">
                                     <select 
                                       value={parentData.manualSingle.jenis_kelamin} 
                                       onChange={(e) => handleManualParentInput("manualSingle", "jenis_kelamin", e.target.value)} 
                                       className={styles.inputSelect} 
-                                      required={parentData.isManual}
-                                    >
+                                      required={parentData.manualSingle.tipe_data !== "Leluhur"}>
                                       <option value="Laki-laki">Laki-laki</option>
                                       <option value="Perempuan">Perempuan</option>
                                     </select>
@@ -2877,14 +3230,13 @@ const DataKramaBaru = ({ user }) => {
                                 {/* Tanggal Lahir */}
                                 <div className="flex flex-col space-y-1.5">
                                   <label className={styles.labelInput}>
-                                    Tanggal Lahir {parentData.manualSingle.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                    Tanggal Lahir
                                   </label>
                                   <input 
                                     type="date" 
                                     value={parentData.manualSingle.tanggal_lahir} 
                                     onChange={(e) => handleManualParentInput("manualSingle", "tanggal_lahir", e.target.value)} 
                                     className={styles.inputText} 
-                                    required={parentData.isManual && parentData.manualSingle.tipe_data !== "Leluhur"}
                                   />
                                 </div>
                               </div>
@@ -2892,17 +3244,18 @@ const DataKramaBaru = ({ user }) => {
                                 {/* Status Hidup */}
                                 <div className="flex flex-col space-y-1.5">
                                   <label className={styles.labelInput}>
-                                    Status Hidup {parentData.manualSingle.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                    Status Hidup
                                   </label>
                                   <div className="relative">
                                     <select 
                                       value={parentData.manualSingle.status_hidup} 
                                       onChange={(e) => handleManualParentInput("manualSingle", "status_hidup", e.target.value)} 
-                                      className={styles.inputSelect} 
-                                      required={parentData.isManual && parentData.manualSingle.tipe_data !== "Leluhur"}
-                                    >
+                                      className={styles.inputSelect}>
                                       <option value="Hidup">Hidup</option>
                                       <option value="Meninggal">Meninggal</option>
+                                      {parentData.manualSingle.tipe_data === "Leluhur" && (
+                                        <option value="Tidak Diketahui">Tidak Diketahui</option>
+                                      )}
                                     </select>
                                     <div className={styles.selectIcon}>
                                       <FaChevronDown size={12}/>
@@ -2914,9 +3267,9 @@ const DataKramaBaru = ({ user }) => {
                                     <input 
                                       type="checkbox" 
                                       checked={parentData.manualSingle.is_bali} 
-                                      onChange={(e) => handleManualParentInput("manualSingle", "is_bali", e.target.checked)} 
                                       id="is_bali_parent_manual" 
                                       className={styles.checkboxInput} 
+                                      onChange={(e) => handleManualParentInput("manualSingle", "is_bali", e.target.checked)} 
                                     />
                                     <label htmlFor="is_bali_parent_manual" className={styles.checkboxLabel}>
                                       Krama ini asal Bali?
@@ -2954,7 +3307,7 @@ const DataKramaBaru = ({ user }) => {
                                       <div className={styles.termsIcon}>
                                         <FaChevronDown size={12} className={`transition-transform ${openDesaDropdownIndex === "manualSingle" ? 'rotate-180' : ''}`} />
                                       </div>
-                                      {/* Dropdown Hasil Pencarian Desa Pangan*/}
+                                      {/* Dropdown Hasil Pencarian */}
                                       {openDesaDropdownIndex === "manualSingle" && (
                                         <>
                                           <div className="fixed inset-0 z-40" onClick={() => setOpenDesaDropdownIndex(null)}></div>
@@ -2968,12 +3321,10 @@ const DataKramaBaru = ({ user }) => {
                                                     handleManualParentInput("manualSingle", "desa_adat_id", d.id); 
                                                     setSearchDesaPasangan({ ...searchDesaPasangan, manualSingle: d.nama_desa_adat }); 
                                                     setOpenDesaDropdownIndex(null); 
-                                                  }}
-                                                >
+                                                  }}>
                                                   <p className="text-sm font-bold text-gray-800">
                                                     {d.nama_desa_adat}
                                                   </p>
-                                                  {/* Menampilkan Informasi Wilayah Adat */}
                                                   {(() => {
                                                     const wil = getWilayahLengkap(d.id);
                                                     return wil && <p className={styles.descDesaAdat}>{wil.kecamatan} • {wil.kabupaten}</p>;
@@ -2982,7 +3333,7 @@ const DataKramaBaru = ({ user }) => {
                                               ))
                                             ) : (
                                               <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                                Desa adat tidak ditemukan.
+                                                Desa adat tidak ditemukan
                                               </div>
                                             )}
                                           </div>
@@ -2990,7 +3341,7 @@ const DataKramaBaru = ({ user }) => {
                                       )}
                                     </div>
                                   </div>
-                                  {/* Info Detail Wilayah Adat Pasangan */}
+                                  {/* Info Wilayah Adat Pasangan */}
                                   {parentData.manualSingle.desa_adat_id && (() => {
                                     const wilayah = getWilayahLengkap(parentData.manualSingle.desa_adat_id);
                                     return wilayah && (
@@ -3064,7 +3415,6 @@ const DataKramaBaru = ({ user }) => {
                           value={parentData.tanggal_pengangkatan}
                           onChange={handleParentChange}
                           className={styles.inputCalendar}
-                          required
                         />
                       </div>
                     )}
@@ -3090,7 +3440,7 @@ const DataKramaBaru = ({ user }) => {
                         value={adoptingData.status_pengangkatan}
                         onChange={handleAdoptingChange}
                         className={styles.inputSelect}
-                      >
+                        required>
                         <option value="Tidak">Tidak</option>
                         <option value="Mengangkat Anak">Ya, Mengangkat Anak</option>
                       </select>
@@ -3105,10 +3455,9 @@ const DataKramaBaru = ({ user }) => {
                     </button>
                   )}
                 </div>
-                {/* 2. Form Detail Anak Angkat */}
+                {/* Form Input Anak Angkat */}
                 {adoptingData.status_pengangkatan === "Mengangkat Anak" && (
                   <div className={`${styles.popupInput} animate-fade-in`}>
-                    {/* Nama Anak Angkat */}
                     <div className="flex flex-col space-y-1">
                       <label className={styles.labelInputSelect}>
                         Nama Anak Angkat <span className="text-red-500">*</span>
@@ -3119,7 +3468,7 @@ const DataKramaBaru = ({ user }) => {
                           className={styles.inputText}
                           placeholder="Ketikkan nama anak..."
                           value={isDropdownAnakOpen ? searchTermAnak 
-                            : adoptingData.isAnakManual ? "Data Anak Baru" 
+                            : adoptingData.isAnakManual ? "Data Anak Angkat Baru" 
                             : kramaList.find(k => String(k.id) === String(adoptingData.anak_angkat_id)) 
                               ? getOrangTuaLabel(kramaList.find(k => String(k.id) === String(adoptingData.anak_angkat_id))) 
                               : searchTermAnak
@@ -3129,12 +3478,10 @@ const DataKramaBaru = ({ user }) => {
                             setIsDropdownAnakOpen(true);
                           }}
                           onFocus={() => setIsDropdownAnakOpen(true)}
-                          required={adoptingData.status_pengangkatan === "Mengangkat Anak" && !adoptingData.isManual}
                         />
                         <div className={styles.termsIcon}>
                           <FaChevronDown size={12} className={`transition-transform ${isDropdownAnakOpen ? 'rotate-180' : ''}`} />
                         </div>
-                        {/* Dropdown Hasil Pencarian Anak */}
                         {isDropdownAnakOpen && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsDropdownAnakOpen(false)}></div>
@@ -3145,13 +3492,11 @@ const DataKramaBaru = ({ user }) => {
                                   handleAdoptingChange({ target: { name: "anak_angkat_id", value: "NEW_ENTRY" } });
                                   setIsDropdownAnakOpen(false);
                                   setSearchTermAnak("");
-                                }}
-                              >
+                                }}>
                                 <span className="font-bold text-blue-600">
-                                  + Input Anak Baru
+                                  + Input Anak Angkat Baru
                                 </span>
                               </div>
-                              {/* Filter List Krama */}
                               {kramaList
                                 .filter(k => getOrangTuaLabel(k).toLowerCase().includes(searchTermAnak.toLowerCase()))
                                 .map((k) => (
@@ -3162,15 +3507,14 @@ const DataKramaBaru = ({ user }) => {
                                       handleAdoptingChange({ target: { name: "anak_angkat_id", value: k.id } });
                                       setIsDropdownAnakOpen(false);
                                       setSearchTermAnak("");
-                                    }}
-                                  >
+                                    }}>
                                     <p className="font-bold text-gray-800">
                                       {getOrangTuaLabel(k)}
                                     </p>
                                     <p className="text-[10px] text-gray-500 uppercase italic">
                                       {k.desa_adat_id 
                                         ? (desaList.find(d => String(d.id) === String(k.desa_adat_id))?.nama_desa_adat || k.tempat_asal_khusus || (k.is_bali ? "Bali" : "Bali")) 
-                                        : (k.tempat_asal_khusus || (k.is_bali ? "Bali" : k.alamat_luar || "Luar Bali"))
+                                        : (k.tempat_asal_khusus || (k.is_bali ? "Asal Bali" : k.alamat_luar || "Luar Bali"))
                                       } • Data Terdaftar
                                     </p>
                                   </div>
@@ -3178,7 +3522,7 @@ const DataKramaBaru = ({ user }) => {
                               }
                               {kramaList.filter(k => getOrangTuaLabel(k).toLowerCase().includes(searchTermAnak.toLowerCase())).length === 0 && (
                                 <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                  Nama anak tidak ditemukan.
+                                  Nama anak tidak ditemukan
                                 </div>
                               )}
                             </div>
@@ -3186,7 +3530,7 @@ const DataKramaBaru = ({ user }) => {
                         )}
                       </div>
                     </div>
-                    {/* Form Input Manual Anak Baru */}
+                    {/* Form Input Anak Angkat Baru */}
                     {adoptingData.isAnakManual && (
                       <div className={`${styles.cardInfoGreen} animate-fade-in shadow-inner`}>
                         <h4 className={styles.titleCardGreen}>
@@ -3204,8 +3548,7 @@ const DataKramaBaru = ({ user }) => {
                                 value={adoptingData.manualAnak.tipe_data} 
                                 onChange={(e) => handleManualAnakInput("tipe_data", e.target.value)} 
                                 className={styles.inputSelect} 
-                                required={adoptingData.isManual}
-                              >
+                                required={adoptingData.isManual}>
                                 <option value="Keturunan">Keturunan</option>
                                 <option value="Leluhur">Leluhur</option>
                               </select>
@@ -3234,7 +3577,7 @@ const DataKramaBaru = ({ user }) => {
                           {/* Nama Panggilan */}
                           <div className="flex flex-col space-y-1">
                             <label className={styles.labelInput}>
-                              Nama Panggilan {adoptingData.manualAnak.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                              Nama Panggilan
                             </label>
                             <input 
                               type="text" 
@@ -3242,7 +3585,6 @@ const DataKramaBaru = ({ user }) => {
                               onChange={(e) => handleManualAnakInput("nama_panggilan", e.target.value)} 
                               className={styles.inputText}
                               placeholder="Contoh: Gede Adnyana" 
-                              required={adoptingData.isManual && adoptingData.manualAnak.tipe_data !== "Leluhur"}
                             />
                           </div>
                           <div className={styles.dualInput}>
@@ -3256,8 +3598,7 @@ const DataKramaBaru = ({ user }) => {
                                   value={adoptingData.manualAnak.jenis_kelamin} 
                                   onChange={(e) => handleManualAnakInput("jenis_kelamin", e.target.value)} 
                                   className={styles.inputSelect} 
-                                  required={adoptingData.isAnakManual}
-                                >
+                                  required={adoptingData.manualAnak.tipe_data !== "Leluhur"}>
                                   <option value="Laki-laki">Laki-laki</option>
                                   <option value="Perempuan">Perempuan</option>
                                 </select>
@@ -3269,14 +3610,13 @@ const DataKramaBaru = ({ user }) => {
                             {/* Tanggal Lahir */}
                             <div className="flex flex-col space-y-1.5">
                               <label className={styles.labelInput}>
-                                Tanggal Lahir {adoptingData.manualAnak.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                Tanggal Lahir
                               </label>
                               <input 
                                 type="date" 
                                 value={adoptingData.manualAnak.tanggal_lahir} 
                                 onChange={(e) => handleManualAnakInput("tanggal_lahir", e.target.value)} 
                                 className={styles.inputCalendar} 
-                                required={adoptingData.isManual && adoptingData.manualAnak.tipe_data !== "Leluhur"}
                               />
                             </div>
                           </div>
@@ -3284,17 +3624,18 @@ const DataKramaBaru = ({ user }) => {
                             {/* Status Hidup */}
                             <div className="flex flex-col space-y-1.5">
                               <label className={styles.labelInput}>
-                                Status Hidup {adoptingData.manualAnak.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                                Status Hidup
                               </label>
                               <div className="relative">
                                 <select 
                                   value={adoptingData.manualAnak.status_hidup} 
                                   onChange={(e) => handleManualAnakInput("status_hidup", e.target.value)} 
-                                  className={styles.inputSelect} 
-                                  required={adoptingData.isManual && adoptingData.manualAnak.tipe_data !== "Leluhur"}
-                                >
+                                  className={styles.inputSelect}>
                                   <option value="Hidup">Hidup</option>
                                   <option value="Meninggal">Meninggal</option>
+                                  {adoptingData.manualAnak.tipe_data === "Leluhur" && (
+                                    <option value="Tidak Diketahui">Tidak Diketahui</option>
+                                  )}
                                 </select>
                                 <div className={styles.selectIcon}>
                                   <FaChevronDown size={12}/>
@@ -3306,9 +3647,9 @@ const DataKramaBaru = ({ user }) => {
                                 <input 
                                   type="checkbox" 
                                   checked={adoptingData.manualAnak.is_bali} 
-                                  onChange={(e) => handleManualAnakInput("is_bali", e.target.checked)} 
                                   id="is_bali_anak_angkat" 
                                   className={styles.checkboxInput} 
+                                  onChange={(e) => handleManualAnakInput("is_bali", e.target.checked)} 
                                 />
                                 <label htmlFor="is_bali_anak_angkat" className={styles.checkboxLabel}>
                                   Krama ini asal Bali?
@@ -3346,7 +3687,6 @@ const DataKramaBaru = ({ user }) => {
                                   <div className={styles.termsIcon}>
                                     <FaChevronDown size={12} className={`transition-transform ${openDesaDropdownIndex === "manualAnak" ? 'rotate-180' : ''}`} />
                                   </div>
-                                  {/* Dropdown Hasil Pencarian Desa Pangan*/}
                                   {openDesaDropdownIndex === "manualAnak" && (
                                     <>
                                       <div className="fixed inset-0 z-40" onClick={() => setOpenDesaDropdownIndex(null)}></div>
@@ -3365,7 +3705,6 @@ const DataKramaBaru = ({ user }) => {
                                               <p className="text-sm font-bold text-gray-800">
                                                 {d.nama_desa_adat}
                                               </p>
-                                              {/* Menampilkan Informasi Wilayah Adat */}
                                               {(() => {
                                                 const wil = getWilayahLengkap(d.id);
                                                 return wil && <p className={styles.descDesaAdat}>{wil.kecamatan} • {wil.kabupaten}</p>;
@@ -3374,7 +3713,7 @@ const DataKramaBaru = ({ user }) => {
                                           ))
                                         ) : (
                                           <div className="px-4 py-3 text-sm text-gray-500 italic">
-                                            Desa adat tidak ditemukan.
+                                            Desa adat tidak ditemukan
                                           </div>
                                         )}
                                       </div>
@@ -3382,7 +3721,7 @@ const DataKramaBaru = ({ user }) => {
                                   )}
                                 </div>
                               </div>
-                              {/* Info Detail Wilayah Adat Anak */}
+                              {/* Info Wilayah Adat */}
                               {adoptingData.manualAnak.desa_adat_id && (() => {
                                 const wilayah = getWilayahLengkap(adoptingData.manualAnak.desa_adat_id);
                                 return wilayah && (
@@ -3444,7 +3783,7 @@ const DataKramaBaru = ({ user }) => {
                     {/* Tanggal Pengangkatan */}
                     <div className="flex flex-col space-y-1.5">
                       <label className={styles.labelInputSelect}>
-                        Tanggal Pengangkatan {adoptingData.manualAnak.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
+                        Tanggal Pengangkatan
                       </label>
                       <input
                         type="date"
@@ -3452,7 +3791,6 @@ const DataKramaBaru = ({ user }) => {
                         value={adoptingData.tanggal_pengangkatan_anak}
                         onChange={handleAdoptingChange}
                         className={styles.inputText}
-                        required
                       />
                     </div>
                   </div>
@@ -3462,14 +3800,56 @@ const DataKramaBaru = ({ user }) => {
             {/* ACTION BUTTONS */}
             <div className={styles.buttonGroup}>
               <button type="button" onClick={() => setShowCancelModal(true)} className={styles.btnBackRed} disabled={isLoading}>
-                <FaTimes /> Batal</button>
+                <FaTimes size={14} className="mb-0.5" /> Batal</button>
               <button type="submit" disabled={isLoading} className={styles.btnSubmit}>
-                <FaSave size={14} /> {isLoading ? 'Menyimpan...' : 'Simpan Krama'}
+                <FaSave size={14} className="mb-0.5" /> {isLoading ? 'Menyimpan...' : 'Simpan Krama'}
               </button>
             </div>
           </form>
         </div>
       </div>
+      {/* Modal Konfirmasi Save */}
+      {showSaveConfirmModal && (
+        <div className={styles.modalOverlay}>
+          <div className={`${styles.modalContent} animate-fade-in`}>
+            <div className="p-6">
+              <div className="flex justify-center mb-5">
+                <div className={styles.elipsisConf}>
+                  <FaExclamationTriangle className="text-amber-500 text-2xl" />
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  Konfirmasi Pendaftaran Krama Bali
+                </h3>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Apakah Anda yakin data krama bali ini sudah benar, sah, dan sesuai dengan awig-awig/pararem desa adat?
+                </p>
+                <p className={styles.noteConf}>
+                  * Pastikan data yang Anda masukkan sudah benar agar tidak terjadinya kesalahan input dan membutuhkan proses verifikasi ulang untuk perubahan data.
+                </p>
+              </div>
+              <div className="mt-8 flex gap-3 justify-center">
+                <button 
+                  type="button" 
+                  onClick={() => setShowSaveConfirmModal(false)} 
+                  className={styles.btnCancel}
+                  disabled={isLoading}>
+                  Periksa Kembali
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => saveKrama(null, true)} 
+                  className={styles.btnSubmit}
+                  disabled={isLoading}>
+                  <FaSave size={14} className="mr-1" /> {isLoading ? 'Memproses...' : 'Ya, Lanjutkan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Konfirmasi Cancel */}
       {showCancelModal && (
         <div className={styles.modalOverlay}>
           <div className={`${styles.modalContainer} animate-fade-in`}>

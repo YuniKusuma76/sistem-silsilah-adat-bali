@@ -30,10 +30,12 @@ export const buatPerkawinanBali = async ({
   tanggal_perkawinan,
   user_id,
   user_role,
-  user_desa_id
-}) => {
-  // Mulai transaksi database
-  const t = await db.transaction();
+  user_desa_id,
+  isUpdateMode = false
+}, passedTransaction = null) => {
+  // Mulai transaksi database atau transaksi yang lewat
+  const isExternalTransaction = !!passedTransaction;
+  const t = passedTransaction || await db.transaction();
   
   try {
     // Validasi ketersediaan data suami dan istri
@@ -60,19 +62,24 @@ export const buatPerkawinanBali = async ({
       throw new Error("Posisi Istri harus berjenis kelamin Perempuan!");
     }
 
-    const finalTanggalPerkawinan = tanggal_perkawinan || new Date().toISOString().split('T')[0];
+    const jamSekarang = new Date().toTimeString().split(' ')[0];
+    const finalTanggalPerkawinan = tanggal_perkawinan 
+      ? new Date(`${tanggal_perkawinan} ${jamSekarang}`)
+      : new Date();
 
     // TIDAK BOLEH ADA PERKAWINAN POLIANDRI
-    const perkawinanIstriAktif = await Perkawinan.findOne({
-      where: {
-        istri_id,
-        status_perkawinan: "Kawin"
-      },
-      transaction: t
-    });
+    if (!isUpdateMode) {
+      const perkawinanIstriAktif = await Perkawinan.findOne({
+        where: {
+          istri_id,
+          status_perkawinan: "Kawin"
+        },
+        transaction: t
+      });
 
-    if (perkawinanIstriAktif) {
-      throw new Error("Calon istri masih berstatus kawin dalam perkawinan lain.");
+      if (perkawinanIstriAktif) {
+        throw new Error("Calon istri masih berstatus kawin dalam perkawinan lain.");
+      }
     }
 
     // PERKAWINAN POLIGAMI ADAT BALI
@@ -98,13 +105,13 @@ export const buatPerkawinanBali = async ({
         where: {
           krama_id: suami_id,
           status_peran_adat: "Purusa",
-          mulai_tanggal: perkawinanPertama.tanggal_perkawinan
+          selesai_tanggal: null
         },
         transaction: t
       });
       
-      if (!statusPurusaPertama) {
-        throw new Error("Krama ini tidak dapat melakukan poligami karena tidak berstatus purusa pada perkawinan pertamanya.");
+      if (!statusPurusaPertama && perkawinanPertama && perkawinanPertama.jenis_perkawinan === "Nyentana") {
+        throw new Error("Krama ini tidak dapat melakukan poligami karena tidak berstatus purusa pada perkawinan pertamanya (Status Nyentana).");
       }
 
       isPoligami = true;
@@ -233,7 +240,7 @@ export const buatPerkawinanBali = async ({
       istri_id,
       status_perkawinan: statusPerkawinanValid,
       jenis_perkawinan,
-      tanggal_perkawinan: finalTanggalPerkawinan,
+      tanggal_perkawinan: tanggal_perkawinan || new Date().toISOString().split('T')[0],
       user_id,
       status_verifikasi: statusVerifikasi,
       is_approved_desa_suami: approvedSuami,
@@ -242,7 +249,9 @@ export const buatPerkawinanBali = async ({
     }, { transaction: t });
 
     if (statusVerifikasi !== "Disetujui") {
-      await t.commit();
+      if (!isExternalTransaction) {
+        await t.commit();
+      }
       return { perkawinan };
     }
 
@@ -382,8 +391,13 @@ export const buatPerkawinanBali = async ({
         event_date: finalTanggalPerkawinan
       }, t);
 
-      await t.commit();
-      return { perkawinan, keluarga: keluargaTarget };
+      if (!isExternalTransaction) {
+        await t.commit();
+      }
+      return { 
+        perkawinan, 
+        keluarga: keluargaTarget 
+      };
     }
 
     // ========================================
@@ -462,7 +476,9 @@ export const buatPerkawinanBali = async ({
         allow_multiple: true
       }, t);
 
-      await t.commit();
+      if (!isExternalTransaction) {
+        await t.commit();
+      }
       
       return {
         perkawinan,
@@ -471,7 +487,9 @@ export const buatPerkawinanBali = async ({
       };
     }
   } catch (error) {
-    await t.rollback();
+    if (!isExternalTransaction) {
+      await t.rollback();
+    }
     throw error;
   }
 };

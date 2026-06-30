@@ -67,7 +67,42 @@ export const anakAngkatPasangan = async ({
       })
     ]);
 
-    let tglAngkatFinal = tanggal_pengangkatan || new Date().toISOString().split('T')[0];
+    const isTanggalAngkatKosong = !tanggal_pengangkatan || tanggal_pengangkatan === anak.tanggal_lahir;
+
+    let finalTanggalAngkat;
+    let infoTambahanDasar = "";
+
+    const jamSekarang = new Date().toTimeString().split(' ')[0];
+
+    if (isTanggalAngkatKosong) {
+      const hariIni = new Date().toISOString().split('T')[0];
+
+      if (hariIni === anak.tanggal_lahir) {
+        const besok = new Date();
+        besok.setDate(besok.getDate() + 1);
+        finalTanggalAngkat = new Date(`${besok.toISOString().split('T')[0]} ${jamSekarang}`);
+        infoTambahanDasar = " (Tanggal riwayat bergeser 1 hari karena tanggal pengangkatan kosong dan sama dengan tanggal lahir).";
+      } else {
+        finalTanggalAngkat = new Date();
+        infoTambahanDasar = " (Tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal pengangkatan kosong).";
+      }
+    } else {
+      const stringDateOnly = tanggal_pengangkatan.includes('T') 
+        ? tanggal_pengangkatan.split('T')[0] 
+        : tanggal_pengangkatan.split(' ')[0];
+
+      if (stringDateOnly === anak.tanggal_lahir) {
+        const dt = new Date(stringDateOnly);
+        dt.setDate(dt.getDate() + 1);
+        finalTanggalAngkat = new Date(`${dt.toISOString().split('T')[0]} ${jamSekarang}`);
+        infoTambahanDasar = " (Tanggal riwayat otomatis bergeser 1 hari setelah tanggal lahir untuk linimasa riwayat).";
+      } else {
+        finalTanggalAngkat = new Date(`${stringDateOnly} ${jamSekarang}`);
+      }
+    }
+
+    let tglAngkatDateOnly = finalTanggalAngkat.toISOString().split('T')[0];
+    let tglAngkatTimestamp = finalTanggalAngkat.toISOString();
 
     // Validasi Rentang Waktu Kronologis
     const riwayatAktif = await RiwayatKeluarga.findOne({
@@ -81,26 +116,35 @@ export const anakAngkatPasangan = async ({
     if (riwayatAktif) {
       const tglAwalAktifStr = riwayatAktif.awal_masuk;
 
-      if (tglAngkatFinal <= tglAwalAktifStr) {
+      if (new Date(tglAngkatTimestamp) <= new Date(tglAwalAktifStr)) {
         const d = new Date(tglAwalAktifStr);
-        d.setDate(d.getDate() + 1); 
-        tglAngkatFinal = d.toISOString().split('T')[0];
+        d.setDate(d.getDate() + 1);
+
+        const tanggalBaruStr = d.toISOString().split('T')[0];
+        tglAngkatTimestamp = new Date(`${tanggalBaruStr} ${jamSekarang}`).toISOString();
+        tglAngkatDateOnly = tanggalBaruStr;
       }
     }
 
-    let akhirMasukAnakAngkat = await hitungTanggalKeluarAnak(anak_id, tglAngkatFinal, t);
+    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tglAngkatTimestamp, t);
+
+    let akhirMasukAnakAngkat = tanggal_keluar 
+      ? new Date(`${tanggal_keluar} ${jamSekarang}`).toISOString()
+      : null;
 
     if (riwayatAktif) {
       const tglAwalAktif = new Date(riwayatAktif.awal_masuk);
-      const tglAngkatBaru = new Date(tglAngkatFinal);
+      const tglAngkatBaru = new Date(tglAngkatTimestamp);
 
       if (tglAwalAktif > tglAngkatBaru) {
         akhirMasukAnakAngkat = riwayatAktif.awal_masuk; 
-      }
+      } 
     }
 
     let relasi;
-    const desaAdatTujuanId = jenis_perkawinan === "Nyentana" ? istriData?.desa_adat_id : suamiData?.desa_adat_id;
+    const desaAdatTujuanId = jenis_perkawinan === "Nyentana" 
+      ? istriData?.desa_adat_id 
+      : suamiData?.desa_adat_id;
 
     // Manajemen Pencatatan Relasi Krama
     if (!is_verifikasi) {
@@ -109,7 +153,7 @@ export const anakAngkatPasangan = async ({
         ayah_id: suami_id,
         ibu_id: istri_id,
         status_hubungan,
-        tanggal_pengangkatan: tglAngkatFinal,
+        tanggal_pengangkatan: tglAngkatDateOnly,
         user_id,             
         status_verifikasi,   
         catatan_admin_desa,
@@ -131,7 +175,7 @@ export const anakAngkatPasangan = async ({
         await relasi.update({
           status_verifikasi: "Disetujui",
           catatan_admin_desa,
-          tanggal_pengangkatan: tglAngkatFinal
+          tanggal_pengangkatan: tglAngkatDateOnly
         }, { transaction: t });
       }
     }
@@ -144,12 +188,12 @@ export const anakAngkatPasangan = async ({
     }
 
     // Logika Chronological Stitching dan Backward Stitching
-    if (riwayatAktif && new Date(tglAngkatFinal) > new Date(riwayatAktif.awal_masuk)) {
+    if (riwayatAktif && new Date(tglAngkatTimestamp) > new Date(riwayatAktif.awal_masuk)) {
       await RiwayatKeluarga.update(
-        { akhir_masuk: tglAngkatFinal },
+        { akhir_masuk: tglAngkatTimestamp },
         { where: {
             krama_id: anak_id,
-            awal_masuk: { [Op.lt]: tglAngkatFinal },
+            awal_masuk: { [Op.lt]: tglAngkatTimestamp },
             akhir_masuk: null
           },
           transaction: t
@@ -199,8 +243,8 @@ export const anakAngkatPasangan = async ({
         keluarga_id: keluargaSuamiTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
-        dasar_keputusan: "Krama diangkat sebagai anak ke dalam keluarga pihak ayah melalui ikatan perkawinan Pade Gelahang orang tua angkatnya.",
-        event_date: tglAngkatFinal,
+        dasar_keputusan: "Krama diangkat sebagai anak ke dalam keluarga pihak ayah melalui ikatan perkawinan Pade Gelahang orang tua angkatnya." + infoTambahanDasar,
+        event_date: tglAngkatTimestamp,
         kategori_event: "PENGANGKATAN",
         bobot_event: BOBOT_EVENT["PENGANGKATAN"],
         allow_multiple: true,
@@ -213,8 +257,8 @@ export const anakAngkatPasangan = async ({
         keluarga_id: keluargaIstriTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
-        dasar_keputusan: "Krama diangkat sebagai anak ke dalam keluarga pihak ibu melalui ikatan perkawinan Pade Gelahang orang tua angkatnya.",
-        event_date: tglAngkatFinal,
+        dasar_keputusan: "Krama diangkat sebagai anak ke dalam keluarga pihak ibu melalui ikatan perkawinan Pade Gelahang orang tua angkatnya." + infoTambahanDasar,
+        event_date: tglAngkatTimestamp,
         kategori_event: "PENGANGKATAN",
         bobot_event: BOBOT_EVENT["PENGANGKATAN"],
         allow_multiple: true,
@@ -238,8 +282,8 @@ export const anakAngkatPasangan = async ({
         keluarga_id: keluargaIstriTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
-        dasar_keputusan: `Kedudukan sebagai anggota keluarga diberikan karena krama ini diangkat sebagai anak (${status_hubungan}) oleh pasangan suami istri perkawinan nyentana yang sah.`,
-        event_date: tglAngkatFinal,
+        dasar_keputusan: `Kedudukan sebagai anggota keluarga diberikan karena krama ini diangkat sebagai anak (${status_hubungan}) oleh pasangan suami istri perkawinan nyentana yang sah.` + infoTambahanDasar,
+        event_date: tglAngkatTimestamp,
         kategori_event: "PENGANGKATAN",
         bobot_event: BOBOT_EVENT["PENGANGKATAN"],
         akhir_masuk: akhirMasukAnakAngkat,
@@ -263,8 +307,8 @@ export const anakAngkatPasangan = async ({
         keluarga_id: keluargaSuamiTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
-        dasar_keputusan: `Kedudukan sebagai anggota keluarga diberikan karena krama ini diangkat sebagai anak (${status_hubungan}) oleh pasangan suami istri perkawinan biasa yang sah.`,
-        event_date: tglAngkatFinal,
+        dasar_keputusan: `Kedudukan sebagai anggota keluarga diberikan karena krama ini diangkat sebagai anak (${status_hubungan}) oleh pasangan suami istri perkawinan biasa yang sah.` + infoTambahanDasar,
+        event_date: tglAngkatTimestamp,
         kategori_event: "PENGANGKATAN",
         bobot_event: BOBOT_EVENT["PENGANGKATAN"],
         akhir_masuk: akhirMasukAnakAngkat,
@@ -279,7 +323,7 @@ export const anakAngkatPasangan = async ({
       where: {
         krama_id: anak_id,
         kedudukan: "Kepala Keluarga",
-        awal_masuk: { [Op.gte]: akhirMasukAnakAngkat || tglAngkatFinal }, 
+        awal_masuk: { [Op.gte]: akhirMasukAnakAngkat || tglAngkatTimestamp },
         akhir_masuk: null
       },
       include: [{ 

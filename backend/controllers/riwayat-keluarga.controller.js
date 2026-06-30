@@ -28,10 +28,7 @@ export const getAllRiwayatKeluarga = async (req, res) => {
   try {
     const riwayatList = await RiwayatKeluarga.findAll({
       include: RIWAYAT_KELUARGA_INCLUDE,
-      order: [
-        ["awal_masuk", "DESC"],
-        ["id", "DESC"]
-      ]
+      order: [["id", "DESC"]]
     });
     
     return res.status(200).json({

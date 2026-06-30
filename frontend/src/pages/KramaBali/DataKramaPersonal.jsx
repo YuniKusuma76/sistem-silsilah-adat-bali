@@ -89,12 +89,12 @@ const formatWaktuRelatif = (dateString) => {
 };
 
 const DataKramaPersonal = ({ user }) => {
+  const notifDropdownRef = useRef(null);
   const [kramaList, setKramaList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const notifDropdownRef = useRef(null);
+  
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
@@ -105,20 +105,17 @@ const DataKramaPersonal = ({ user }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // State alert notifikasi global
   const [alert, setAlert] = useState({
     show: false,
     type: '',
     message: ''
   });
 
-  // State menampilkan modal konfirmasi
   const [modal, setModal] = useState({ 
     show: false, 
     id: null 
   });
 
-  // Effect: Mengambil data krama bali yang diinputkan
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -140,7 +137,6 @@ const DataKramaPersonal = ({ user }) => {
     fetchData();
   }, []);
 
-  // Effect: Menutup dropdown ketika klik di luar area input
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
@@ -151,7 +147,7 @@ const DataKramaPersonal = ({ user }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Helper: Mengambil list notifikasi yang masuk
+  // HELPER NOTIFIKASI: mengambil list notifikasi yang masuk
   const fetchNotifikasiLengkap = async () => {
     if (!user) return;
     try {
@@ -172,7 +168,6 @@ const DataKramaPersonal = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Helper: Menandai notifikasi telah dibaca
   const handleTandaiDibaca = async (notifId) => {
     try {
       await axiosInstance.patch(`/notifikasi/read/${notifId}`);
@@ -188,7 +183,6 @@ const DataKramaPersonal = ({ user }) => {
     }
   };
   
-  // Effect: Alert Diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
       setAlert({
@@ -200,7 +194,6 @@ const DataKramaPersonal = ({ user }) => {
     }
   }, [location]);
   
-  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -210,7 +203,7 @@ const DataKramaPersonal = ({ user }) => {
     }
   }, [alert.show, alert.type]);
   
-  // Helper: Menghapus data krama bali
+  // Helper: menghapus data krama bali
   const handleDelete = async () => {
     if (!modal.id) return;
     setIsDeleting(true);
@@ -238,7 +231,7 @@ const DataKramaPersonal = ({ user }) => {
     }
   };
 
-  // Helper: Fungsi search filter krama bali
+  // Helper: fungsi search filter krama bali
   const filteredKrama = useMemo(() => {
     return kramaList.filter(krama => 
       krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -251,19 +244,17 @@ const DataKramaPersonal = ({ user }) => {
   const currentItems = filteredKrama.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredKrama.length / itemsPerPage);
 
-  // Effect: Setting current page aktif default 1
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Fungsi pergi ke next page
   const goToPage = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
     }
   };
 
-  // Helper: Merender halaman pagination
+  // Helper: merender halaman pagination
   const renderPageNumbers = () => {
     const pageNumbers = [];
     if (totalPages <= 2) {
@@ -408,7 +399,7 @@ const DataKramaPersonal = ({ user }) => {
         onClose={() => setModal({ show: false, id: null })}
         onConfirm={handleDelete}
         isProcessing={isDeleting}
-        title="Konfirmasi Menghapus Data Krama Bali"
+        title="Konfirmasi Menghapus Data"
         message="Apakah Anda yakin ingin menghapus data krama ini secara permanen beserta seluruh riwayatnya?"
       />
       {/* Alert Section */}
@@ -469,7 +460,7 @@ const DataKramaPersonal = ({ user }) => {
             <FaSearch className={styles.searchIcon} />
             <input 
               type="text" 
-              placeholder="Cari nama krama..." 
+              placeholder="Cari nama krama bali..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={styles.searchInput}

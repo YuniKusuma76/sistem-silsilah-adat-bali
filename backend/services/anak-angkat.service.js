@@ -38,7 +38,6 @@ export const buatAnakAngkat = async ({
       throw new Error("Minimal satu data orang tua angkat wajib terdaftar!");
     }
 
-    const tglAngkatFinal = tanggal_pengangkatan || new Date().toISOString().split('T')[0];
     const kepala_keluarga_id = ayah_id || ibu_id;
 
     // Validasi ketersediaan data anak dan orang tua
@@ -50,13 +49,50 @@ export const buatAnakAngkat = async ({
       throw new Error("Data anak angkat tidak ditemukan.");
     }
 
+    const isTanggalAngkatKosong = !tanggal_pengangkatan || tanggal_pengangkatan === anak.tanggal_lahir;
+
+    let finalTanggalAngkat;
+    let infoTambahanDasar = "";
+
+    const jamSekarang = new Date().toTimeString().split(' ')[0];
+
+    if (isTanggalAngkatKosong) {
+      const hariIni = new Date().toISOString().split('T')[0];
+
+      if (hariIni === anak.tanggal_lahir) {
+        const besok = new Date();
+        besok.setDate(besok.getDate() + 1);
+        finalTanggalAngkat = new Date(`${besok.toISOString().split('T')[0]} ${jamSekarang}`);
+        infoTambahanDasar = " (Tanggal riwayat bergeser 1 hari karena tanggal pengangkatan kosong dan sama dengan tanggal lahir).";
+      } else {
+        finalTanggalAngkat = new Date();
+        infoTambahanDasar = " (Tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal pengangkatan kosong).";
+      }
+    } else {
+      const stringDateOnly = tanggal_pengangkatan.includes('T') 
+        ? tanggal_pengangkatan.split('T')[0] 
+        : tanggal_pengangkatan.split(' ')[0];
+
+      if (stringDateOnly === anak.tanggal_lahir) {
+        const dt = new Date(stringDateOnly);
+        dt.setDate(dt.getDate() + 1);
+        finalTanggalAngkat = new Date(`${dt.toISOString().split('T')[0]} ${jamSekarang}`);
+        infoTambahanDasar = " (Tanggal riwayat otomatis bergeser 1 hari setelah tanggal lahir untuk linimasa riwayat).";
+      } else {
+        finalTanggalAngkat = new Date(`${stringDateOnly} ${jamSekarang}`);
+      }
+    }
+
+    let tglAngkatDateOnly = finalTanggalAngkat.toISOString().split('T')[0];
+    let tglAngkatTimestamp = finalTanggalAngkat.toISOString();
+
     const ortuAngkat = await KramaBali.findByPk(kepala_keluarga_id, {
       attributes: ["desa_adat_id"],
       transaction: t
     });
 
     if (!ortuAngkat) {
-      throw new Error("Data orang tua angkat tidak ditemukan di sistem.");
+      throw new Error("Data orang tua angkat tidak ditemukan.");
     }
 
     // Validasi Rentang Waktu Kronologis
@@ -71,18 +107,25 @@ export const buatAnakAngkat = async ({
     if (riwayatAktif) {
       const tglAwalAktifStr = riwayatAktif.awal_masuk;
 
-      if (tglAngkatFinal <= tglAwalAktifStr) {
+      if (new Date(tglAngkatTimestamp) <= new Date(tglAwalAktifStr)) {
         const d = new Date(tglAwalAktifStr);
-        d.setDate(d.getDate() + 1); 
-        tglAngkatFinal = d.toISOString().split('T')[0];
+        d.setDate(d.getDate() + 1);
+
+        const tanggalBaruStr = d.toISOString().split('T')[0];
+        tglAngkatTimestamp = new Date(`${tanggalBaruStr} ${jamSekarang}`).toISOString();
+        tglAngkatDateOnly = tanggalBaruStr;
       }
     }
 
-    let akhirMasukAnakAngkat = await hitungTanggalKeluarAnak(anak_id, tglAngkatFinal, t);
+    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tglAngkatTimestamp, t);
+
+    let akhirMasukAnakAngkat = tanggal_keluar 
+      ? new Date(`${tanggal_keluar} ${jamSekarang}`).toISOString()
+      : null;
 
     if (riwayatAktif) {
       const tglAwalAktif = new Date(riwayatAktif.awal_masuk);
-      const tglAngkatBaru = new Date(tglAngkatFinal);
+      const tglAngkatBaru = new Date(tglAngkatTimestamp);
 
       if (tglAwalAktif > tglAngkatBaru) {
         akhirMasukAnakAngkat = riwayatAktif.awal_masuk; 
@@ -98,7 +141,7 @@ export const buatAnakAngkat = async ({
         ayah_id, 
         ibu_id, 
         status_hubungan: "Anak Angkat", 
-        tanggal_pengangkatan: tglAngkatFinal,
+        tanggal_pengangkatan: tglAngkatDateOnly,
         user_id,             
         status_verifikasi,   
         catatan_admin_desa,
@@ -117,7 +160,8 @@ export const buatAnakAngkat = async ({
       if (relasi) {
         await relasi.update({
           status_verifikasi: "Disetujui",
-          catatan_admin_desa
+          catatan_admin_desa,
+          tanggal_pengangkatan: tglAngkatDateOnly
         }, { transaction: t });
       }
     }
@@ -130,12 +174,12 @@ export const buatAnakAngkat = async ({
     }
 
     // Logika Chronological Stitching dan Backward Stitching
-    if (riwayatAktif && new Date(tglAngkatFinal) > new Date(riwayatAktif.awal_masuk)) {
+    if (riwayatAktif && new Date(tglAngkatTimestamp) > new Date(riwayatAktif.awal_masuk)) {
       await RiwayatKeluarga.update(
-        { akhir_masuk: tglAngkatFinal },
+        { akhir_masuk: tglAngkatTimestamp },
         { where: {
             krama_id: anak_id,
-            awal_masuk: { [Op.lt]: tglAngkatFinal },
+            awal_masuk: { [Op.lt]: tglAngkatTimestamp },
             akhir_masuk: null
           },
           transaction: t
@@ -158,8 +202,8 @@ export const buatAnakAngkat = async ({
     await bentukKeluargaAngkat({
       kepala_keluarga_id,
       anak_id,
-      dasar_keputusan: keputusan.dasar_keputusan + (!tanggal_pengangkatan ? " (Tanggal pengangkatan menggunakan tanggal input sistem)." : ""),
-      tanggal_pengangkatan: tglAngkatFinal,
+      dasar_keputusan: keputusan.dasar_keputusan + infoTambahanDasar,
+      tanggal_pengangkatan: tglAngkatTimestamp,
       akhir_masuk_anak: akhirMasukAnakAngkat
     }, t);
 
@@ -167,10 +211,10 @@ export const buatAnakAngkat = async ({
       krama_id: kepala_keluarga_id,
       status_peran_adat: keputusan.status_peran_adat,
       garis_keturunan: keputusan.garis_keturunan,
-      dasar_keputusan: keputusan.dasar_keputusan + (!tanggal_pengangkatan ? " (Tanggal pengangkatan menggunakan tanggal input sistem)." : ""),
+      dasar_keputusan: keputusan.dasar_keputusan + infoTambahanDasar,
       kategori_event: "PENGANGKATAN",
       bobot_event: BOBOT_EVENT["PENGANGKATAN"],
-      event_date: tglAngkatFinal
+      event_date: new Date(tglAngkatTimestamp)
     }, t);
 
     // LOGIKA REKONSILIASI DATA MANDIRI
@@ -178,7 +222,7 @@ export const buatAnakAngkat = async ({
       where: {
         krama_id: anak_id,
         kedudukan: "Kepala Keluarga",
-        awal_masuk: { [Op.gte]: akhirMasukAnakAngkat || tglAngkatFinal }, 
+        awal_masuk: { [Op.gte]: akhirMasukAnakAngkat || tglAngkatTimestamp }, 
         akhir_masuk: null
       },
       include: [{ 
@@ -194,7 +238,7 @@ export const buatAnakAngkat = async ({
       const keluargaAngkatBaru = await RiwayatKeluarga.findOne({
         where: { 
           krama_id: anak_id, 
-          awal_masuk: tglAngkatFinal 
+          awal_masuk: tglAngkatTimestamp 
         },
         transaction: t
       });
@@ -210,7 +254,10 @@ export const buatAnakAngkat = async ({
 
         await Keluarga.update(
           { status_keluarga: "Non-Aktif" },
-          { where: { id: idKeluargaLama }, transaction: t }
+          { 
+            where: { id: idKeluargaLama }, 
+            transaction: t
+          }
         );
       }
     }

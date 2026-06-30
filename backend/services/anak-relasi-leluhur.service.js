@@ -35,9 +35,30 @@ export const integrasiRelasiLeluhur = async ({
   const t = passedTransaction || await db.transaction();
 
   try {
-    const tglAngkatFinal = status_hubungan === "Anak Angkat" 
-      ? (tanggal_pengangkatan || anak?.tanggal_lahir || null)
-      : null;
+    const jamSekarang = new Date().toTimeString().split(' ')[0];
+
+
+    let tglAngkatDateOnly = null;
+    let tglAngkatTimestamp = null;
+
+    if (status_hubungan === "Anak Angkat") {
+      const targetTanggal = tanggal_pengangkatan || anak?.tanggal_lahir;
+      if (targetTanggal) {
+        const stringDateOnly = targetTanggal.includes('T') ? targetTanggal.split('T')[0] : targetTanggal.split(' ')[0];
+        tglAngkatDateOnly = stringDateOnly;
+        tglAngkatTimestamp = new Date(`${stringDateOnly} ${jamSekarang}`).toISOString();
+      } else {
+        tglAngkatDateOnly = new Date().toISOString().split('T')[0];
+        tglAngkatTimestamp = new Date().toISOString();
+      }
+    }
+
+    let jangkarTanggalAnakTimestamp = null;
+
+    if (anak?.tanggal_lahir) {
+      const cleanDate = anak.tanggal_lahir.includes('T') ? anak.tanggal_lahir.split('T')[0] : anak.tanggal_lahir.split(' ')[0];
+      jangkarTanggalAnakTimestamp = new Date(`${cleanDate} ${jamSekarang}`).toISOString();
+    }
 
     const relasi = await RelasiKrama.create({
       anak_id,
@@ -45,7 +66,7 @@ export const integrasiRelasiLeluhur = async ({
       ibu_id: ibu_id || null,
       status_hubungan,
       urutan_lahir: urutan_lahir || null,
-      tanggal_pengangkatan: tglAngkatFinal,
+      tanggal_pengangkatan: tglAngkatDateOnly,
       user_id,             
       status_verifikasi,   
       catatan_admin_desa
@@ -86,7 +107,6 @@ export const integrasiRelasiLeluhur = async ({
 
     const kategoriEventFinal = status_hubungan === "Anak Angkat" ? "PENGANGKATAN" : "LAHIR";
     const bobotEventFinal = BOBOT_EVENT[kategoriEventFinal];
-    const jangkarTanggalAnak = anak?.tanggal_lahir || null;
 
     if (kepalaKeluargaId) {
       // memastikan data keluarga leluhur yang sama sudah terbentuk
@@ -132,13 +152,19 @@ export const integrasiRelasiLeluhur = async ({
       });
 
       if (!sudahTerdaftar) {
+        const finalEventDateTimestamp = status_hubungan === "Anak Angkat" 
+          ? tglAngkatTimestamp 
+          : jangkarTanggalAnakTimestamp;
+        
+        const infoTambahanDasar = (!finalEventDateTimestamp ? " (Tanggal event menggunakan default sistem karena riwayat kosong)." : "");
+
         await simpanRiwayatKeluarga({
           krama_id: anak_id,
           keluarga_id: keluargaId,
           perkawinan_id: perkawinan_id || null,
           kedudukan: "Anggota",
-          dasar_keputusan: `Kedudukan sebagai anggota diberikan karena krama ini merupakan keturunan (${status_hubungan}) di dalam silsilah keluarga leluhur.`,
-          event_date: status_hubungan === "Anak Angkat" ? tglAngkatFinal : jangkarTanggalAnak,
+          dasar_keputusan: `Kedudukan sebagai anggota diberikan karena krama ini merupakan keturunan (${status_hubungan}) di dalam silsilah keluarga leluhur.` + infoTambahanDasar,
+          event_date: finalEventDateTimestamp || new Date().toISOString(),
           kategori_event: kategoriEventFinal,
           bobot_event: bobotEventFinal,
           allow_multiple: true 

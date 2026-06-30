@@ -51,8 +51,12 @@ export const eksekusiVerifikasiPerkawinan = async ({
     } = perkawinan;
 
     const existingCatatan = perkawinan.catatan_admin_desa || {};
-    const finalTanggalPerkawinan = tanggal_perkawinan || new Date().toISOString().split('T')[0];
     const infoTambahanDasar = !tanggal_perkawinan ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal perkawinan kosong)." : "";
+    
+    const tanggalPerkawinanMurni = tanggal_perkawinan || new Date().toISOString().split('T')[0];
+
+    const jamSekarang = new Date().toTimeString().split(' ')[0];
+    const finalTanggalPerkawinan = new Date(`${tanggalPerkawinanMurni} ${jamSekarang}`);
     
     // STATUS VERIFIKASI BERDASARKAN ROLE
     let newCatatanAdmin = { ...existingCatatan };

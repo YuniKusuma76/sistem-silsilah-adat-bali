@@ -35,19 +35,16 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
     throw new Error("Data anak tidak ditemukan.");
   }
 
-  const orangTuaIds = [ayah_id, ibu_id].filter(Boolean);
-  
-  const keluargaLama = await Keluarga.findOne({
-    where: {
-      [Op.or]: [
-        { kepala_keluarga_id: { [Op.in]: orangTuaIds } },
-      ]
-    },
-    transaction: t
-  });
+  const kepala_keluarga_lama_id = ayah_id || ibu_id;
+  let keluargaAsalId = null;
 
-  const targetKeluargaId = keluargaLama ? keluargaLama.id : null;
-  const kepala_keluarga_id = ayah_id || ibu_id;
+  if (kepala_keluarga_lama_id) {
+    const keluargaLama = await Keluarga.findOne({
+      where: { kepala_keluarga_id: kepala_keluarga_lama_id },
+      transaction: t
+    });
+    keluargaAsalId = keluargaLama ? keluargaLama.id : null;
+  }
 
   // PEMBALIKAN REKONSILIASI DATA MANDIRI
   const riwayatAsalMandiri = await RiwayatKeluarga.findOne({
@@ -75,23 +72,34 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
     }
   }
 
+  const dapatkanRentangHariISO = (stringTanggal) => {
+    if (!stringTanggal) return null;
+    const tglMurni = stringTanggal.includes('T') ? stringTanggal.split('T')[0] : stringTanggal.split(' ')[0];
+
+    const awalHari = new Date(`${tglMurni} 00:00:00`);
+    const akhirHari = new Date(`${tglMurni} 23:59:59`);
+    return {
+      [Op.between]: [awalHari, akhirHari]
+    };
+  };
+
   // KONDISI 1: ROLLBACK DAMPAK ANAK KANDUNG
   if (status_hubungan === "Anak Kandung") {
     await RiwayatKeluarga.destroy({
       where: {
         krama_id: anak_id,
-        awal_masuk: anak.tanggal_lahir,
+        awal_masuk: dapatkanRentangHariISO(anak.tanggal_lahir),
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
         kedudukan: "Anggota",
-        ...(targetKeluargaId && { keluarga_id: targetKeluargaId })
+        ...(keluargaAsalId && { keluarga_id: keluargaAsalId })
       },
       transaction: t
     });
 
     await hitungUrutanLahir({
-      ayah_id,
-      ibu_id,
+      ayah_id: ayah_id,
+      ibu_id: ibu_id,
       mode: "CAMPUR"
     }, t);
   }
@@ -99,13 +107,15 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
   // KONDISI 2: ROLLBACK DAMPAK ANAK ANGKAT
   if (status_hubungan === "Anak Angkat") {
     if (!tanggal_pengangkatan) {
-      throw new Error("Tanggal pengangkatan tidak ditemukan.");
+      throw new Error("Tanggal pengangkatan tidak ditemukan, proses rollback dihentikan.");
     }
 
+    const rentangHariAdopsi = dapatkanRentangHariISO(tanggal_pengangkatan);
+
     const riwayatSebelumAdopsi = await RiwayatKeluarga.findOne({
-      where: {
-        krama_id: anak_id,
-        akhir_masuk: tanggal_pengangkatan
+      where: { 
+        krama_id: anak_id, 
+        akhir_masuk: rentangHariAdopsi 
       },
       include: [{ association: "detail_keluarga" }],
       transaction: t
@@ -114,11 +124,11 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
     await RiwayatKeluarga.destroy({
       where: {
         krama_id: anak_id,
-        awal_masuk: tanggal_pengangkatan,
+        awal_masuk: rentangHariAdopsi,
         kategori_event: "PENGANGKATAN",
-          bobot_event: BOBOT_EVENT["PENGANGKATAN"],
+        bobot_event: BOBOT_EVENT["PENGANGKATAN"],
         kedudukan: "Anggota",
-        ...(targetKeluargaId && { keluarga_id: targetKeluargaId })
+        ...(keluargaAsalId && { keluarga_id: keluargaAsalId })
       },
       transaction: t
     });
@@ -126,9 +136,10 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
     // Backward Stitching Reversal: Membuka kembali linimasa keluarga sebelum adopsi
     await RiwayatKeluarga.update(
       { akhir_masuk: null }, 
-      { where: {
+      { 
+        where: {
           krama_id: anak_id,
-          akhir_masuk: tanggal_pengangkatan
+          akhir_masuk: rentangHariAdopsi
         },
         transaction: t
       }
@@ -141,27 +152,30 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
         status_hubungan: "Anak Angkat",
         status_verifikasi: "Disetujui",
         [Op.or]: [
-          { ayah_id: kepala_keluarga_id },
-          { ibu_id: kepala_keluarga_id }
+          { ayah_id: kepala_keluarga_lama_id },
+          { ibu_id: kepala_keluarga_lama_id }
         ]
       },
       transaction: t
     });
 
-    if (kepala_keluarga_id) {
+    if (kepala_keluarga_lama_id) {
       await RiwayatPeranAdat.destroy({
         where: {
-          krama_id: kepala_keluarga_id,
-          event_date: tanggal_pengangkatan
+          krama_id: kepala_keluarga_lama_id,
+          event_date: rentangHariAdopsi,
+          kategori_event: "PENGANGKATAN"
         },
         transaction: t
       });
       
       await RiwayatPeranAdat.update(
         { selesai_tanggal: null },
-        { where: {
-            krama_id: kepala_keluarga_id,
-            selesai_tanggal: tanggal_pengangkatan
+        { 
+          where: {
+            krama_id: kepala_keluarga_lama_id,
+            selesai_tanggal: rentangHariAdopsi,
+            kategori_event: "PENGANGKATAN"
           },
           transaction: t
         }
@@ -169,10 +183,10 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
     }
 
     // menghapus keluarga angkat jika tidak ada entitas krama
-    if (sisaAnakAngkat === 0 && kepala_keluarga_id) {
+    if (sisaAnakAngkat === 0 && kepala_keluarga_lama_id) {
       const keluargaAngkat = await Keluarga.findOne({
         where: {
-          kepala_keluarga_id: kepala_keluarga_id,
+          kepala_keluarga_id: kepala_keluarga_lama_id,
           jenis_keluarga: "Keluarga Angkat"
         },
         transaction: t
@@ -181,7 +195,7 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       if (keluargaAngkat) {
         await RiwayatKeluarga.destroy({
           where: {
-            krama_id: kepala_keluarga_id,
+            krama_id: kepala_keluarga_lama_id,
             keluarga_id: keluargaAngkat.id
           },
           transaction: t
@@ -190,16 +204,12 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       }
     }
 
-    if (sisaAnakAngkat > 0) {
-      await hitungUrutanLahir({
-        ayah_id,
-        ibu_id,
-        kepala_keluarga_id, 
-        mode: "ANGKAT"
-      }, t);
-    }
+    await hitungUrutanLahir({
+      kepala_keluarga_id: kepala_keluarga_lama_id, 
+      mode: "ANGKAT"
+    }, t);
 
-    // Memulihkan Mutas Desa Adat Anak
+    // Memulihkan Mutasi Desa Adat Anak
     if (riwayatSebelumAdopsi && riwayatSebelumAdopsi.detail_keluarga) {
       const idDesaAsal = riwayatSebelumAdopsi.detail_keluarga.desa_adat_id;
 

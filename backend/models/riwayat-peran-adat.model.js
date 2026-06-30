@@ -42,11 +42,11 @@ const RiwayatPeranAdat = db.define("tb_riwayat_peran_adat", {
     allowNull: false
   },
   mulai_tanggal: {
-    type: DataTypes.DATEONLY,
+    type: DataTypes.DATE,
     allowNull: true
   },
   selesai_tanggal: {
-    type: DataTypes.DATEONLY,
+    type: DataTypes.DATE,
     allowNull: true
   }
 }, {
