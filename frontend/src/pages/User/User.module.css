@@ -103,11 +103,11 @@
 }
 
 .searchIcon {
-  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400;
+  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm;
 }
 
 .searchInput {
-  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3A2000]/10 transition-all;
+  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all focus:outline-none focus:border-[#3A2000] focus:ring-2 focus:ring-[#3A2000]/10;
 }
 
 .btnAddData {
@@ -119,23 +119,27 @@
 }
 
 .table {
-  @apply w-full border-collapse;
+  @apply w-full border-collapse text-left;
 }
 
 .table thead tr {
-  @apply bg-[#3A2000] text-white text-xs uppercase tracking-widest;
+  @apply bg-[#3A2000] text-white text-[11px] uppercase tracking-widest font-bold;
 }
 
 .table th {
-  @apply py-4 px-6 font-semibold;
+  @apply py-4 px-6;
 }
 
 .table td {
-  @apply py-5 px-6 border-b border-gray-50 text-sm align-middle;
+  @apply py-4 px-6 border-b border-gray-100 text-sm align-middle text-gray-600;
 }
 
 .table tr:last-child td {
   @apply border-b-0;
+}
+
+.table tr {
+  @apply hover:bg-gray-50/50 transition-colors duration-150;
 }
 
 .loadContainer {
@@ -179,7 +183,7 @@
 }
 
 .pagination {
-  @apply mt-6 flex justify-between items-center text-xs text-gray-500 font-medium;
+  @apply mt-6 flex justify-between items-center text-xs text-gray-400 font-medium tracking-wide;
 }
 
 .pageButtons {
@@ -187,11 +191,11 @@
 }
 
 .btnPageNumber {
-  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-bold transition-all duration-200;
 }
 
 .activePage {
-  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-md;
+  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-sm;
 }
 
 .modalContent {

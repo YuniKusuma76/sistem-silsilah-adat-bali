@@ -329,12 +329,12 @@ export const getAllUsers = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data user!",
       data: dataUser
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -383,12 +383,12 @@ export const getUsers = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data user!",
       data: dataUser
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -411,12 +411,12 @@ export const getProfile = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data profil!",
       data: user
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -464,7 +464,7 @@ export const getUserById = async (req, res) => {
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data user!",
       data: {
         id: user.id,
@@ -477,7 +477,7 @@ export const getUserById = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -620,12 +620,12 @@ export const createUser = async (req, res) => {
       }]
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Akun user berhasil dibuat!",
       data: dataUser
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -788,7 +788,7 @@ export const updateUser = async (req, res) => {
 
       if (req.role !== "Super Admin" && !isEditProfile) {
         if (req.role === "Admin Desa") {
-          // 1. Admin Desa hanya bisa mengedit status akun user dengan role Krama
+          // Admin Desa hanya bisa mengedit status akun user dengan role Krama
           if (user.role !== "Krama") {
             return res.status(403).json({
               message: "Otoritas mengakses data ditolak!"
@@ -827,7 +827,7 @@ export const updateUser = async (req, res) => {
       }]
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data user berhasil diperbarui!",
       data: {
         id: updatedUser.id,
@@ -840,7 +840,7 @@ export const updateUser = async (req, res) => {
       }
     });
   } catch (error) {
-    res. status(400).json({
+    return res. status(500).json({
       message: error.message
     });
   }
@@ -849,9 +849,7 @@ export const updateUser = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const user = await User.findOne({
-      where: { 
-        id: req.params.id 
-      }
+      where: { id: req.params.id }
     });
 
     if (!user) {
@@ -903,9 +901,7 @@ export const deleteUser = async (req, res) => {
     await User.update({ 
       status_akun: "Non-Aktif",
       refresh_token: null   
-    }, {
-      where: { id: user.id }
-    });
+    }, { where: { id: user.id } });
 
     if (req.userId === user.id) {
       const cookieOptions = {
@@ -918,11 +914,11 @@ export const deleteUser = async (req, res) => {
       res.clearCookie('refreshToken', cookieOptions);
     }
 
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: "Akun user berhasil dinonaktifkan!" 
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }
