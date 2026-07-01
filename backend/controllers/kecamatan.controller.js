@@ -25,12 +25,12 @@ export const getAllKecamatan = async (req, res) => {
       include: KECAMATAN_INCLUDE
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data kecamatan!",
       data: dataKec
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -48,12 +48,12 @@ export const getKecamatanById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data kecamatan!",
       data: dataKec
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -86,12 +86,12 @@ export const createKecamatan = async (req, res) => {
       kabupaten_id
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Data kecamatan berhasil ditambahkan!",
       data: newKec
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -131,18 +131,16 @@ export const updateKecamatan = async (req, res) => {
     await Kecamatan.update({
       nama_kecamatan: nama_kecamatan.trim().toUpperCase(),
       kabupaten_id
-    }, {
-      where: { id: kecamatan.id }
-    });
+    }, { where: { id: kecamatan.id } });
 
     const updateKec = await Kecamatan.findByPk(kecamatan.id);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data kecamatan berhasil diperbarui!",
       data: updateKec
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -172,11 +170,11 @@ export const deleteKecamatan = async (req, res) => {
 
     await kecamatan.destroy();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data kecamatan berhasil dihapus!"
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }

@@ -12,12 +12,12 @@ export const getAllProvinsi = async (req, res) => {
       }]
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data provinsi!",
       data: dataProv
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -38,12 +38,12 @@ export const getProvinsiById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data provinsi!",
       data: dataProv
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -64,12 +64,12 @@ export const createProvinsi = async (req, res) => {
       nama_provinsi: nama_provinsi.trim().toUpperCase()
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Data provinsi berhasil ditambahkan!",
       data: newProv
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -96,18 +96,16 @@ export const updateProvinsi = async (req, res) => {
 
     await Provinsi.update({
       nama_provinsi: nama_provinsi.trim().toUpperCase()
-    }, {
-      where: { id: provinsi.id }
-    });
+    }, { where: { id: provinsi.id } });
 
     const updateProv = await Provinsi.findByPk(provinsi.id);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data provinsi berhasil diperbarui!",
       data: updateProv
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -137,11 +135,11 @@ export const deleteProvinsi = async (req, res) => {
 
     await provinsi.destroy();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data provinsi berhasil dihapus!"
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }

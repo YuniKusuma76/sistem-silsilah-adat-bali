@@ -39,7 +39,7 @@
 }
 
 .notifWrapper {
-  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+  @apply relative p-2 rounded-full cursor-pointer transition-all duration-200 hover:bg-slate-100 active:scale-95 text-gray-600 hover:text-gray-900;
 }
 
 .notifIcon {
@@ -47,7 +47,7 @@
 }
 
 .notifBadge {
-  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+  @apply absolute top-1 right-1 flex items-center justify-center h-4 min-w-[16px] px-1 text-[9px] font-bold text-white bg-red-500 rounded-full border border-white animate-bounce;
 }
 
 .userSection {
@@ -296,4 +296,84 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.notifDropdownMenu {
+  @apply absolute right-0 mt-2 w-[400px] bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden;
+}
+
+.notifDropdownHeader {
+  @apply flex items-center justify-between p-3.5 border-b border-gray-100 bg-slate-50/50;
+}
+
+.notifDropdownHeaderTitle {
+  @apply text-sm font-bold text-bali-brown tracking-wide uppercase;
+}
+
+.notifDropdownHeaderCount {
+  @apply text-[10px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full;
+}
+
+.notifDropdownBody {
+  @apply overflow-hidden;
+}
+
+.notifListContainer {
+  @apply max-h-[350px] overflow-y-auto divide-y divide-gray-50;
+}
+
+.notifItemRow {
+  @apply flex items-start gap-3 p-3.5 transition-all duration-200 cursor-pointer hover:bg-slate-50/80;
+}
+
+.rowUnread {
+  @apply bg-blue-50;
+}
+
+.rowRead {
+  @apply bg-white;
+}
+
+.notifTitleUnread {
+  @apply text-xs font-extrabold text-gray-900 truncate;
+}
+
+.notifTitleRead {
+  @apply text-xs font-semibold text-gray-700 truncate;
+}
+
+.notifDeskripsi {
+  @apply text-[10px] text-gray-600 leading-relaxed break-words mt-0.5;
+}
+
+.notifTime {
+  @apply text-[9px] text-gray-400 block mt-1.5 font-medium tracking-wide;
+}
+
+.badgeBase {
+  @apply text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase;
+}
+
+.badgeVerifikasi {
+  @apply bg-amber-50 text-amber-700 border-amber-100;
+}
+
+.badgePeringatan {
+  @apply bg-red-50 text-red-700 border-red-100;
+}
+
+.badgeKontak {
+  @apply bg-emerald-50 text-emerald-700 border-emerald-100;
+}
+
+.badgeLogSistem {
+  @apply bg-blue-50 text-blue-700 border-blue-100;
+}
+
+.badgeInformasi {
+  @apply bg-slate-100 text-slate-700 border-slate-200;
+}
+
+.dotUnreadIndicator {
+  @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
 }

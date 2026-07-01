@@ -870,7 +870,7 @@ const DataKramaEditRelasi = ({ user }) => {
     return true;
   };
 
-// SUBMIT DATA (MODE EDIT):
+  // SUBMIT DATA:
   const saveKrama = async (e, isConfirmed = false) => {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
@@ -886,7 +886,7 @@ const DataKramaEditRelasi = ({ user }) => {
 
     setShowSaveConfirmModal(false);
 
-    // Konversi value agar aman mendarat di database integer
+    // konversi value agar tidak menjadi array kosong
     const safeInt = (value) => {
       if (value === undefined || value === null || value === "") return null;
       const parsed = parseInt(value, 10);
@@ -897,8 +897,6 @@ const DataKramaEditRelasi = ({ user }) => {
       if (!value || String(value).trim() === "" || String(value).toLowerCase() === "invalid date") {
         return null;
       }
-      // Frontend mengembalikan string YYYY-MM-DD dari <input type="date" />. 
-      // Kita langsung kirim string murni ini (DATEONLY murni) ke backend.
       return String(value).trim();
     };
 
@@ -915,8 +913,9 @@ const DataKramaEditRelasi = ({ user }) => {
           
           if (adoptingData.isAnakManual) {
             const payloadAnak = { ...adoptingData.manualAnak };
-            if (payloadAnak.desa_adat_id === "") payloadAnak.desa_adat_id = null;
-            
+            if (payloadAnak.desa_adat_id === "") {
+              payloadAnak.desa_adat_id = null;
+            }
             const resAnak = await axiosInstance.post("/krama-bali", payloadAnak);
             finalAnakId = resAnak.data.data.id;
           }
@@ -930,7 +929,6 @@ const DataKramaEditRelasi = ({ user }) => {
             status_hubungan: "Anak Angkat", 
             tanggal_pengangkatan: safeDate(adoptingData.tanggal_pengangkatan_anak),
             perkawinan_id: perkawinanAktifKrama ? safeInt(perkawinanAktifKrama.id) : null,
-            // Jika orang tua tunggal, petakan ID jangkar ke posisi ayah/ibu berdasarkan gendernya
             ayah_id: !perkawinanAktifKrama && kramaData.jenis_kelamin === "Laki-laki" ? safeInt(anchorKramaId) : null,
             ibu_id: !perkawinanAktifKrama && kramaData.jenis_kelamin === "Perempuan" ? safeInt(anchorKramaId) : null,
             urutan_lahir: null
@@ -947,22 +945,29 @@ const DataKramaEditRelasi = ({ user }) => {
         let ayahId = parentData.selected_ayah_id;
         let ibuId = parentData.selected_ibu_id;
 
-        // Proses pendaftaran entitas hulu baru jika diaktifkan secara manual
         if (parentData.isManual) {
           if (
             parentData.status_hubungan === "Anak Kandung" || 
             (parentData.status_hubungan === "Anak Angkat" && parentData.jenis_pengangkatan === "Pasangan")
           ) {
             const payloadAyah = { ...parentData.manualAyah };
-            if (payloadAyah.desa_adat_id === "") payloadAyah.desa_adat_id = null;
-
-            const resAyah = await axiosInstance.post("/krama-bali", { ...payloadAyah, jenis_kelamin: "Laki-laki" });
+            if (payloadAyah.desa_adat_id === "") {
+              payloadAyah.desa_adat_id = null;
+            }
+            const resAyah = await axiosInstance.post("/krama-bali", { 
+              ...payloadAyah, 
+              jenis_kelamin: "Laki-laki" 
+            });
             ayahId = resAyah.data.data.id;
 
             const payloadIbu = { ...parentData.manualIbu };
-            if (payloadIbu.desa_adat_id === "") payloadIbu.desa_adat_id = null;
-
-            const resIbu = await axiosInstance.post("/krama-bali", { ...payloadIbu, jenis_kelamin: "Perempuan" });
+            if (payloadIbu.desa_adat_id === "") {
+              payloadIbu.desa_adat_id = null;
+            }
+            const resIbu = await axiosInstance.post("/krama-bali", { 
+              ...payloadIbu, 
+              jenis_kelamin: "Perempuan" 
+            });
             ibuId = resIbu.data.data.id;
 
             if (!finalPerkawinanId && ayahId && ibuId) {
@@ -1026,8 +1031,9 @@ const DataKramaEditRelasi = ({ user }) => {
           } 
           else {
             const payloadSingle = { ...parentData.manualSingle };
-            if (payloadSingle.desa_adat_id === "") payloadSingle.desa_adat_id = null;
-
+            if (payloadSingle.desa_adat_id === "") {
+              payloadSingle.desa_adat_id = null;
+            }
             const resSingle = await axiosInstance.post("/krama-bali", payloadSingle);
             finalSingleParentId = resSingle.data.data.id;
           }
@@ -1065,14 +1071,9 @@ const DataKramaEditRelasi = ({ user }) => {
         }
       }
 
-      // ====================================================================
-      // INTEGRASI AKHIR: KIRIM PAYLOAD FLAT KE API CONTROLLER
-      // ====================================================================
       if (payloadR) {
         const response = await axiosInstance.put(`/relasi-krama/${realId}`, payloadR);
         const successMsg = response.data?.message || 'Data perubahan silsilah keluarga berhasil diproses!';
-        
-        // Sesuai standarisasi endpoint, kembali ke halaman sebelumnya dengan payload feedback dinamis
         navigate(-1, { state: { successMessage: successMsg } });
       } else {
         setIsLoading(false);

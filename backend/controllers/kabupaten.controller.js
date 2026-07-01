@@ -13,12 +13,12 @@ export const getAllKabupaten = async (req, res) => {
       }]
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data kabupaten!",
       data: dataKab
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -39,12 +39,12 @@ export const getKabupatenById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data kabupaten!",
       data: dataKab
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -77,12 +77,12 @@ export const createKabupaten = async (req, res) => {
       provinsi_id
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Data kabupaten berhasil ditambahkan!",
       data: newKab
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -122,18 +122,16 @@ export const updateKabupaten = async (req, res) => {
     await Kabupaten.update({
       nama_kabupaten: nama_kabupaten.trim().toUpperCase(),
       provinsi_id
-    }, {
-      where: { id: kabupaten.id }
-    });
+    }, { where: { id: kabupaten.id } });
 
     const updateKab = await Kabupaten.findByPk(kabupaten.id);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data kabupaten berhasil diperbarui!",
       data: updateKab
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -163,11 +161,11 @@ export const deleteKabupaten = async (req, res) => {
 
     await kabupaten.destroy();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data kabupaten berhasil dihapus!"
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }

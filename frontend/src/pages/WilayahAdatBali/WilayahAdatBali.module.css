@@ -1,64 +1,3 @@
-.modalOverlay {
-  @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
-}
-
-.modalContainer {
-  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
-}
-
-.elipsis {
-  @apply h-16 w-16 flex items-center justify-center bg-red-50 rounded-full mx-auto;
-}
-
-.btnCancel {
-  @apply px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
-}
-
-.btnDelete {
-  @apply inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all;
-}
-
-.modalContent {
-  @apply bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl border-t-4 border-amber-700;
-}
-
-.headerModal {
-  @apply flex-1 flex justify-between items-center border-b pb-4;
-}
-
-.headerModal h3 {
-  @apply flex flex-1 font-black text-[#3A2000] uppercase text-sm;
-}
-
-.iconClose {
-  @apply text-gray-400 hover:rotate-90 transition-transform duration-300;
-}
-
-.modalInputGroup {
-  @apply mb-4 flex flex-col gap-1.5 text-left;
-}
-
-.modalInputGroup label {
-  @apply text-xs font-bold text-gray-500 uppercase tracking-wide;
-}
-
-.modalInputGroup input,
-.modalInputGroup shadow-sm select {
-  @apply w-full px-4 py-2 bg-gray-50/50 border border-gray-200 rounded-xl text-sm text-gray-800 transition-all focus:bg-white focus:border-amber-700 focus:ring-1 focus:ring-amber-700 outline-none;
-}
-
-.inputForm {
-  @apply w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all font-medium text-gray-700;
-}
-
-.selectIcon {
-  @apply absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400;
-}
-
-.btnSaveAction {
-  @apply inline-flex items-center gap-1.5 bg-green-600 text-white px-5 py-2 rounded-xl text-xs font-bold hover:bg-green-700 transition-all active:scale-95 shadow-md shadow-green-900/10;
-}
-
 .mainContainer {
   @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
 }
@@ -84,7 +23,7 @@
 }
 
 .notifWrapper {
-  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+  @apply relative p-2 rounded-full cursor-pointer transition-all duration-200 hover:bg-slate-100 active:scale-95 text-gray-600 hover:text-gray-900;
 }
 
 .notifIcon {
@@ -92,7 +31,7 @@
 }
 
 .notifBadge {
-  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+  @apply absolute top-1 right-1 flex items-center justify-center h-4 min-w-[16px] px-1 text-[9px] font-bold text-white bg-red-500 rounded-full border border-white animate-bounce;
 }
 
 .userSection {
@@ -107,24 +46,16 @@
   @apply p-8 flex-1;
 }
 
-.loadContainer {
-  @apply flex justify-center items-center gap-2 text-gray-700 text-sm;
-}
-
-.loadSpinner {
-  @apply rounded-full h-4 w-4 border-b-2 border-amber-700;
-}
-
 .tabContainer {
-  @apply flex flex-wrap gap-2 border-b border-gray-200 pb-3 mb-6;
+  @apply flex flex-wrap gap-2 border-b border-gray-200 pb-px mb-6;
 }
 
 .tabButton {
-  @apply flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-gray-500 bg-white border border-gray-200 shadow-sm transition-all hover:bg-gray-50 hover:text-black active:scale-95;
+  @apply flex items-center gap-2 px-5 py-3 -mb-px border-b-2 border-transparent text-xs font-bold text-gray-400 bg-transparent transition-all duration-200 hover:text-gray-700;
 }
 
 .tabActive {
-  @apply bg-blue-600 text-white border-transparent shadow-md hover:bg-blue-700;
+  @apply border-[#3A2000] text-[#3A2000] font-extrabold;
 }
 
 .toolbar {
@@ -136,15 +67,11 @@
 }
 
 .searchIcon {
-  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400;
+  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm;
 }
 
 .searchInput {
-  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3A2000]/10 transition-all;
-}
-
-.btnAddData {
-  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-md shadow-green-900/10;
+  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all focus:outline-none focus:border-[#3A2000] focus:ring-2 focus:ring-[#3A2000]/10;
 }
 
 .tableWrapper {
@@ -152,39 +79,96 @@
 }
 
 .table {
-  @apply w-full border-collapse;
+  @apply w-full border-collapse text-left;
 }
 
 .table thead tr {
-  @apply bg-[#3A2000] text-white text-xs uppercase tracking-widest;
+  @apply bg-[#3A2000] text-white text-[11px] uppercase tracking-widest font-bold;
 }
 
 .table th {
-  @apply py-4 px-6 font-semibold;
+  @apply py-4 px-6;
 }
 
 .table td {
-  @apply py-5 px-6 border-b border-gray-50 text-sm align-middle;
+  @apply py-4 px-6 border-b border-gray-100 text-sm align-middle text-gray-600;
 }
 
 .table tr:last-child td {
   @apply border-b-0;
 }
 
-.infoDataContent {
-  @apply flex flex-col items-center justify-center;
+.table tr {
+  @apply hover:bg-gray-50/50 transition-colors duration-150;
 }
 
-.infoDataIcon {
-  @apply text-gray-300 text-3xl mb-2;
+.btnAddData {
+  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-sm shadow-green-900/10;
 }
 
 .btnEdit {
-  @apply inline-flex items-center gap-2 bg-yellow-50 text-yellow-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-yellow-600 hover:text-white transition-all;
+  @apply inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-600 hover:text-white transition-all duration-200;
+}
+
+.btnDelete {
+  @apply inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all duration-200;
+}
+
+.btnCancel {
+  @apply px-5 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 text-xs font-bold transition-all duration-200 active:scale-95;
+}
+
+.btnSaveAction {
+  @apply inline-flex items-center gap-1.5 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-green-700 transition-all active:scale-95 shadow-sm;
+}
+
+.btnDeleteAction {
+  @apply inline-flex items-center gap-1.5 bg-red-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-red-700 transition-all active:scale-95 shadow-sm shadow-red-900/10;
+}
+
+.modalOverlay {
+  @apply fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
+}
+
+.modalContent {
+  @apply bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl border-t-4 border-amber-500 transform transition-all;
+}
+
+.modalContainer {
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border-t-4 border-red-700;
+}
+
+.elipsis {
+  @apply h-16 w-16 flex items-center justify-center bg-red-50 rounded-full;
+}
+
+.headerModal {
+  @apply flex-1 flex justify-between items-center mb-4 border-b pb-4;
+}
+
+.headerModal h3 {
+  @apply flex flex-1 font-black text-[#3A2000] uppercase text-sm;
+}
+
+.iconClose {
+  @apply text-gray-400 hover:text-gray-600 hover:rotate-90 transition-all duration-300 cursor-pointer;
+}
+
+.modalInputGroup {
+  @apply mb-4 flex flex-col gap-2 text-left;
+}
+
+.modalInputGroup label {
+  @apply text-[11px] font-bold text-gray-400 uppercase tracking-wider;
+}
+
+.modalInputGroup input,
+.modalInputGroup select {
+  @apply w-full px-4 py-2.5 bg-gray-50/50 border border-gray-200 rounded-xl text-sm text-gray-800 transition-all focus:bg-white focus:border-[#3A2000] focus:ring-2 focus:ring-[#3A2000]/10 outline-none;
 }
 
 .pagination {
-  @apply mt-6 flex justify-between items-center text-xs text-gray-500 font-medium;
+  @apply mt-6 flex justify-between items-center text-xs text-gray-400 font-medium tracking-wide;
 }
 
 .pageButtons {
@@ -192,9 +176,105 @@
 }
 
 .btnPageNumber {
-  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-bold transition-all duration-200;
 }
 
 .activePage {
-  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-md;
+  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-sm;
+}
+
+.loadContainer {
+  @apply flex justify-center items-center gap-2 text-gray-400 text-sm font-medium;
+}
+
+.loadSpinner {
+  @apply rounded-full h-4 w-4 border-2 border-gray-200 border-b-[#3A2000];
+}
+
+.infoDataContent {
+  @apply flex flex-col items-center justify-center py-6;
+}
+
+.infoDataIcon {
+  @apply text-gray-300 text-3xl mb-2;
+}
+
+.notifDropdownMenu {
+  @apply absolute right-0 mt-2 w-[400px] bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden;
+}
+
+.notifDropdownHeader {
+  @apply flex items-center justify-between p-3.5 border-b border-gray-100 bg-slate-50/50;
+}
+
+.notifDropdownHeaderTitle {
+  @apply text-sm font-bold text-bali-brown tracking-wide uppercase;
+}
+
+.notifDropdownHeaderCount {
+  @apply text-[10px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full;
+}
+
+.notifDropdownBody {
+  @apply overflow-hidden;
+}
+
+.notifListContainer {
+  @apply max-h-[350px] overflow-y-auto divide-y divide-gray-50;
+}
+
+.notifItemRow {
+  @apply flex items-start gap-3 p-3.5 transition-all duration-200 cursor-pointer hover:bg-slate-50/80;
+}
+
+.rowUnread {
+  @apply bg-blue-50;
+}
+
+.rowRead {
+  @apply bg-white;
+}
+
+.notifTitleUnread {
+  @apply text-xs font-extrabold text-gray-900 truncate;
+}
+
+.notifTitleRead {
+  @apply text-xs font-semibold text-gray-700 truncate;
+}
+
+.notifDeskripsi {
+  @apply text-[10px] text-gray-600 leading-relaxed break-words mt-0.5;
+}
+
+.notifTime {
+  @apply text-[9px] text-gray-400 block mt-1.5 font-medium tracking-wide;
+}
+
+.badgeBase {
+  @apply text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase;
+}
+
+.badgeVerifikasi {
+  @apply bg-amber-50 text-amber-700 border-amber-100;
+}
+
+.badgePeringatan {
+  @apply bg-red-50 text-red-700 border-red-100;
+}
+
+.badgeKontak {
+  @apply bg-emerald-50 text-emerald-700 border-emerald-100;
+}
+
+.badgeLogSistem {
+  @apply bg-blue-50 text-blue-700 border-blue-100;
+}
+
+.badgeInformasi {
+  @apply bg-slate-100 text-slate-700 border-slate-200;
+}
+
+.dotUnreadIndicator {
+  @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
 }

@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import {
   DesaAdat,
   Kecamatan,
@@ -8,6 +9,7 @@ import {
   PermohonanDesa,
   KramaBali
 } from "../models/associations.js";
+import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
 
 // Data Desa Adat Include
 const DESA_ADAT_INCLUDE = [
@@ -35,12 +37,12 @@ export const getAllDesaAdat = async (req, res) => {
       include: DESA_ADAT_INCLUDE
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data desa adat!",
       data: dataDesa
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -58,12 +60,12 @@ export const getDesaAdatById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data desa adat!",
       data: dataDesa
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -91,17 +93,31 @@ export const createDesaAdat = async (req, res) => {
       });
     }
 
+    const formattedName = nama_desa_adat.trim().toUpperCase();
     const newDesa = await DesaAdat.create({
-      nama_desa_adat: nama_desa_adat.trim().toUpperCase(),
+      nama_desa_adat: formattedName,
       kecamatan_id
     });
 
-    res.status(201).json({
+    const senderId = req.user?.id || null;
+
+    await kirimNotifikasiSistem(req, {
+      judul: "Wilayah Desa Adat Baru",
+      deskripsi: `Desa Adat ${formattedName} telah ditambahkan ke Kecamatan ${dataKecamatan.nama_kecamatan}.`,
+      kategori: "INFORMASI",
+      tautan_fitur: null,
+      desa_adat_id: null,
+      sender_id: senderId,
+      kontak_pesan_id: null,
+      user_id: null
+    });
+
+    return res.status(201).json({
       message: "Data desa adat berhasil ditambahkan!",
       data: newDesa
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -138,21 +154,32 @@ export const updateDesaAdat = async (req, res) => {
       }
     }
 
+    const formattedName = nama_desa_adat.trim().toUpperCase();
     await DesaAdat.update({
-      nama_desa_adat: nama_desa_adat.trim().toUpperCase(),
+      nama_desa_adat: formattedName,
       kecamatan_id
-    }, {
-      where: { id: desaAdat.id }
-    });
+    }, { where: { id: desaAdat.id } });
 
     const updateDesa = await DesaAdat.findByPk(desaAdat.id);
+    const senderId = req.user?.id || null;
 
-    res.status(200).json({
+    await kirimNotifikasiSistem(req, {
+      judul: "Pembaruan Wilayah Desa Adat",
+      deskripsi: `Data Desa Adat telah diperbarui menjadi ${formattedName}.`,
+      kategori: "INFORMASI",
+      tautan_fitur: null,
+      desa_adat_id: desaAdat.id,
+      sender_id: senderId,
+      kontak_pesan_id: null,
+      user_id: null
+    });
+
+    return res.status(200).json({
       message: "Data desa adat berhasil diperbarui!",
       data: updateDesa
     });
   } catch (error) {
-    res.status(400).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -170,9 +197,10 @@ export const deleteDesaAdat = async (req, res) => {
     }
 
     // Validasi relasi data
-    const dataUser = await User.findOne({
+    const dataUser = await User.findOne({ 
       where: { desa_adat_id: id }
     });
+
     if (dataUser) {
       return res.status(400).json({
         message: "Data desa adat tidak dapat dihapus! Terdapat data User yang terdaftar aktif di desa adat ini."
@@ -187,6 +215,7 @@ export const deleteDesaAdat = async (req, res) => {
         ]
       }
     });
+
     if (dataMutasiDesa) {
       return res.status(400).json({
         message: "Data desa adat tidak dapat dihapus! Wilayah desa adat ini masih tercatat dalam riwayat berkas permohonan mutasi desa."
@@ -196,6 +225,7 @@ export const deleteDesaAdat = async (req, res) => {
     const dataMutasiRole = await PermohonanRole.findOne({
       where: { desa_adat_id_tujuan: id }
     });
+
     if (dataMutasiRole) {
       return res.status(400).json({
         message: "Data desa adat tidak dapat dihapus! Wilayah desa adat ini masih tercatat dalam riwayat berkas permohonan mutasi role."
@@ -205,6 +235,7 @@ export const deleteDesaAdat = async (req, res) => {
     const dataKrama = await KramaBali.findOne({
       where: { desa_adat_id: id }
     });
+    
     if (dataKrama) {
       return res.status(400).json({
         message: "Data desa adat tidak dapat dihapus! Terdapat data Krama yang terdaftar aktif di desa adat ini."
@@ -213,11 +244,11 @@ export const deleteDesaAdat = async (req, res) => {
 
     await desaAdat.destroy();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Data desa adat berhasil dihapus!"
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }

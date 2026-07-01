@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { MdNotificationsNone, MdAddLocationAlt } from 'react-icons/md';
 import { HiOutlineOfficeBuilding } from 'react-icons/hi';
+import { MdNotificationsNone, MdAddLocationAlt } from 'react-icons/md';
 import { 
   FaSearch, 
   FaPlus, 
@@ -76,7 +76,30 @@ const createSlug = (users, date, id) => {
   return `${usersSlug}-${dateFormatted}_${encodedId}`;
 };
 
-const User = () => {
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const User = ({ user }) => {
+  const dropdownRef = useRef(null);
+  const notifDropdownRef = useRef(null);
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -94,9 +117,12 @@ const User = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const dropdownRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [daftarDesaAdat, setDaftarDesaAdat] = useState([]);
+
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -113,20 +139,17 @@ const User = () => {
     provinsi: ''
   });
   
-  // State alert notifikasi global
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
     message: '' 
   });
 
-  // State menampilkan modal konfirmasi
   const [modal, setModal] = useState({ 
     show: false, 
     id: null 
   });
 
-  // Helper: Fungsi mengambil data user
   const fetchDataUser = async () => {
     setLoading(true);
     try {
@@ -148,7 +171,6 @@ const User = () => {
     fetchDataUser();
   }, []);
 
-  // Effect: Mengambil data master desa adat
   useEffect(() => {
     const fetchDesaAdat = async () => {
       try {
@@ -162,34 +184,73 @@ const User = () => {
     fetchDesaAdat();
   }, []);
 
-  // Effect: Menutup dropdown otomatis ketika klik di luar area input desa adat
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
-  // Effect: Mencegah melakukan scroll ketika modal tampil
+  // HELPER NOTIFIKASI: mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
+
   useEffect(() => {
     if (showAddModal || modal.show) {
       document.body.classList.add("no-scroll");
     } else {
       document.body.classList.remove("no-scroll");
     }
-    return () => document.body.classList.remove("no-scroll");
+    return () => {
+      document.body.classList.remove("no-scroll");
+    }
   }, [showAddModal, modal.show]);
 
-  // Filter data desa berdasarkan ketikan user
   const desaFiltered = searchDesa.trim() === "" ? daftarDesaAdat : daftarDesaAdat.filter((desa) => {
     const namaDesa = (desa.nama_desa_adat || desa.nama_desa || desa.nama || '').toLowerCase();
     return namaDesa.includes(searchDesa.toLowerCase());
   });
 
-  // Helper: Mengatasi perubahan form input
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ 
@@ -197,7 +258,6 @@ const User = () => {
     }));
   };
 
-  // Helper: Memilih desa dari list dropdown
   const handleSelectDesa = async (desa) => {
     const namaTerpilih = desa.nama_desa_adat || desa.nama_desa || desa.nama;
     setSearchDesa(namaTerpilih);
@@ -245,7 +305,6 @@ const User = () => {
     }
   };
 
-  // Helper: Membersihkan data input ketika modal close
   const handleCloseAddModal = () => {
     setShowAddModal(false);
     setFormData({
@@ -265,7 +324,7 @@ const User = () => {
     setShowDropdown(false);
   };
 
-  // SUBMIT DATA USER
+  // SUBMIT DATA USER:
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!formData.full_name || !formData.email) {
@@ -349,30 +408,26 @@ const User = () => {
     }
   };
 
-  // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: location.state.successMessage 
+      setAlert({
+        show: true,
+        type: 'success',
+        message: location.state.successMessage
       });
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+  }, [location]);
 
-  // Effect: Auto-close alert
   useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert(prev => ({ 
-        ...prev, 
-        show: false 
-      })), 3000);
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [alert.show]);
+  }, [alert.show, alert.type]);
 
-  // Halper: Fungsi menonaktifkan akun user
   const handleDeleteUser = async () => {
     if (!modal.id) return;
     setIsDeleting(true);
@@ -416,12 +471,10 @@ const User = () => {
   const currentItems = filteredDataUser.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredDataUser.length / itemsPerPage);
 
-  // Effect: Setting current page aktif default 1
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Fungsi pergi ke next page
   const goToPage = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
@@ -468,7 +521,6 @@ const User = () => {
     });
   };
 
-  // Halper: Style badge status aturan
   const getStatusClass = (status) => {
     switch (status) {
       case 'Aktif': return styles.badgeSuccess;
@@ -490,9 +542,83 @@ const User = () => {
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -508,35 +634,56 @@ const User = () => {
         onClose={() => setModal({ show: false, id: null })}
         onConfirm={handleDeleteUser}
         isProcessing={isDeleting}
-        title="Nonaktifkan Akun?"
-        message="Akun yang dinonaktifkan tidak akan dapat masuk ke dalam sistem."
+        title="Konfirmasi Nonaktifkan Akun"
+        message="Apakah Anda yakin ingin menonaktifkan akun pengguna ini? Akun yang dinonaktifkan tidak akan dapat masuk ke dalam sistem."
       />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-section 
-          ${alert.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+        <div className={`alert-section
+          ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
+            : alert.type === 'error' ? 'border-red-500 bg-red-50'
+            : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
+            : 'border-blue-500 bg-blue-50'}`
+          }>
           <div className="flex items-start p-4">
-            <div className="flex-shrink-0 mr-3 mt-2 text-2xl">
-              {alert.type === 'success' ? '✅' : '⚠️'}
+            {/* Icon */}
+            <div className="flex-shrink-0 mr-3 text-2xl">
+              {alert.type === 'success' && '✅'}
+              {alert.type === 'error' && '❌'}
+              {alert.type === 'warning' && '⚠️'}
+              {alert.type === 'loading' && '⏳'}
             </div>
+            {/* Content */}
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${alert.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                {alert.type === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan.'}
+              <h4 className={`font-bold text-sm 
+                ${alert.type === 'success' ? 'text-green-800' 
+                  : alert.type === 'error' ? 'text-red-800' 
+                  : alert.type === 'warning' ? 'text-amber-800'
+                  : 'text-blue-800'}`
+                }>
+                {alert.type === 'success' ? 'Berhasil!' 
+                  : alert.type === 'error' ? 'Terjadi Kesalahan!' 
+                  : alert.type === 'warning' ? 'Perhatian Adat!'
+                  : 'Mohon Tunggu...'
+                }
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {alert.message}
               </p>
             </div>
+            {/* Close Button */}
             <button onClick={() => setAlert(prev => ({ ...prev, show: false }))} className="alert-button">
-              &times;
+              <span className="text-2xl leading-none">&times;</span>
             </button>
           </div>
-          {(alert.type === 'success' || alert.type === 'error') && (
+          {/* Progress Bar Line */}
+          {(alert.type === 'success' || alert.type === 'error' || alert.type === 'warning') && (
             <div className="h-1.5 w-full bg-gray-200">
-              <div className={`h-full animate-shrink ${alert.type === 'success' 
-                ? 'bg-green-500' 
-                : 'bg-red-500'}`}>
-              </div>
+              <div className={`h-full animate-shrink ${
+                alert.type === 'success' ? 'bg-green-500' : 
+                alert.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+                }`
+              }></div>
             </div>
           )}
         </div>
