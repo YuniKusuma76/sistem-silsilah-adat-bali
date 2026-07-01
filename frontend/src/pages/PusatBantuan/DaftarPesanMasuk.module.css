@@ -1,0 +1,309 @@
+.mainContainer {
+  @apply ml-72 bg-white/70 min-h-screen flex flex-col font-sans;
+}
+
+.navbar {
+  @apply h-20 bg-white border-b border-gray-100 px-8 flex items-center justify-between sticky top-0 z-[60] shadow-sm mt-2;
+}
+
+.navLeft {
+  @apply flex flex-col justify-center;
+}
+
+.navTitle {
+  @apply text-xl font-bold text-[#3a2000] uppercase tracking-wider leading-none;
+}
+
+.navSubtitle {
+  @apply text-[11px] text-gray-500 mt-1 font-medium;
+}
+
+.navRight {
+  @apply flex items-center gap-6;
+}
+
+.notifWrapper {
+  @apply relative p-2 rounded-full cursor-pointer transition-all duration-200 hover:bg-slate-100 active:scale-95 text-gray-600 hover:text-gray-900;
+}
+
+.notifIcon {
+  @apply text-2xl text-gray-500;
+}
+
+.notifBadge {
+  @apply absolute top-1 right-1 flex items-center justify-center h-4 min-w-[16px] px-1 text-[9px] font-bold text-white bg-red-500 rounded-full border border-white animate-bounce;
+}
+
+.userSection {
+  @apply border-l pl-6 border-gray-200;
+}
+
+.userName {
+  @apply text-xs font-bold text-[#3a2000] uppercase tracking-tighter;
+}
+
+.contentArea {
+  @apply p-8 flex-1;
+}
+
+.controlPanel {
+  @apply mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4;
+}
+
+.searchWrapper {
+  @apply relative flex items-center flex-1;
+}
+
+.filterWrapper {
+  @apply relative flex items-center;
+}
+
+.searchIcon,
+.filterIcon {
+  @apply absolute left-3 text-slate-400 text-sm pointer-events-none;
+}
+
+.searchInput,
+.filterSelect {
+  @apply w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg outline-none bg-slate-50 transition-all duration-200;
+}
+
+.searchInput:focus,
+.filterSelect:focus {
+  @apply border-amber-700 bg-white ring-1 ring-amber-700/20;
+}
+
+.stateMessage {
+  @apply flex flex-col items-center justify-center min-h-[350px] w-full py-12 text-center mx-auto;
+}
+
+.loadSpinner {
+  @apply rounded-full h-4 w-4 border-b-2 border-amber-700;
+}
+
+.infoDataIcon {
+  @apply text-gray-300 text-3xl mb-2;
+}
+
+.splitGrid {
+  @apply grid grid-cols-[2fr_3fr] gap-6;
+  height: calc(100vh - 240px);
+  min-height: 450px;
+}
+.messageListColumn {
+  @apply bg-white rounded-lg overflow-y-auto p-3 flex flex-col gap-3;
+}
+
+.pesanCard {
+  @apply p-4 bg-white border border-slate-100 border-l-4 border-l-slate-300 rounded-md cursor-pointer transition-all duration-200 shadow-md;
+}
+.pesanCard:hover {
+  @apply bg-slate-50 translate-x-0.5;
+}
+
+.pesanCardActive {
+  @apply bg-amber-50/50 border-amber-200 border-l-amber-700;
+}
+
+.badgeKategori {
+  @apply text-[9px] font-bold bg-teal-800 text-white px-2 py-0.5 rounded uppercase;
+}
+
+.dateText {
+  @apply text-[10px] text-slate-400 whitespace-nowrap flex-shrink-0;
+}
+
+.locationPesan {
+  @apply flex items-center text-[10px] text-amber-700 font-medium mt-2.5 pt-2 border-t border-slate-100;
+}
+
+.messageDetailColumn {
+  @apply bg-white rounded-lg border border-slate-200 p-6 overflow-y-auto;
+}
+
+.detailCard {
+  @apply h-full;
+}
+
+.detailHeader {
+  @apply flex justify-between items-center border-b-2 border-slate-100 pb-3 mb-4;
+}
+
+.statusStyle {
+  @apply text-xs font-bold px-3 py-1 rounded-md flex items-center gap-1.5;
+}
+
+.dotPulse {
+  @apply animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500 opacity-75;
+}
+
+.dotPulseLine {
+  @apply relative inline-flex rounded-full h-2 w-2 bg-amber-600;
+}
+.detailMetaGrid {
+  @apply grid grid-cols-2 gap-4 mb-4;
+}
+
+.columnContainer {
+  @apply flex items-center space-x-2 text-xs text-gray-600;
+}
+
+.columnWilayah {
+  @apply col-span-2 bg-amber-50/60 p-3 rounded-md border border-amber-200/60 text-xs mt-2 shadow-inner;
+}
+
+.headerColumnWilayah {
+  @apply flex items-center space-x-1 text-amber-800 font-bold mb-2;
+}
+
+.gridWilayah {
+  @apply flex flex-row justify-between items-center gap-4 text-slate-700;
+}
+
+.isiPesanBox {
+  @apply bg-slate-50 p-3 shadow-inner rounded-md border border-slate-200 text-xs text-slate-700 leading-relaxed whitespace-pre-line;
+}
+
+.stateMessage {
+  @apply flex flex-col items-center justify-center min-h-[350px] w-full py-12 text-center mx-auto;
+}
+
+.emptyDetailState {
+  @apply flex flex-col items-center justify-center h-full text-center bg-slate-50/50 border-2 border-dashed border-slate-200 rounded-lg p-8;
+}
+
+.btnSubmit {
+  @apply inline-flex items-center bg-gray-50 border text-gray-700 px-2 py-1 rounded-md text-[11px] font-bold hover:bg-gray-200 active:scale-95 transition-all;
+}
+
+.modalOverlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex justify-center items-center p-4 transition-all duration-300;
+}
+
+.modalContent {
+  @apply bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl border-t-4 border-amber-700;
+}
+
+.headerModal {
+  @apply flex-1 flex justify-between items-center mb-4 border-b pb-4;
+}
+
+.headerModal h3 {
+  @apply flex flex-1 font-black text-[#3A2000] uppercase text-sm;
+}
+
+.iconClose {
+  @apply text-gray-400 hover:rotate-90 transition-transform duration-300;
+}
+
+.inputSelect {
+  @apply w-full text-sm font-medium text-gray-700 appearance-none px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all;
+}
+
+.selectIcon {
+  @apply absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400 text-sm;
+}
+
+.noteConf {
+  @apply text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 p-2.5 rounded mt-3 italic text-left;
+}
+
+.btnSaveModal {
+  @apply bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
+}
+
+.btnCancel {
+  @apply px-6 py-2 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
+}
+
+.iconTrash {
+  @apply p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded border border-transparent hover:border-red-200 transition-all active:scale-95;
+}
+
+.elipsis {
+  @apply mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-50 text-red-600 mb-5 mt-5;
+}
+
+.btnRejectModal {
+  @apply bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
+}
+
+.notifDropdownMenu {
+  @apply absolute right-0 mt-2 w-[400px] bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden;
+}
+
+.notifDropdownHeader {
+  @apply flex items-center justify-between p-3.5 border-b border-gray-100 bg-slate-50/50;
+}
+
+.notifDropdownHeaderTitle {
+  @apply text-sm font-bold text-bali-brown tracking-wide uppercase;
+}
+
+.notifDropdownHeaderCount {
+  @apply text-[10px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full;
+}
+
+.notifDropdownBody {
+  @apply overflow-hidden;
+}
+
+.notifListContainer {
+  @apply max-h-[350px] overflow-y-auto divide-y divide-gray-50;
+}
+
+.notifItemRow {
+  @apply flex items-start gap-3 p-3.5 transition-all duration-200 cursor-pointer hover:bg-slate-50/80;
+}
+
+.rowUnread {
+  @apply bg-blue-50;
+}
+
+.rowRead {
+  @apply bg-white;
+}
+
+.notifTitleUnread {
+  @apply text-xs font-extrabold text-gray-900 truncate;
+}
+
+.notifTitleRead {
+  @apply text-xs font-semibold text-gray-700 truncate;
+}
+
+.notifDeskripsi {
+  @apply text-[10px] text-gray-600 leading-relaxed break-words mt-0.5;
+}
+
+.notifTime {
+  @apply text-[9px] text-gray-400 block mt-1.5 font-medium tracking-wide;
+}
+
+.badgeBase {
+  @apply text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase;
+}
+
+.badgeVerifikasi {
+  @apply bg-amber-50 text-amber-700 border-amber-100;
+}
+
+.badgePeringatan {
+  @apply bg-red-50 text-red-700 border-red-100;
+}
+
+.badgeKontak {
+  @apply bg-emerald-50 text-emerald-700 border-emerald-100;
+}
+
+.badgeLogSistem {
+  @apply bg-blue-50 text-blue-700 border-blue-100;
+}
+
+.badgeInformasi {
+  @apply bg-slate-100 text-slate-700 border-slate-200;
+}
+
+.dotUnreadIndicator {
+  @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
+}

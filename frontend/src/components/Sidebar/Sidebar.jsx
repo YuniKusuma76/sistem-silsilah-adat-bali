@@ -8,7 +8,8 @@ import {
   MdDashboard, 
   MdApproval,
   MdOutlineEditLocationAlt,
-  MdLiveHelp
+  MdLiveHelp,
+  MdMoveToInbox 
 } from "react-icons/md";
 import { 
   FaHome, 
@@ -58,9 +59,9 @@ const SIDEBAR_MENU = {
       label: "Pengajuan Desa Adat", 
       icon: <MdOutlineEditLocationAlt size={20} /> 
     },{ 
-      path: "/kontak", 
-      label: "Kontak", 
-      icon: <FaEnvelope size={20} /> 
+      path: "/pusat-bantuan", 
+      label: "Pusat Bantuan", 
+      icon: <MdLiveHelp size={18} /> 
     }
   ],
 
@@ -82,9 +83,9 @@ const SIDEBAR_MENU = {
       label: "Pengajuan Role", 
       icon: <LuUserPen size={20} /> 
     },{ 
-      path: "/kontak", 
-      label: "KONTAK", 
-      icon: <FaEnvelope size={20} /> 
+      path: "/pusat-bantuan", 
+      label: "Pusat Bantuan", 
+      icon: <MdLiveHelp size={18} /> 
     }
   ],
 
@@ -106,9 +107,9 @@ const SIDEBAR_MENU = {
       label: "Pengajuan Desa Adat", 
       icon: <MdOutlineEditLocationAlt size={20} /> 
     },{ 
-      path: "/kontak", 
-      label: "KONTAK", 
-      icon: <FaEnvelope size={20} /> 
+      path: "/pusat-bantuan", 
+      label: "Pusat Bantuan", 
+      icon: <MdLiveHelp size={18} /> 
     }
   ],
 
@@ -142,9 +143,9 @@ const SIDEBAR_MENU = {
       label: "Verifikasi Data", 
       icon: <MdApproval size={18} /> 
     },{ 
-      path: "/kontak", 
-      label: "Kontak", 
-      icon: <FaEnvelope size={20} /> 
+      path: "/pesan-masuk", 
+      label: "Laporan & Pesan Masuk", 
+      icon: <MdMoveToInbox  size={20} /> 
     }
   ],
 
@@ -178,9 +179,9 @@ const SIDEBAR_MENU = {
       label: "Verifikasi Data", 
       icon: <MdApproval size={18} /> 
     },{ 
-      path: "/kontak/inbox", 
-      label: "Kontak", 
-      icon: <FaEnvelope size={20} /> 
+      path: "/pesan-masuk", 
+      label: "Laporan & Pesan Masuk", 
+      icon: <MdMoveToInbox  size={20} /> 
     }
   ]
 };

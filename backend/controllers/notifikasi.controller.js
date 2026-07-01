@@ -46,13 +46,7 @@ export const getNotifikasiSaya = async (req, res) => {
       };
     } else if (["Krama", "Pakar", "Viewer"].includes(userRole)) {
       filterCondition = {
-        [Op.or]: [
-          { user_id: currentUserId },
-          { 
-            desa_adat_id: userDesaId,
-            kontak_pesan_id: { [Op.ne]: null }
-          }
-        ] 
+        user_id: currentUserId
       };
 
       includeCondition.push({

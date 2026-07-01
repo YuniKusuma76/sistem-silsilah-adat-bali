@@ -22,7 +22,6 @@ import AturanAdatBaliBaru from './pages/AturanAdatBali/AturanAdatBaliBaru.jsx';
 import AturanAdatBaliEdit from './pages/AturanAdatBali/AturanAdatBaliEdit.jsx';
 import User from './pages/User/User.jsx';
 import UserDetail from './pages/User/UserDetail.jsx';
-import KontakPesan from './pages/PusatBantuan/KontakPesan.jsx';
 
 // Wilayah Adat Bali
 import WilayahAdatBali from './pages/WilayahAdatBali/WilayahAdatBali.jsx';
@@ -72,6 +71,10 @@ import AdminUsersAdd from './pages/AdminUsersAdd.jsx';
 import AdminUsersEdit from './pages/AdminUsersEdit.jsx';
 import AdminAturanAdatBali from './pages/AdminAturanAdatBali.jsx';
 import AdminAturanAdatBaliDetail from './pages/AdminAturanAdatBaliDetail.jsx';
+
+// FIX
+import KontakPesan from './pages/PusatBantuan/KontakPesan.jsx';
+import DaftarPesanMasuk from './pages/PusatBantuan/DaftarPesanMasuk.jsx';
 
 // Middleware Hak Akses Route
 const ProtectedRoute = ({ user, allowedRoles, children }) => {
@@ -446,6 +449,18 @@ const App = () => {
           <Route 
             path="/pusat-bantuan" 
             element={<KontakPesan user={user} />} 
+          />
+          <Route 
+            path="/pesan-masuk/pusat-bantuan" 
+            element={<KontakPesan user={user} />} 
+          />
+          <Route 
+            path="/pesan-masuk" 
+            element={
+              <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
+                <DaftarPesanMasuk user={user} />
+              </ProtectedRoute>
+            } 
           />
 
 

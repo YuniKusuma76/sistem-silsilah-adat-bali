@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { MdNotificationsNone } from 'react-icons/md';
-import { IoIosSend } from "react-icons/io";
+import { useNavigate } from 'react-router-dom';
+import { MdNotificationsNone, MdArrowBack  } from 'react-icons/md';
 import { 
   FaMapMarkerAlt,
   FaChevronDown,
@@ -10,23 +10,44 @@ import axiosInstance from '../../api/axiosInstance';
 import Footer from '../../components/Footer/Footer';
 import styles from './KontakPesan.module.css';
 
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
 const KontakPesan = ({user}) => {
   const [daftarDesa, setDaftarDesa] = useState([]);
   const [daftarKecamatan, setDaftarKecamatan] = useState([]);
   const [daftarKabupaten, setDaftarKabupaten] = useState([]);
   const [daftarProvinsi, setDaftarProvinsi] = useState([]);
 
-  const [jumlahNotif, setJumlahNotif] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const dropdownRef = useRef(null);
   const notifDropdownRef = useRef(null);
+  const navigate = useNavigate();
   
+  const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
 
-  // STATE KONTAK PESAN
+  // STATE KONTAK PESAN:
   const [formData, setFormData] = useState({
     nama_pengirim: '',
     email_address: '',
@@ -35,7 +56,6 @@ const KontakPesan = ({user}) => {
     desa_adat_id: ''
   });
 
-  // State alert notifikasi global
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
@@ -50,7 +70,6 @@ const KontakPesan = ({user}) => {
     "Pusat Bantuan Krama Adat"
   ];
 
-  // Effect: Mengambil data wilayah adat
   useEffect(() => {
     const fetchSemuaWilayah = async () => {
       try {
@@ -79,7 +98,7 @@ const KontakPesan = ({user}) => {
     );
   }, [daftarDesa, searchTerm]);
 
-  // Helper: Fungsi mengambil detail wilayah berdasarkan desa adat id
+  // HELPER WILAYAH ADAT: Mengambil data lengkap hierarki wilayah adat
   const getWilayahLengkap = (desaId) => {
     const desa = daftarDesa.find(d => String(d.id) === String(desaId));
     if (!desa) return null;
@@ -95,12 +114,8 @@ const KontakPesan = ({user}) => {
     };
   };
 
-  // Effect: Menutup dropdown ketika klik di luar area input
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
       if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
         setIsDropdownNotifOpen(false);
       }
@@ -109,7 +124,7 @@ const KontakPesan = ({user}) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Helper: Mengambil list notifikasi yang masuk
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
   const fetchNotifikasiLengkap = async () => {
     if (!user) return;
     try {
@@ -118,7 +133,7 @@ const KontakPesan = ({user}) => {
       const unread = response.data.data.filter(n => !n.is_read).length;
       setJumlahNotif(unread);
     } catch (error) {
-      console.error("Gagal mengambil daftar notifikasi", error);
+      console.error("Gagal mengambil list notifikasi masuk", error);
     }
   };
 
@@ -130,7 +145,6 @@ const KontakPesan = ({user}) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Helper: Menandai notifikasi telah dibaca
   const handleTandaiDibaca = async (notifId) => {
     try {
       await axiosInstance.patch(`/notifikasi/read/${notifId}`);
@@ -146,18 +160,16 @@ const KontakPesan = ({user}) => {
     }
   };
 
-  // Effect: Setting detail pengirim pesan
   useEffect(() => {
     if (user) {
       setFormData(prev => ({
         ...prev,
-        nama_pengirim: user.display_name || user.full_name || '',
+        nama_pengirim:  user.full_name || user.fullName || '',
         email_address: user.email || ''
       }));
     }
   }, [user]);
 
-  // Effect: Auto-close alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -180,7 +192,7 @@ const KontakPesan = ({user}) => {
     }
   };
 
-  // Submit Pesan
+  // SUBMIT PESAN:
   const handleSubmit = async (e) => {
     e.preventDefault();
     setAlert({ 
@@ -233,50 +245,73 @@ const KontakPesan = ({user}) => {
               <MdNotificationsNone className={styles.notifIcon} />
               {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
             </div>
-            {/* PANEL DROPDOWN NOTIFIKASI MELAYANG */}
+            {/* DROPDOWN NOTIFIKASI */}
             {isDropdownNotifOpen && (
               <div className={styles.notifDropdownMenu}>
                 <div className={styles.notifDropdownHeader}>
-                  <h3 className="text-sm font-bold text-gray-800">
+                  <h3 className={styles.notifDropdownHeaderTitle}>
                     Pemberitahuan Sistem
                   </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
                 </div>
                 <div className={styles.notifDropdownBody}>
                   {!user ? (
-                    <div className="text-center py-6 text-gray-400 italic text-xs">
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
                       Silakan login untuk melihat pemberitahuan.
                     </div>
                   ) : listNotifikasi.length === 0 ? (
-                    <div className="text-center py-6 text-gray-400 italic text-xs">
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
                       Tidak ada pemberitahuan baru.
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-100 max-h-[320px] overflow-y-auto">
-                      {listNotifikasi.map((notif) => (
-                        <div key={notif.id} className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
-                          <div className="flex-1 pr-2">
-                            <div className="flex items-center space-x-1.5 mb-1">
-                              <span className={styles.badgeKategoriKecil}>
-                                {notif.kategori}
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
                               </span>
-                              <h4 className="text-xs font-bold text-gray-900 truncate max-w-[180px]">
-                                {notif.judul}
-                              </h4>
                             </div>
-                            <p className="text-[11px] text-gray-600 leading-normal">
-                              {notif.deskripsi}
-                            </p>
-                            <span className="text-[9px] text-gray-400 block mt-1">
-                              {new Date(notif.createdAt).toLocaleDateString('id-ID')}
-                            </span>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
                           </div>
-                          {!notif.is_read && (
-                            <button onClick={() => handleTandaiDibaca(notif.id)}className={styles.btnReadKecil}>
-                              Baca
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -291,9 +326,9 @@ const KontakPesan = ({user}) => {
           </div>
         </div>
       </nav>
-      {/* Alert Action */}
+      {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-container
+        <div className={`alert-section
           ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
             : alert.type === 'error' ? 'border-red-500 bg-red-50'
             : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
@@ -342,7 +377,6 @@ const KontakPesan = ({user}) => {
           )}
         </div>
       )}
-      {/* Content Form Kontak */}
       <div className={styles.contentArea}>
         <div className={styles.mainGridWrapper}>
           <div className={styles.cardContainer}>
@@ -505,9 +539,14 @@ const KontakPesan = ({user}) => {
                   required
                 ></textarea>
               </div>
-              <div className="flex justify-center pt-10 pb-3">
+              <div className="flex justify-center items-center gap-4 pt-10 pb-3">
+                {user && (user.role === "Super Admin" || user.role === "Admin Desa") && (
+                  <button type="button" onClick={() => navigate(-1)} className={styles.btnBackRed}>
+                    <MdArrowBack size={21} /> Kembali
+                  </button>
+                )}
                 <button type="submit" disabled={alert.type === 'loading'} className={styles.btnSubmit}>
-                  {alert.type === 'loading' ? 'Sedang Mengirim...' : <><IoIosSend size={21} /> Kirim Laporan</>}
+                  {alert.type === 'loading' ? 'Sedang Mengirim...' : <>Kirim Laporan</>}
                 </button>
               </div>
             </form>

@@ -23,7 +23,7 @@
 }
 
 .notifWrapper {
-  @apply relative cursor-pointer p-2 hover:bg-gray-50 rounded-full transition-all;
+  @apply relative p-2 rounded-full cursor-pointer transition-all duration-200 hover:bg-slate-100 active:scale-95 text-gray-600 hover:text-gray-900;
 }
 
 .notifIcon {
@@ -31,7 +31,7 @@
 }
 
 .notifBadge {
-  @apply absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-white;
+  @apply absolute top-1 right-1 flex items-center justify-center h-4 min-w-[16px] px-1 text-[9px] font-bold text-white bg-red-500 rounded-full border border-white animate-bounce;
 }
 
 .userSection {
@@ -103,60 +103,89 @@
 }
 
 .btnSubmit {
-  @apply inline-flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-100;
+  @apply inline-flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold hover:bg-green-700 active:scale-95 transition-all shadow-md shadow-green-100;
+}
+
+.btnBackRed {
+  @apply inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2 rounded-lg text-xs font-bold hover:bg-red-700 active:scale-95 transition-all shadow-md shadow-red-100;
 }
 
 .notifDropdownMenu {
-  @apply absolute top-full right-0 mt-2 w-[400px] bg-white rounded-xl border border-gray-200 z-50 overflow-hidden;
-  box-shadow:
-    0 10px 25px -5px rgba(0, 0, 0, 0.08),
-    0 8px 10px -6px rgba(0, 0, 0, 0.04);
-  animation: slideDown 0.15s ease-out;
+  @apply absolute right-0 mt-2 w-[400px] bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden;
 }
 
 .notifDropdownHeader {
-  @apply py-3 px-4 bg-gray-50/70 border-b border-gray-200/80;
+  @apply flex items-center justify-between p-3.5 border-b border-gray-100 bg-slate-50/50;
+}
+
+.notifDropdownHeaderTitle {
+  @apply text-sm font-bold text-bali-brown tracking-wide uppercase;
+}
+
+.notifDropdownHeaderCount {
+  @apply text-[10px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full;
 }
 
 .notifDropdownBody {
-  @apply bg-white;
+  @apply overflow-hidden;
+}
+
+.notifListContainer {
+  @apply max-h-[350px] overflow-y-auto divide-y divide-gray-50;
 }
 
 .notifItemRow {
-  @apply flex justify-between items-center py-3 px-4 transition-all duration-150 ease-in-out border-b border-gray-50 last:border-b-0;
+  @apply flex items-start gap-3 p-3.5 transition-all duration-200 cursor-pointer hover:bg-slate-50/80;
 }
 
-.notifItemRow:hover {
-  @apply bg-gray-50/80 cursor-pointer;
+.rowUnread {
+  @apply bg-blue-50;
 }
 
-.notifItemRow.rowUnread {
-  @apply bg-amber-50;
-}
-
-.notifItemRow.rowRead {
+.rowRead {
   @apply bg-white;
 }
 
-.badgeKategoriKecil {
-  @apply bg-bali-brown text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wide;
+.notifTitleUnread {
+  @apply text-xs font-extrabold text-gray-900 truncate;
 }
 
-.btnReadKecil {
-  @apply bg-white text-amber-800 border border-amber-800/60 text-[10px] font-bold px-2.5 py-0.5 rounded transition-all duration-150 ease-in-out whitespace-nowrap;
+.notifTitleRead {
+  @apply text-xs font-semibold text-gray-700 truncate;
 }
 
-.btnReadKecil:hover {
-  @apply bg-amber-800 text-white border-amber-800;
+.notifDeskripsi {
+  @apply text-[10px] text-gray-600 leading-relaxed break-words mt-0.5;
 }
 
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.notifTime {
+  @apply text-[9px] text-gray-400 block mt-1.5 font-medium tracking-wide;
+}
+
+.badgeBase {
+  @apply text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase;
+}
+
+.badgeVerifikasi {
+  @apply bg-amber-50 text-amber-700 border-amber-100;
+}
+
+.badgePeringatan {
+  @apply bg-red-50 text-red-700 border-red-100;
+}
+
+.badgeKontak {
+  @apply bg-emerald-50 text-emerald-700 border-emerald-100;
+}
+
+.badgeLogSistem {
+  @apply bg-blue-50 text-blue-700 border-blue-100;
+}
+
+.badgeInformasi {
+  @apply bg-slate-100 text-slate-700 border-slate-200;
+}
+
+.dotUnreadIndicator {
+  @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
 }

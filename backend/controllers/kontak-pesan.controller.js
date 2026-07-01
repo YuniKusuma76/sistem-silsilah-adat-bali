@@ -9,7 +9,7 @@ import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
 // Validasi Input Valid
 const VALID_STATUS_PESAN = [
   "Menunggu", 
-  "Dibaca", 
+  "Diproses", 
   "Selesai"
 ];
 
@@ -112,7 +112,6 @@ export const getPesanById = async (req, res) => {
       });
     }
 
-    // Validasi hak akses admin desa
     if (userRole === "Admin Desa" && kontak.desa_adat_id !== userDesaId) {
       return res.status(403).json({ 
         message: "Otoritas mengakses data ditolak! Pesan ini milik wilayah desa adat lain." 
@@ -153,7 +152,6 @@ export const createPesan = async (req, res) => {
       }
     }
 
-    // Validasi semua kolom input
     if (!nama_pengirim || !email_address || !pesan || !kategori_pesan) {
       return res.status(400).json({
         message: "Kolom nama pengirim, email, kategori pesan, dan pesan wajib diisi!"
@@ -198,12 +196,11 @@ export const createPesan = async (req, res) => {
       user_id: finalUserId
     });
 
-    // Setting notifikasi
     await kirimNotifikasiSistem(req, {
-      judul: `Laporan Baru: ${kategori_pesan}`,
+      judul: `Laporan ${kategori_pesan} Baru`,
       deskripsi: `Pesan dari ${nama_pengirim}: "${pesan.substring(0, 50)}..."`,
       kategori: "KONTAK",
-      tautan_fitur: "/laporan-masuk",
+      tautan_fitur: "/pesan-masuk",
       desa_adat_id: targetDesaId,
       sender_id: finalUserId,
       kontak_pesan_id: pesanLaporan.id,
