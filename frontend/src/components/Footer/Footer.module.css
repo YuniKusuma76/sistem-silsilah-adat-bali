@@ -1,5 +1,5 @@
 .footer {
-  @apply py-10 text-center border-t border-bali-gold/20 bg-transparent;
+  @apply py-7 text-center border-t border-bali-gold/20 bg-transparent;
 }
 
 .footerContent {

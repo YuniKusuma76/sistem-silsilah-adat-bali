@@ -89,7 +89,6 @@ const formatWaktuRelatif = (dateString) => {
 };
 
 const DataKramaPersonal = ({ user }) => {
-  const notifDropdownRef = useRef(null);
   const [kramaList, setKramaList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,6 +98,7 @@ const DataKramaPersonal = ({ user }) => {
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
 
+  const notifDropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -203,7 +203,6 @@ const DataKramaPersonal = ({ user }) => {
     }
   }, [alert.show, alert.type]);
   
-  // Helper: menghapus data krama bali
   const handleDelete = async () => {
     if (!modal.id) return;
     setIsDeleting(true);
@@ -231,7 +230,6 @@ const DataKramaPersonal = ({ user }) => {
     }
   };
 
-  // Helper: fungsi search filter krama bali
   const filteredKrama = useMemo(() => {
     return kramaList.filter(krama => 
       krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -453,7 +451,6 @@ const DataKramaPersonal = ({ user }) => {
           )}
         </div>
       )}
-      {/* List Krama Bali Content */}
       <div className={styles.contentArea}>
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
@@ -477,7 +474,6 @@ const DataKramaPersonal = ({ user }) => {
             </button>
           </div>
         </div>
-        {/* Tabel Krama Bali */}
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
@@ -542,8 +538,7 @@ const DataKramaPersonal = ({ user }) => {
                         onClick={() => {
                           const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
                           navigate(`/krama-bali/my-data/detail/${slug}`, { state: { fromPersonal: true } });
-                        }}
-                      >
+                        }}>
                         <FaInfoCircle /> Detail
                       </button>
                       <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: krama.id })}>

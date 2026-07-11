@@ -29,8 +29,8 @@ import {
   FaCheck,
   FaArrowRight 
 } from 'react-icons/fa';
-import axiosInstance from '../../api/axiosInstance.js';
-import Footer from '../../components/Footer/Footer.jsx';
+import axiosInstance from '../src/api/axiosInstance.js';
+import Footer from '../src/components/Footer/Footer.jsx';
 import styles from './PengajuanKramaDetail.module.css';
 
 // Helper: Membuat format tanggal indonesia

@@ -2,7 +2,7 @@ import db from "../config/db.config.js";
 import fs from "fs";
 import path from "path";
 import { Op } from "sequelize";
-import {
+import { 
   PermohonanRole,
   User,
   DesaAdat,
@@ -10,8 +10,9 @@ import {
   Kabupaten,
   Provinsi
 } from "../models/associations.js";
+import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
 
-// Halper untuk menghapus file upload jika verifikasi gagal
+// Halper: Menghapus file upload jika verifikasi gagal
 const hapusFileUploaded = (filename) => {
   if (!filename) return;
   const filePath = path.join("public/uploads/dokumen", filename);
@@ -20,7 +21,6 @@ const hapusFileUploaded = (filename) => {
   }
 };
 
-// Validasi Input Valid
 const VALID_ROLES_PENGAJUAN = [
   "Admin Desa", 
   "Pakar"
@@ -33,7 +33,6 @@ const VALID_STATUS_PERMOHONAN = [
   "Dibatalkan"
 ];
 
-// Data Desa Adat Include
 const DESA_ADAT_INCLUDE = [
   {
     model: Kecamatan,
@@ -53,7 +52,6 @@ const DESA_ADAT_INCLUDE = [
   }
 ];
 
-// Data Permohonan Role Include
 const PERMOHONAN_ROLE_INCLUDE = [
   {
     model: User,
@@ -73,13 +71,11 @@ const PERMOHONAN_ROLE_INCLUDE = [
 ];
 
 export const ajukanPermohonan = async (req, res) => {
-  // Mengambil nama file dari multer di middleware
+  // mengambil nama file dari multer di middleware
   const dokumen_pendukung = req.file ? req.file.filename : null;
 
   try {
-    // Otoritas mengakses permohonan role
     if (req.role === "Super Admin") {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(403).json({ 
         message: "Otoritas mengakses data ditolak!" 
       });
@@ -91,34 +87,26 @@ export const ajukanPermohonan = async (req, res) => {
       desa_adat_id_tujuan 
     } = req.body;
 
-    // Validasi meminta role yang sama dengan role sekarang
-    if (req.role === role_yang_diminta) {
-      hapusFileUploaded(dokumen_pendukung);
-      return res.status(400).json({
-        message: `Proses permohonan dihentikan! Anda telah memegang peran sebagai ${req.role}.`
-      });
-    }
-
-    // Validasi input dasar
     if (!role_yang_diminta || !alasan_permohonan || !dokumen_pendukung) {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(400).json({ 
         message: "Kolom role yang diminta, alasan permohonan, dan dokumen pendukung wajib diisi!" 
       });
     }
 
-    // Validasi input role pengajuan
+    if (req.role === role_yang_diminta) {
+      return res.status(400).json({
+        message: `Proses permohonan dihentikan! Anda telah memegang peran sebagai ${req.role}.`
+      });
+    }
+
     if (!VALID_ROLES_PENGAJUAN.includes(role_yang_diminta)) {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(400).json({ 
         message: "Pilihan role tidak valid!" 
       });
     }
 
-    // Validasi kondisional
     if (role_yang_diminta === "Admin Desa") {
       if (!desa_adat_id_tujuan || desa_adat_id_tujuan.toString().trim() === "") {
-        hapusFileUploaded(dokumen_pendukung);
         return res.status(400).json({
           message: "Kolom wilayah desa adat wajib diisi!"
         });
@@ -126,7 +114,6 @@ export const ajukanPermohonan = async (req, res) => {
 
       if (req.role === "Krama" || req.role === "Viewer") {
         if (parseInt(desa_adat_id_tujuan) !== req.desaAdatId) {
-          hapusFileUploaded(dokumen_pendukung);
           return res.status(400).json({
             message: "Proses permohonan dihentikan! Wilayah desa adat Anda tidak cocok dengan desa adat tujuan."
           });
@@ -143,13 +130,11 @@ export const ajukanPermohonan = async (req, res) => {
     });
 
     if (existingPermohonan) {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(400).json({ 
-        message: "Anda masih memiliki permohonan aktif yang sedang diproses." 
+        message: "Anda masih memiliki permohonan aktif yang sedang ditinjau." 
       });
     }
 
-    // Eksekusi pembuatan data permohonan
     const permohonan = await PermohonanRole.create({
       user_id: req.userId,
       role_yang_diminta,
@@ -159,30 +144,40 @@ export const ajukanPermohonan = async (req, res) => {
       status_permohonan: "Menunggu"
     });
 
-    res.status(201).json({
+    await kirimNotifikasiSistem(req, {
+      judul: "Verifikasi Pengajuan Perubahan Role",
+      deskripsi: `Adanya pengajuan perubahan role dari ${req.role} menjadi ${permohonan.role_yang_diminta}. Menunggu verifikasi dari Admin Validator.`,
+      kategori: "VERIFIKASI",
+      tautan_fitur: "/verifikasi-data/pengajuan-role",
+      desa_adat_id: null,
+      sender_id: permohonan.user_id,
+      kontak_pesan_id: null,
+      user_id: null
+    });
+
+    return res.status(201).json({
       message: "Berkas permohonan pergantian role berhasil diajukan!",
       data: permohonan
     });
+
   } catch (error) {
-    hapusFileUploaded(dokumen_pendukung);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
+  } finally {
+    if (res.statusCode !== 201) {
+      hapusFileUploaded(dokumen_pendukung);
+    }
   }
 };
 
 export const verifikasiPermohonan = async (req, res) => {
-  // Deklarasi kolom input
-  const { 
-    status_permohonan, 
-    catatan_super_admin 
-  } = req.body;
+  const { status_permohonan, catatan_super_admin } = req.body;
   
   // Memulai transaksi database
   const t = await db.transaction();
   
   try {
-    // Validasi input status permohonan
     const VALID_STATUS_VERIFIKASI = ["Disetujui", "Ditolak"];
     if (!VALID_STATUS_VERIFIKASI.includes(status_permohonan)) {
       await t.rollback();
@@ -199,7 +194,6 @@ export const verifikasiPermohonan = async (req, res) => {
       });
     }
 
-    // Lock row permohonan agar tidak diedit bersamaan
     const berkasPermohonan = await PermohonanRole.findByPk(req.params.id, { 
       transaction: t 
     });
@@ -220,7 +214,7 @@ export const verifikasiPermohonan = async (req, res) => {
 
     // Menentukan catatan admin secara adaptif jika dikosongkan saat menyetujui
     const catatanFinal = status_permohonan === "Disetujui" 
-      ? (catatan_super_admin || "Permohonan pergantian role disetujui oleh Super Admin.")
+      ? (catatan_super_admin || "Permohonan pergantian role diverifikasi dan disetujui oleh Super Admin.")
       : catatan_super_admin;
 
     // Logika sinkronisasi otomatis ke database
@@ -236,14 +230,11 @@ export const verifikasiPermohonan = async (req, res) => {
       }
 
       await User.update(payloadUpdateUser, {
-        where: {
-          id: berkasPermohonan.user_id
-        },
+        where: { id: berkasPermohonan.user_id },
         transaction: t
       });
     }
 
-    // Update berkas dokumen permohonan
     await PermohonanRole.update({
       status_permohonan,
       catatan_super_admin: catatanFinal,
@@ -255,53 +246,101 @@ export const verifikasiPermohonan = async (req, res) => {
     });
 
     await t.commit();
+    await kirimNotifikasiSistem(req, {
+      judul: "Keputusan Permohonan Perubahan Role",
+      deskripsi: `Pengajuan permohonan perubahan role menjadi ${berkasPermohonan.role_yang_diminta} telah diverifikasi dengan status: ${status_permohonan.toUpperCase()}.`,
+      kategori: "LOG_SISTEM",
+      tautan_fitur: "/pengajuan-role/my-data",
+      desa_adat_id: null,
+      sender_id: req.userId,
+      kontak_pesan_id: null,
+      user_id: berkasPermohonan.user_id
+    });
 
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: `Berkas permohonan berhasil diverifikasi dengan keputusan: ${status_permohonan}.` 
     });
   } catch (error) {
-    await t.rollback();
-    res.status(500).json({ 
+    if (!t.finished) {
+      await t.rollback();
+    }
+    return res.status(500).json({ 
       message: error.message 
     });
   }
 };
 
 export const batalkanPermohonan = async (req, res) => {
+  // Memulai transaksi database
+  const t = await db.transaction();
+
   try {
     const permohonan = await PermohonanRole.findOne({
       where: { 
         id: req.params.id, 
         user_id: req.userId 
-      }
+      },
+      transaction: t
     });
 
     if (!permohonan) {
+      await t.rollback();
       return res.status(404).json({ 
         message: "Berkas permohonan tidak ditemukan." 
       });
     }
 
     if (permohonan.status_permohonan !== "Menunggu") {
+      await t.rollback();
       return res.status(400).json({ 
         message: "Berkas permohonan ini tidak dapat dibatalkan karena telah diverifikasi." 
       });
     }
 
-    // Mengubah status permohonan
     await PermohonanRole.update({
       status_permohonan: "Dibatalkan",
       catatan_super_admin: "Permohonan telah dibatalkan secara mandiri oleh pihak pemohon.",
       tanggal_verifikasi: new Date()
     }, {
-      where: { id: permohonan.id }
+      where: { id: permohonan.id },
+      transaction: t
     });
 
-    res.status(200).json({ 
+    await t.commit();
+
+    Promise.all([
+      kirimNotifikasiSistem(req, {
+        judul: "Pembatalan Permohonan Perubahan Role",
+        deskripsi: `Pengajuan permohonan perubahan role menjadi ${permohonan.role_yang_diminta} telah dibatalkan oleh Pihak Pemohon.`,
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/verifikasi-data/pengajuan-role",
+        desa_adat_id: null, 
+        sender_id: req.userId,
+        kontak_pesan_id: null,
+        user_id: null 
+      }),
+      kirimNotifikasiSistem(req, {
+        judul: "Permohonan Perubahan Role Dibatalkan",
+        deskripsi: `Permohonan perubahan role Anda menjadi ${permohonan.role_yang_diminta} telah Anda batalkan dan ditarik dari antrean verifikasi.`,
+        kategori: "PERINGATAN",
+        tautan_fitur: "/pengajuan-role/my-data",
+        desa_adat_id: null, 
+        sender_id: req.userId,
+        kontak_pesan_id: null,
+        user_id: permohonan.user_id 
+      })
+    ]).catch(err => {
+      console.error("Gagal mengirim notifikasi saat pembatalan permohonan role:", err);
+    });
+
+    return res.status(200).json({ 
       message: "Berkas permohonan berhasil dibatalkan." 
     });
   } catch (error) {
-    res.status(500).json({ 
+    if (!t.finished) {
+      await t.rollback();
+    }
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -364,19 +403,19 @@ export const getDokumenPendukung = async (req, res) => {
 export const getAllPermohonan = async (req, res) => {
   try {
     const dataPermohonan = await PermohonanRole.findAll({
-      where: {
-        status_permohonan: { [Op.ne]: "Dibatalkan" }
+      where: { 
+        status_permohonan: "Menunggu" 
       },
       include: PERMOHONAN_ROLE_INCLUDE,
       order: [["tanggal_pengajuan", "DESC"]]
     });
 
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: "Berhasil mengambil data permohonan role!", 
       data: dataPermohonan
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -396,12 +435,12 @@ export const getPermohonanSaya = async (req, res) => {
       order: [["tanggal_pengajuan", "DESC"]]
     });
 
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: "Berhasil mengambil histori permohonan role Anda!", 
       data: permohonanSaya
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -412,12 +451,10 @@ export const getDetailPermohonan = async (req, res) => {
     const { id } = req.params;
     let whereClause = { id: id };
     
-    // Validasi hak akses data
     if (req.role !== "Super Admin") {
       whereClause.user_id = req.userId;
     }
 
-    // Mengambil detail permohonan
     const permohonan = await PermohonanRole.findOne({
       where: whereClause,
       include: PERMOHONAN_ROLE_INCLUDE
@@ -429,12 +466,12 @@ export const getDetailPermohonan = async (req, res) => {
     });
     }
 
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: "Berhasil mengambil data permohonan role!",
       data: permohonan 
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }

@@ -37,7 +37,10 @@ export const updateDataPerkawinan = async ({
   const t = await db.transaction();
 
   try {
-    const perkawinan = await Perkawinan.findByPk(perkawinan_id, { transaction: t });
+    const perkawinan = await Perkawinan.findByPk(perkawinan_id, { 
+      transaction: t 
+    });
+
     if (!perkawinan) {
       throw new Error("Data perkawinan tidak ditemukan.");
     }
@@ -160,6 +163,7 @@ export const updateDataPerkawinan = async ({
           },
           transaction: t
         });
+        
         if (jumlahAnakDraf > 0) {
           throw new Error("Perubahan data ditolak! Perkawinan ini telah memiliki relasi anak yang terikat.");
         }
@@ -212,7 +216,6 @@ export const updateDataPerkawinan = async ({
       const idIstriLama = perkawinan.istri_id;
 
       await eksekusiRollbackPerkawinan(perkawinan, "PERKAWINAN", t);
-
       await perkawinan.destroy({ transaction: t });
 
       const tglKawinTerbaru = subDraftUpdate.tanggal_perkawinan.includes('T') 
@@ -238,7 +241,9 @@ export const updateDataPerkawinan = async ({
           jenis_perkawinan: subDraftUpdate.jenis_perkawinan,
           tanggal_perkawinan: tglKawinTerbaru, 
           event_date: tglKawinTerbaru,
-          user_id, user_role, user_desa_id,
+          user_id, 
+          user_role, 
+          user_desa_id,
           nama_desa_operator: operatorIdentity
         }, t);
       } else {
@@ -249,7 +254,9 @@ export const updateDataPerkawinan = async ({
           jenis_perkawinan: subDraftUpdate.jenis_perkawinan,
           tanggal_perkawinan: tglKawinTerbaru, 
           event_date: tglKawinTerbaru,
-          user_id, user_role, user_desa_id,
+          user_id, 
+          user_role, 
+          user_desa_id,
           isUpdateMode: true
         }, t);
 
@@ -262,7 +269,9 @@ export const updateDataPerkawinan = async ({
             event_date: tanggalCeraiLama || tglKawinTerbaru,
             pihak_meninggal: pihakMeninggalLama,
             pilihan_predana: pilihan_predana || subDraftUpdate.pilihan_predana,
-            user_id, user_role, user_desa_id
+            user_id, 
+            user_role, 
+            user_desa_id
           }, t);
         }
       }
@@ -356,12 +365,24 @@ export const updateDataPerkawinan = async ({
         }
       );
     } else if (tipe_update === "PERCERAIAN") {
-      const tglCeraiMurni = subDraftUpdate.tanggal_cerai.includes('T') 
+      let finalTanggalCeraiUpdate;
+      const stringDateCeraiOnly = subDraftUpdate.tanggal_cerai.includes('T') 
         ? subDraftUpdate.tanggal_cerai.split('T')[0] 
         : subDraftUpdate.tanggal_cerai.split(' ')[0];
+      
+      // Jika tanggal cerai hasil koreksi sama dengan tanggal perkawinan aktif
+      if (stringDateCeraiOnly === perkawinan.tanggal_perkawinan) {
+        const waktuBerjalan = new Date();
+        // Berikan kompensasi waktu dinamis 5 detik agar memenangkan urutan silsilah peran adat
+        waktuBerjalan.setSeconds(waktuBerjalan.getSeconds() + 5);
+        finalTanggalCeraiUpdate = waktuBerjalan;
+      } else {
+        const jamBerjalan = new Date().toTimeString().split(' ')[0];
+        finalTanggalCeraiUpdate = new Date(`${stringDateCeraiOnly} ${jamBerjalan}`);
+      }
 
       await perkawinan.update({
-        tanggal_cerai: tglCeraiMurni,
+        tanggal_cerai: stringDateCeraiOnly,
         status_perkawinan: subDraftUpdate.status_perkawinan,
         pihak_meninggal: subDraftUpdate.pihak_meninggal,
         is_pending_update: false,
@@ -374,7 +395,7 @@ export const updateDataPerkawinan = async ({
       }, { transaction: t });
 
       await RiwayatPeranAdat.update(
-        { selesai_tanggal: tglCeraiMurni },
+        { selesai_tanggal: finalTanggalCeraiUpdate },
         { 
           where: { 
             perkawinan_id: perkawinan.id, 
@@ -385,7 +406,7 @@ export const updateDataPerkawinan = async ({
       );
 
       await RiwayatKeluarga.update(
-        { akhir_masuk: tglCeraiMurni }, 
+        { akhir_masuk: finalTanggalCeraiUpdate }, 
         { 
           where: { perkawinan_id: perkawinan.id }, 
           transaction: t 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -15,40 +15,6 @@ import axiosInstance from '../../api/axiosInstance';
 import Footer from '../../components/Footer/Footer';
 import styles from './AturanAdatBali.module.css';
 
-// Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
-  if (!isOpen) return null;
-  return (
-    <div className={styles.modalOverlay}>
-      <div className={`${styles.modalContainer} animate-fade-in`}>
-        <div className="p-6">
-          <div className="flex justify-center mb-5">
-            <div className={styles.elipsis}>
-              <FaExclamationTriangle className="text-red-600 text-2xl" />
-            </div>
-          </div>
-          <div className="text-center">
-            <h3 className="text-lg font-bold text-black mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {message}
-            </p>
-          </div>
-          <div className="mt-10 flex gap-3 justify-center">
-            <button onClick={onClose} disabled={isProcessing} className={styles.btnCancel}>
-              Kembali
-            </button>
-            <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Nonaktifkan'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 // Helper: Membuat slug url
 const createSlug = (aturan, date, id) => {
   if (!aturan) return id;
@@ -58,32 +24,48 @@ const createSlug = (aturan, date, id) => {
   return `${aturanSlug}-${dateFormatted}-${encodedId}`;
 };
 
-const AturanAdatBali = () => {
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const AturanAdatBali = ({ user }) => {
   const [dataAturan, setDataAturan] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
 
+  const notifDropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // State alert notifikasi global
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
+
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
     message: '' 
   });
 
-  // State menampilkan modal konfirmasi
-  const [modal, setModal] = useState({ 
-    show: false, 
-    id: null 
-  });
-
-  // Helper: Fungsi mengambil data aturan adat bali
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -101,61 +83,78 @@ const AturanAdatBali = () => {
     }
   };
 
+  const isPakarOrAdmin = user && ["Super Admin", "Pakar"].includes(user.role);
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: location.state.successMessage 
+      setAlert({
+        show: true,
+        type: 'success',
+        message: location.state.successMessage
       });
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+  }, [location]);
 
-  // Effect: Auto-close alert
   useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert(prev => ({ 
-        ...prev, 
-        show: false 
-      })), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [alert.show]);
-  
-  // Halper: Fungsi menonaktifkan aturan adat bali
-  const handleDelete = async () => {
-    if (!modal.id) return;
-    setIsDeleting(true);
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
     try {
-      await axiosInstance.delete(`/aturan-adat/${modal.id}`);
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: "Aturan Adat Bali berhasil dinonaktifkan." 
-      });
-      fetchData();
-      setModal({ 
-        show: false, 
-        id: null 
-      });
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
     } catch (error) {
-      setAlert({ 
-        show: true, 
-        type: 'error', 
-        message: error.response?.data?.message || "Gagal menonaktifkan aturan adat bali." 
-      });
-    } finally {
-      setIsDeleting(false);
+      console.error("Gagal mengambil list notifikasi masuk", error);
     }
   };
 
-  // Helper: Fungsi search filter aturan
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [alert.show, alert.type]);
+
   const filteredData = dataAturan.filter(item => 
     item.nama_aturan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.kategori?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -163,7 +162,6 @@ const AturanAdatBali = () => {
     item.dasar_keputusan?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Helper: Menghitung jumlah aturan
   const totalAturanCount = dataAturan.length;
   const aktifAturanCount = dataAturan.filter(item => item.status_aturan === 'Aktif').length;
   const nonAktifAturanCount = dataAturan.filter(item => item.status_aturan === 'Non-Aktif').length;
@@ -174,12 +172,10 @@ const AturanAdatBali = () => {
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-  // Effect: Setting current page aktif default 1
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Fungsi pergi ke next page
   const goToPage = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
@@ -226,11 +222,12 @@ const AturanAdatBali = () => {
     });
   };
 
-  // Halper: Style badge status aturan
   const getStatusClass = (status) => {
     switch (status) {
-      case 'Aktif': return styles.badgeSuccess;
-      case 'Non-Aktif': return styles.badgeDanger;
+      case 'Aktif': 
+        return styles.badgeSuccess;
+      case 'Non-Aktif': 
+        return styles.badgeDanger;
       default: return styles.badgeAmber;
     }
   };
@@ -248,9 +245,82 @@ const AturanAdatBali = () => {
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -260,95 +330,107 @@ const AturanAdatBali = () => {
           </div>
         </div>
       </nav>
-      {/* Modal Konfirmasi */}
-      <ConfirmationModal 
-        isOpen={modal.show}
-        onClose={() => setModal({ show: false, id: null })}
-        onConfirm={handleDelete}
-        isProcessing={isDeleting}
-        title="Nonaktifkan Aturan?"
-        message="Aturan Adat Bali yang dinonaktifkan tidak akan berlaku dalam penentuan keputusan status peran adat Bali."
-      />
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-section 
-          ${alert.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+        <div className={`alert-section
+          ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
+            : alert.type === 'error' ? 'border-red-500 bg-red-50'
+            : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
+            : 'border-blue-500 bg-blue-50'}`
+          }>
           <div className="flex items-start p-4">
-            <div className="flex-shrink-0 mr-3 mt-2 text-2xl">
-              {alert.type === 'success' ? '✅' : '⚠️'}
+            {/* Icon */}
+            <div className="flex-shrink-0 mr-3 text-2xl">
+              {alert.type === 'success' && '✅'}
+              {alert.type === 'error' && '❌'}
+              {alert.type === 'warning' && '⚠️'}
+              {alert.type === 'loading' && '⏳'}
             </div>
+            {/* Content */}
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${alert.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                {alert.type === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan.'}
+              <h4 className={`font-bold text-sm 
+                ${alert.type === 'success' ? 'text-green-800' 
+                  : alert.type === 'error' ? 'text-red-800' 
+                  : alert.type === 'warning' ? 'text-amber-800'
+                  : 'text-blue-800'}`
+                }>
+                {alert.type === 'success' ? 'Berhasil!' 
+                  : alert.type === 'error' ? 'Terjadi Kesalahan!' 
+                  : alert.type === 'warning' ? 'Perhatian Adat!'
+                  : 'Mohon Tunggu...'
+                }
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {alert.message}
               </p>
             </div>
+            {/* Close Button */}
             <button onClick={() => setAlert(prev => ({ ...prev, show: false }))} className="alert-button">
-              &times;
+              <span className="text-2xl leading-none">&times;</span>
             </button>
           </div>
-          {(alert.type === 'success' || alert.type === 'error') && (
+          {/* Progress Bar Line */}
+          {(alert.type === 'success' || alert.type === 'error' || alert.type === 'warning') && (
             <div className="h-1.5 w-full bg-gray-200">
-              <div className={`h-full animate-shrink ${alert.type === 'success' 
-                ? 'bg-green-500' 
-                : 'bg-red-500'}`}>
-              </div>
+              <div className={`h-full animate-shrink ${
+                alert.type === 'success' ? 'bg-green-500' : 
+                alert.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+                }`
+              }></div>
             </div>
           )}
         </div>
       )}
-      {/* Statistik Aturan */}
       <div className={styles.contentArea}>
-        <div className={styles.statsCardWrapper}>
-          <div className={styles.statsHeader}>
-            <FaInfoCircle className="text-amber-800 text-base" />
-            <h3>Ringkasan Data</h3>
+        {isPakarOrAdmin && (
+          <div className={styles.statsCardWrapper}>
+            <div className={styles.statsHeader}>
+              <FaInfoCircle className="text-amber-800 text-base" />
+              <h3>Ringkasan Data</h3>
+            </div>
+            <div className={styles.statsContainer}>
+              <div className={styles.statsCard}>
+                <div className={`${styles.statsIconWrapper} bg-amber-50 text-amber-800`}>
+                  <FaListUl size={18} />
+                </div>
+                <div>
+                  <span className={styles.statsLabel}>
+                    Total Keseluruhan
+                  </span>
+                  <h3 className={styles.statsCount}>
+                    {loading ? '...' : totalAturanCount}
+                  </h3>
+                </div>
+              </div>
+              <div className={styles.statsCard}>
+                <div className={`${styles.statsIconWrapper} bg-green-50 text-green-700`}>
+                  <FaCheckCircle size={18} />
+                </div>
+                <div>
+                  <span className={styles.statsLabel}>
+                    Aturan Aktif
+                  </span>
+                  <h3 className={styles.statsCount}>
+                    {loading ? '...' : aktifAturanCount}
+                  </h3>
+                </div>
+              </div>
+              <div className={styles.statsCard}>
+                <div className={`${styles.statsIconWrapper} bg-red-50 text-red-700`}>
+                  <FaTimesCircle size={18} />
+                </div>
+                <div>
+                  <span className={styles.statsLabel}>
+                    Aturan Non-Aktif
+                  </span>
+                  <h3 className={styles.statsCount}>
+                    {loading ? '...' : nonAktifAturanCount}
+                  </h3>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className={styles.statsContainer}>
-            <div className={styles.statsCard}>
-              <div className={`${styles.statsIconWrapper} bg-amber-50 text-amber-800`}>
-                <FaListUl size={18} />
-              </div>
-              <div>
-                <span className={styles.statsLabel}>
-                  Total Keseluruhan
-                </span>
-                <h3 className={styles.statsCount}>
-                  {loading ? '...' : totalAturanCount}
-                </h3>
-              </div>
-            </div>
-            <div className={styles.statsCard}>
-              <div className={`${styles.statsIconWrapper} bg-green-50 text-green-700`}>
-                <FaCheckCircle size={18} />
-              </div>
-              <div>
-                <span className={styles.statsLabel}>
-                  Aturan Aktif
-                </span>
-                <h3 className={styles.statsCount}>
-                  {loading ? '...' : aktifAturanCount}
-                </h3>
-              </div>
-            </div>
-            <div className={styles.statsCard}>
-              <div className={`${styles.statsIconWrapper} bg-red-50 text-red-700`}>
-                <FaTimesCircle size={18} />
-              </div>
-              <div>
-                <span className={styles.statsLabel}>
-                  Aturan Non-Aktif
-                </span>
-                <h3 className={styles.statsCount}>
-                  {loading ? '...' : nonAktifAturanCount}
-                </h3>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Search dan Button */}
+        )}
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
@@ -360,10 +442,12 @@ const AturanAdatBali = () => {
               className={styles.searchInput}
             />
           </div>
-          <button className={styles.btnAddData} onClick={() => navigate('/aturan-adat-bali/add')}>
-            <FaPlus size={12} />
-            <span>Pengajuan Baru</span>
-          </button>
+          {isPakarOrAdmin && (
+            <button className={styles.btnAddData} onClick={() => navigate('/aturan-adat-bali/add')}>
+              <FaPlus size={12} />
+              <span>Aturan Baru</span>
+            </button>
+          )}
         </div>
         {/* List Aturan Adat Bali */}
         <div className={styles.tableWrapper}>
@@ -424,15 +508,9 @@ const AturanAdatBali = () => {
                             onClick={() => {
                               const slug = createSlug(item.kategori, item.createdAt, item.id);
                               navigate(`/aturan-adat-bali/detail/${slug}`);
-                            }}
-                          >
+                            }}>
                             <FaInfoCircle /> Detail
                           </button>
-                          {currentStatus === 'Aktif' && (
-                            <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: item.id })}>
-                              <FaTrash size={11} /> Nonaktifkan
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>

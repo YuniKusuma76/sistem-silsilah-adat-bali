@@ -16,16 +16,15 @@ const Login = ({ onClose, onSwitchRegister, onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
+  const navigate = useNavigate();
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleCardClick = (e) => {
     e.stopPropagation();
   };
 
-  // Effect: Load Remember Me & Lock Scroll
   useEffect(() => {
     const savedEmail = localStorage.getItem('rememberedEmail');
     if (savedEmail) {
@@ -38,7 +37,7 @@ const Login = ({ onClose, onSwitchRegister, onLoginSuccess }) => {
     };
   }, []);
 
-  // Effect: Reset error message saat user mengetik
+  // Effect: pesan error hilang otomatis
   useEffect(() => {
     if (message) {
       setMessage('');
@@ -47,7 +46,7 @@ const Login = ({ onClose, onSwitchRegister, onLoginSuccess }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email, password]);
 
-  // SUBMIT DATA
+  // SUBMIT DATA:
   const submitLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -93,13 +92,11 @@ const Login = ({ onClose, onSwitchRegister, onLoginSuccess }) => {
   return (
     <div className={styles.modalOverlay} onClick={!isLoading ? onClose : undefined}>
       <div className={`${styles.cardLogin} animate-fade-in`} onClick={handleCardClick}>
-        {/* Button Close */}
         <button 
           onClick={!isLoading ? onClose : undefined} 
           className={`${styles.xButton} ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
           aria-label="Close Modal"
-          disabled={isLoading}
-        >
+          disabled={isLoading}>
           <IoMdClose size={24} className="hover:rotate-90 transition-transform duration-300" />
         </button>
         <div className="mb-8 flex flex-col items-center">
@@ -139,8 +136,7 @@ const Login = ({ onClose, onSwitchRegister, onLoginSuccess }) => {
               type="button"
               className={styles.eyePassword} 
               disabled={isLoading}
-              onClick={() => setShowPassword(!showPassword)}
-            >
+              onClick={() => setShowPassword(!showPassword)}>
               {showPassword ? <FaEyeSlash size={18}/> : <FaEye size={18}/>}
             </button>
           </div>
@@ -169,8 +165,7 @@ const Login = ({ onClose, onSwitchRegister, onLoginSuccess }) => {
           <button 
             type="submit" 
             disabled={isLoading} 
-            className={`${styles.btnLogin} ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:opacity-90'}`}
-          >
+            className={`${styles.btnLogin} ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:opacity-90'}`}>
             {isLoading ? (
               <>
                 <span className={styles.spinner}></span>
@@ -184,8 +179,7 @@ const Login = ({ onClose, onSwitchRegister, onLoginSuccess }) => {
               type="button" 
               onClick={ onSwitchRegister } 
               className={styles.switchModal}
-              disabled={isLoading}
-            >
+              disabled={isLoading}>
               Register Here
             </button>
           </div>

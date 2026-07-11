@@ -38,11 +38,7 @@ export const buatAnakKandung = async ({
       throw new Error("Data perkawinan tidak ditemukan.");
     }
 
-    const { 
-      suami_id, 
-      istri_id, 
-      jenis_perkawinan 
-    } = perkawinan;
+    const { suami_id, istri_id, jenis_perkawinan } = perkawinan;
 
     // Validasi ketersediaan data anak
     const anak = await KramaBali.findByPk(anak_id, { 
@@ -53,13 +49,11 @@ export const buatAnakKandung = async ({
       throw new Error("Data anak tidak ditemukan.");
     }
 
-    const jamSekarang = new Date().toTimeString().split(' ')[0];
+    const tglLahirMurni = anak.tanggal_lahir  
+      ? (anak.tanggal_lahir.includes('T') ? anak.tanggal_lahir.split('T')[0] : anak.tanggal_lahir.split(' ')[0])
+      : new Date().toISOString().split('T')[0];
 
-    const finalTanggalEventTimestamp = anak.tanggal_lahir 
-      ? new Date(`${anak.tanggal_lahir} ${jamSekarang}`).toISOString()
-      : new Date().toISOString();
-    
-    const tanggalLahirDateOnly = anak.tanggal_lahir || new Date().toISOString().split('T')[0];
+    const finalTanggalRiwayat = new Date(`${tglLahirMurni}T00:00:00.000Z`);
     const infoTambahanDasar = !anak.tanggal_lahir ? " (Tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal lahir kosong)." : "";
 
     const [suamiData, istriData] = await Promise.all([
@@ -90,11 +84,13 @@ export const buatAnakKandung = async ({
       return relasi;
     }
 
+    // ===================================================================
     // Logika Chronological Stitching dan Urutan Lahir
-    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tanggalLahirDateOnly, t);
+    // ===================================================================
+    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tglLahirMurni, t);
 
-    const finalTanggalKeluarTimestamp = tanggal_keluar 
-      ? new Date(`${tanggal_keluar} ${jamSekarang}`).toISOString()
+    const finalTanggalKeluar = tanggal_keluar 
+      ? new Date(`${tanggal_keluar}T23:59:59.999Z`)
       : null;
 
     await hitungUrutanLahir({ 
@@ -105,6 +101,7 @@ export const buatAnakKandung = async ({
 
     let keluargaSuamiTarget = null;
     let keluargaIstriTarget = null;
+    let keluargaAsalId = null;
 
     // =============================================================
     // MENCARI KELUARGA AKTIF BERDASARKAN JENIS PERKAWINAN
@@ -124,38 +121,39 @@ export const buatAnakKandung = async ({
       ]);
 
       if (!riwayatSuami || !riwayatIstri) {
-        throw new Error("Pelacakan keluarga aktif Pade Gelahang gagal! Riwayat aktif orang tua tidak ditemukan.");
+        throw new Error("Pelacakan keluarga aktif perkawinan pade gelahang gagal! Riwayat aktif orang tua tidak ditemukan.");
       }
 
       keluargaSuamiTarget = { id: riwayatSuami.keluarga_id };
       keluargaIstriTarget = { id: riwayatIstri.keluarga_id };
+      keluargaAsalId = riwayatSuami.keluarga_id;
 
-      // Masuk ke silsilah keluarga pihak ayah
+      // masuk ke silsilah keluarga pihak ayah
       await simpanRiwayatKeluarga({
         krama_id: anak_id,
         keluarga_id: keluargaSuamiTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
         dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ayah karena perkawinan pade gelahang orang tuanya." + infoTambahanDasar,
-        event_date: finalTanggalEventTimestamp,
+        event_date: finalTanggalRiwayat,
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
         allow_multiple: true,
-        akhir_masuk: finalTanggalKeluarTimestamp
+        akhir_masuk: finalTanggalKeluar
       }, t);
 
-      // Masuk ke silsilah keluarga pihak ibu
+      // masuk ke silsilah keluarga pihak ibu
       await simpanRiwayatKeluarga({
         krama_id: anak_id,
         keluarga_id: keluargaIstriTarget.id,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota",
         dasar_keputusan: "Krama ini dicatat sebagai anak kandung dalam keluarga pihak ibu karena perkawinan pade gelahang orang tuanya." + infoTambahanDasar,
-        event_date: finalTanggalEventTimestamp,
+        event_date: finalTanggalRiwayat,
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
         allow_multiple: true,
-        akhir_masuk: finalTanggalKeluarTimestamp 
+        akhir_masuk: finalTanggalKeluar 
       }, t);
     } else {
       const purusaId = jenis_perkawinan === "Nyentana" ? istri_id : suami_id;
@@ -169,7 +167,7 @@ export const buatAnakKandung = async ({
         transaction: t
       });
 
-      // Mencari riwayat keluarga aktif melalui istri
+      // mencari riwayat keluarga aktif melalui istri
       if (!riwayatKeluarga) {
         riwayatKeluarga = await RiwayatKeluarga.findOne({
           where: { 
@@ -185,6 +183,7 @@ export const buatAnakKandung = async ({
       }
 
       const keluargaId = riwayatKeluarga.keluarga_id;
+      keluargaAsalId = keluargaId;
       
       if (jenis_perkawinan === "Nyentana") {
         keluargaIstriTarget = { id: keluargaId };
@@ -192,18 +191,17 @@ export const buatAnakKandung = async ({
         keluargaSuamiTarget = { id: keluargaId };
       }
 
-      // Simpan riwayat anak ke dalam wadah KK perkawinan orang tua yang berhasil dilacak
       await simpanRiwayatKeluarga({
         krama_id: anak_id,
         keluarga_id: keluargaId,
         perkawinan_id: perkawinan_id,
         kedudukan: "Anggota", 
         dasar_keputusan: `Kedudukan sebagai anggota diberikan karena krama ini merupakan anak kandung hasil perkawinan orang tuanya (${jenis_perkawinan}).` + infoTambahanDasar,
-        event_date: finalTanggalEventTimestamp,
+        event_date: finalTanggalRiwayat,
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
-        akhir_masuk: finalTanggalKeluarTimestamp, 
-        allow_multiple: finalTanggalKeluarTimestamp ? true : false 
+        akhir_masuk: finalTanggalKeluar, 
+        allow_multiple: finalTanggalKeluar ? true : false 
       }, t);
     }
 
@@ -214,63 +212,113 @@ export const buatAnakKandung = async ({
       where: {
         krama_id: anak_id,
         kedudukan: "Kepala Keluarga", 
-        awal_masuk: { [Op.gte]: finalTanggalKeluarTimestamp || finalTanggalEventTimestamp }, 
-        akhir_masuk: null 
+        akhir_masuk: null,
+        [Op.or]: [
+          { dasar_keputusan: { [Op.like]: "%kembali ke keluarga asal%" } },
+          { dasar_keputusan: { [Op.like]: "%setelah perceraian%" } },
+          { dasar_keputusan: { [Op.like]: "%keluarga asal setelah%" } },
+          { dasar_keputusan: { [Op.like]: "%dikembalikan ke keluarga%" } }
+        ]
       },
-      include: [{ 
-        association: "detail_keluarga",
-        required: false 
-      }],
       transaction: t
     });
 
     if (riwayatMandiriDarurat) {
-      const idKeluargaLama = riwayatMandiriDarurat.keluarga_id;
+      const idKeluargaLamaDarurat = riwayatMandiriDarurat.keluarga_id;
+      const tanggalMasukAsal = new Date(riwayatMandiriDarurat.awal_masuk); 
+      const perkawinanIdDarurat = riwayatMandiriDarurat.perkawinan_id;
+
+      // memastikan riwayat perkawinan ditutup sesuai tanggal cerai
+      await RiwayatKeluarga.update(
+        { akhir_masuk: tanggalMasukAsal },
+        {
+          where: {
+            krama_id: parseInt(anak_id),
+            kategori_event: "KAWIN",
+            akhir_masuk: null
+          },
+          transaction: t
+        }
+      );
 
       if (jenis_perkawinan === "Pade Gelahang") {
-        await riwayatMandiriDarurat.update({
-          keluarga_id: keluargaSuamiTarget.id,
-          perkawinan_id: perkawinan_id,
-          kedudukan: "Anggota",
-          kategori_event: "LAHIR",
-          bobot_event: BOBOT_EVENT["LAHIR"],
-          dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ayah setelah data perkawinan ditemukan."
-        }, { transaction: t });
+        await riwayatMandiriDarurat.destroy({ transaction: t });
 
-        await simpanRiwayatKeluarga({
-          krama_id: anak_id,
-          keluarga_id: keluargaIstriTarget.id,
-          perkawinan_id: perkawinan_id,
-          kedudukan: "Anggota",
-          dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ibu setelah data perkawinan ditemukan.",
-          event_date: riwayatMandiriDarurat.awal_masuk,
-          kategori_event: "LAHIR",
-          bobot_event: BOBOT_EVENT["LAHIR"],
-          akhir_masuk: riwayatMandiriDarurat.akhir_masuk,
-          allow_multiple: true
-        }, t);
-      } else {
-        const keluargaTujuanId = keluargaSuamiTarget?.id || keluargaIstriTarget?.id;
-
-        if (keluargaTujuanId) {
-          await riwayatMandiriDarurat.update({
-            keluarga_id: keluargaTujuanId,
-            perkawinan_id: perkawinan_id,
+        if (keluargaSuamiTarget && keluargaSuamiTarget.id !== keluargaAsalId) {
+          await simpanRiwayatKeluarga({
+            krama_id: anak_id,
+            keluarga_id: keluargaSuamiTarget.id,
+            perkawinan_id: perkawinanIdDarurat || perkawinan_id,
             kedudukan: "Anggota",
-            kategori_event: "LAHIR",
-            bobot_event: BOBOT_EVENT["LAHIR"],
-            dasar_keputusan: "Krama dikembalikan ke keluarga perkawinan kandung orang tuanya."
-          }, { transaction: t });
+            dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ayah setelah data relasi orang tua berhasil disinkronisasi ke dalam sistem.",
+            event_date: tanggalMasukAsal,
+            kategori_event: "CERAI",
+            bobot_event: BOBOT_EVENT["CERAI"],
+            allow_multiple: true
+          }, t);
+        }
+
+        if (keluargaIstriTarget && keluargaIstriTarget.id !== keluargaAsalId) {
+          await simpanRiwayatKeluarga({
+            krama_id: anak_id,
+            keluarga_id: keluargaIstriTarget.id,
+            perkawinan_id: perkawinanIdDarurat || perkawinan_id,
+            kedudukan: "Anggota",
+            dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ibu setelah data relasi orang tua berhasil disinkronisasi ke dalam sistem.",
+            event_date: tanggalMasukAsal,
+            kategori_event: "CERAI",
+            bobot_event: BOBOT_EVENT["CERAI"],
+            allow_multiple: true
+          }, t);
+        }
+      } else {
+        // melihat kesamaan keluarga yang dituju setelah cerai
+        const keluargaTujuanId = keluargaSuamiTarget?.id || keluargaIstriTarget?.id;
+        
+        if (keluargaTujuanId && keluargaTujuanId !== keluargaAsalId) {
+          await riwayatMandiriDarurat.destroy({ transaction: t });
+          
+          await simpanRiwayatKeluarga({
+            krama_id: anak_id,
+            keluarga_id: keluargaTujuanId,
+            perkawinan_id: perkawinanIdDarurat || perkawinan_id,
+            kedudukan: "Anggota",
+            dasar_keputusan: "Krama dikembalikan ke keluarga kandung dari perkawinan orang tuanya setelah data relasi orang tua berhasil disinkronisasikan ke dalam sistem.",
+            event_date: tanggalMasukAsal,
+            kategori_event: "CERAI",
+            bobot_event: BOBOT_EVENT["CERAI"]
+          }, t);
+        } else if (keluargaTujuanId && keluargaTujuanId === keluargaAsalId) {
+          const riwayatLahirBaru = await RiwayatKeluarga.findOne({
+            where: {
+              krama_id: parseInt(anak_id),
+              keluarga_id: keluargaTujuanId,
+              kategori_event: "LAHIR"
+            },
+            transaction: t
+          });
+
+          if (riwayatLahirBaru) {
+            await riwayatLahirBaru.update({
+              kategori_event: "CERAI",
+              bobot_event: BOBOT_EVENT["CERAI"],
+              awal_masuk: tanggalMasukAsal, 
+              akhir_masuk: null,
+              dasar_keputusan: riwayatLahirBaru.dasar_keputusan + ` (Kedudukan aktif sebagai anggota di keluarga kandung orang tuanya dipulihkan kembali secara sah sejak tanggal perceraian ${tanggalMasukAsal.toISOString().split('T')[0]}).`
+            }, { transaction: t });
+          }
+          await riwayatMandiriDarurat.destroy({ transaction: t });
         }
       }
 
-      const idKeluargaBaruSuami = keluargaSuamiTarget?.id;
-      const idKeluargaBaruIstri = keluargaIstriTarget?.id;
-
-      if (idKeluargaLama && idKeluargaLama !== idKeluargaBaruSuami && idKeluargaLama !== idKeluargaBaruIstri) {
+      // nonaktifkan riwayat keluarga asal
+      if (idKeluargaLamaDarurat) {
         await Keluarga.update(
           { status_keluarga: "Non-Aktif" },
-          { where: { id: idKeluargaLama }, transaction: t }
+          { 
+            where: { id: idKeluargaLamaDarurat }, 
+            transaction: t 
+          }
         );
       }
     }

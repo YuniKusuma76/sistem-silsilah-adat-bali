@@ -135,8 +135,7 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
     // menghapus keluarga yang terbentuk karena perkawinan ini
     const keluargaTerbentuk = await Keluarga.findOne({
       where: {
-        kepala_keluarga_id: { [Op.in]: [suami_id, istri_id] },
-        jenis_keluarga: jenis_perkawinan 
+        kepala_keluarga_id: purusaId
       },
       transaction: t
     });

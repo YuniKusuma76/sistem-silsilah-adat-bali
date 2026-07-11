@@ -3,7 +3,7 @@
 }
 
 .modalContainer {
-  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all border-t-4 border-red-700;
 }
 
 .elipsis {
@@ -99,19 +99,23 @@
 }
 
 .searchWrapper {
-  @apply relative w-full max-w-md;
+  @apply relative flex items-center flex-1;
 }
 
 .searchIcon {
-  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm;
+  @apply absolute left-3 text-slate-400 text-sm pointer-events-none;
 }
 
 .searchInput {
-  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all focus:outline-none focus:border-[#3A2000] focus:ring-2 focus:ring-[#3A2000]/10;
+  @apply w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg outline-none bg-slate-50 transition-all duration-200;
+}
+
+.searchInput:focus {
+  @apply border-amber-700 bg-white ring-1 ring-amber-700/20;
 }
 
 .btnAddData {
-  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-md shadow-green-900/10;
+  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-lg text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-md shadow-green-900/10;
 }
 
 .tableWrapper {
@@ -131,15 +135,11 @@
 }
 
 .table td {
-  @apply py-4 px-6 border-b border-gray-100 text-sm align-middle text-gray-600;
+  @apply py-5 px-6 border-b border-gray-100 text-sm align-middle;
 }
 
 .table tr:last-child td {
   @apply border-b-0;
-}
-
-.table tr {
-  @apply hover:bg-gray-50/50 transition-colors duration-150;
 }
 
 .loadContainer {
@@ -196,6 +196,86 @@
 
 .activePage {
   @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-sm;
+}
+
+.notifDropdownMenu {
+  @apply absolute right-0 mt-2 w-[400px] bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden;
+}
+
+.notifDropdownHeader {
+  @apply flex items-center justify-between p-3.5 border-b border-gray-100 bg-slate-50/50;
+}
+
+.notifDropdownHeaderTitle {
+  @apply text-sm font-bold text-bali-brown tracking-wide uppercase;
+}
+
+.notifDropdownHeaderCount {
+  @apply text-[10px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full;
+}
+
+.notifDropdownBody {
+  @apply overflow-hidden;
+}
+
+.notifListContainer {
+  @apply max-h-[350px] overflow-y-auto divide-y divide-gray-50;
+}
+
+.notifItemRow {
+  @apply flex items-start gap-3 p-3.5 transition-all duration-200 cursor-pointer hover:bg-slate-50/80;
+}
+
+.rowUnread {
+  @apply bg-blue-50;
+}
+
+.rowRead {
+  @apply bg-white;
+}
+
+.notifTitleUnread {
+  @apply text-xs font-extrabold text-gray-900 truncate;
+}
+
+.notifTitleRead {
+  @apply text-xs font-semibold text-gray-700 truncate;
+}
+
+.notifDeskripsi {
+  @apply text-[10px] text-gray-600 leading-relaxed break-words mt-0.5;
+}
+
+.notifTime {
+  @apply text-[9px] text-gray-400 block mt-1.5 font-medium tracking-wide;
+}
+
+.badgeBase {
+  @apply text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase;
+}
+
+.badgeVerifikasi {
+  @apply bg-amber-50 text-amber-700 border-amber-100;
+}
+
+.badgePeringatan {
+  @apply bg-red-50 text-red-700 border-red-100;
+}
+
+.badgeKontak {
+  @apply bg-emerald-50 text-emerald-700 border-emerald-100;
+}
+
+.badgeLogSistem {
+  @apply bg-blue-50 text-blue-700 border-blue-100;
+}
+
+.badgeInformasi {
+  @apply bg-slate-100 text-slate-700 border-slate-200;
+}
+
+.dotUnreadIndicator {
+  @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
 }
 
 .modalContent {
@@ -300,84 +380,4 @@
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.notifDropdownMenu {
-  @apply absolute right-0 mt-2 w-[400px] bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden;
-}
-
-.notifDropdownHeader {
-  @apply flex items-center justify-between p-3.5 border-b border-gray-100 bg-slate-50/50;
-}
-
-.notifDropdownHeaderTitle {
-  @apply text-sm font-bold text-bali-brown tracking-wide uppercase;
-}
-
-.notifDropdownHeaderCount {
-  @apply text-[10px] bg-red-50 text-red-600 font-semibold px-2 py-0.5 rounded-full;
-}
-
-.notifDropdownBody {
-  @apply overflow-hidden;
-}
-
-.notifListContainer {
-  @apply max-h-[350px] overflow-y-auto divide-y divide-gray-50;
-}
-
-.notifItemRow {
-  @apply flex items-start gap-3 p-3.5 transition-all duration-200 cursor-pointer hover:bg-slate-50/80;
-}
-
-.rowUnread {
-  @apply bg-blue-50;
-}
-
-.rowRead {
-  @apply bg-white;
-}
-
-.notifTitleUnread {
-  @apply text-xs font-extrabold text-gray-900 truncate;
-}
-
-.notifTitleRead {
-  @apply text-xs font-semibold text-gray-700 truncate;
-}
-
-.notifDeskripsi {
-  @apply text-[10px] text-gray-600 leading-relaxed break-words mt-0.5;
-}
-
-.notifTime {
-  @apply text-[9px] text-gray-400 block mt-1.5 font-medium tracking-wide;
-}
-
-.badgeBase {
-  @apply text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wide uppercase;
-}
-
-.badgeVerifikasi {
-  @apply bg-amber-50 text-amber-700 border-amber-100;
-}
-
-.badgePeringatan {
-  @apply bg-red-50 text-red-700 border-red-100;
-}
-
-.badgeKontak {
-  @apply bg-emerald-50 text-emerald-700 border-emerald-100;
-}
-
-.badgeLogSistem {
-  @apply bg-blue-50 text-blue-700 border-blue-100;
-}
-
-.badgeInformasi {
-  @apply bg-slate-100 text-slate-700 border-slate-200;
-}
-
-.dotUnreadIndicator {
-  @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
 }

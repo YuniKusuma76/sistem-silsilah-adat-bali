@@ -10,6 +10,7 @@ import {
   Kabupaten,
   Provinsi
 } from "../models/associations.js";
+import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
 
 // Halper untuk menghapus file upload jika verifikasi gagal
 const hapusFileUploaded = (filename) => {
@@ -20,7 +21,6 @@ const hapusFileUploaded = (filename) => {
   }
 };
 
-// Validasi Input Valid
 const VALID_STATUS_VALIDASI = [
   "Menunggu Validasi Berkas", 
   "Berkas Valid", 
@@ -35,7 +35,6 @@ const VALID_STATUS_PERMOHONAN = [
   "Dibatalkan"
 ];
 
-// Data Permohonan Desa Include
 const PERMOHONAN_DESA_INCLUDE = [
   { 
     model: User, 
@@ -99,30 +98,21 @@ export const ajukanPermohonanDesa = async (req, res) => {
   const dokumen_pendukung = req.file ? req.file.filename : null;
 
   try {
-    // Validasi hak akses berdasarkan operator
     if (req.role === "Super Admin" || req.role === "Admin Desa" || req.role === "Pakar") {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(403).json({ 
         message: "Otoritas mengakses data ditolak!" 
       });
     }
 
-    const { 
-      desa_adat_id_tujuan, 
-      alasan_pindah 
-    } = req.body;
+    const { desa_adat_id_tujuan, alasan_pindah } = req.body;
 
-    // Validasi input dasar
     if (!desa_adat_id_tujuan || !alasan_pindah || !dokumen_pendukung) {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(400).json({ 
         message: "Kolom wilayah desa adat tujuan, alasan permohonan, dan dokumen pendukung wajib diisi!" 
       });
     }
 
-    // Validasi mengajukan permohonan ke desa adat saat ini
     if (req.desaAdatId && parseInt(desa_adat_id_tujuan) === req.desaAdatId) {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(400).json({
         message: "Proses permohonan dihentikan! Anda saat ini sudah terdaftar aktif di desa adat tujuan tersebut."
       });
@@ -137,7 +127,6 @@ export const ajukanPermohonanDesa = async (req, res) => {
     });
 
     if (berkasAktif) {
-      hapusFileUploaded(dokumen_pendukung);
       return res.status(400).json({ 
         message: "Proses permohonan dihentikan! Anda masih memiliki berkas permohonan desa yang sedang diverifikasi." 
       });
@@ -153,24 +142,34 @@ export const ajukanPermohonanDesa = async (req, res) => {
       status_permohonan: "Menunggu Verifikasi"
     });
 
-    res.status(201).json({
+    await kirimNotifikasiSistem(req, {
+      judul: "Verifikasi Pengajuan Mutasi Desa Adat",
+      deskripsi: `Adanya pengajuan mutasi desa adat masuk dari ${req.role}. Menunggu verifikasi dari Admin Desa Bersangkutan.`,
+      kategori: "VERIFIKASI",
+      tautan_fitur: "/verifikasi-data/pengajuan-desa-adat",
+      desa_adat_id: permohonan.desa_adat_id_tujuan,
+      sender_id: permohonan.user_id,
+      kontak_pesan_id: null,
+      user_id: null
+    });
+
+    return res.status(201).json({
       message: "Berkas permohonan desa adat berhasil diajukan!",
       data: permohonan
     });
   } catch (error) {
-    hapusFileUploaded(dokumen_pendukung);
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
+  } finally {
+    if (res.statusCode !== 201) {
+      hapusFileUploaded(dokumen_pendukung);
+    }
   }
 };
 
 export const validasiBerkas = async (req, res) => {
-  // Deklarasi kolom input
-  const { 
-    status_validasi_berkas, 
-    catatan_validasi 
-  } = req.body;
+  const { status_validasi_berkas, catatan_validasi } = req.body;
 
   // Memulai transaksi database
   const t = await db.transaction();
@@ -195,7 +194,6 @@ export const validasiBerkas = async (req, res) => {
       });
     }
 
-    // Validasi hak akses berkas
     if (berkas.desa_adat_id_tujuan !== req.desaAdatId) {
       await t.rollback();
       return res.status(403).json({ 
@@ -216,21 +214,33 @@ export const validasiBerkas = async (req, res) => {
     if (status_validasi_berkas === "Berkas Tidak Valid" && (!catatan_validasi || catatan_validasi.trim() === "")) {
       await t.rollback();
       return res.status(400).json({ 
-        message: "Kolom catatan validasi wajib diisi jika berkas permohonan dinyatakan Tidak Valid!" 
+        message: "Kolom catatan validasi wajib diisi jika berkas permohonan dinyatakan tidak valid!" 
       });
     }
 
-    // Menentukan catatan validasi secara adaptif jika dikosongkan saat berkas valid
     const catatanValidasiFinal = status_validasi_berkas === "Berkas Valid" 
-      ? (catatan_validasi || "Berkas permohonan dinyatakan valid oleh Admin Desa Tujuan.")
+      ? (catatan_validasi || "Berkas permohonan mutasi desa adat dinyatakan valid oleh Admin Desa Tujuan.")
       : catatan_validasi;
+    
+    const statusPermohonanFinal = status_validasi_berkas === "Berkas Tidak Valid" 
+      ? "Ditolak" 
+      : berkas.status_permohonan;
+    
+    const catatanVerifikasiFinal = status_validasi_berkas === "Berkas Tidak Valid"
+      ? `[BERKAS TIDAK VALID]: ${catatanValidasiFinal}`
+      : berkas.catatan_verifikasi;
 
-    // Update status validasi berkas
     await PermohonanDesa.update({
       status_validasi_berkas,
+      status_permohonan: statusPermohonanFinal,
       catatan_validasi: catatanValidasiFinal,
+      catatan_verifikasi: catatanVerifikasiFinal,
       divalidasi_oleh: req.userId,
-      tanggal_validasi: new Date()
+      tanggal_validasi: new Date(),
+      ...(status_validasi_berkas === "Berkas Tidak Valid" && { 
+        diverifikasi_oleh: req.userId, 
+        tanggal_verifikasi: new Date() 
+      })
     }, {
       where: { id: berkas.id },
       transaction: t
@@ -238,29 +248,80 @@ export const validasiBerkas = async (req, res) => {
 
     await t.commit();
 
-    res.status(200).json({ 
+    if (status_validasi_berkas === "Berkas Tidak Valid") {
+      Promise.all([
+        kirimNotifikasiSistem(req, {
+          judul: "Pengajuan Mutasi Desa Adat Ditolak",
+          deskripsi: `Permohonan mutasi desa adat Anda ditolak oleh Admin Desa Tujuan karena berkas dinyatakan tidak valid: ${catatanValidasiFinal}`,
+          kategori: "PERINGATAN",
+          tautan_fitur: "/pengajuan-desa-adat/my-data",
+          desa_adat_id: berkas.desa_adat_id_tujuan, 
+          sender_id: req.userId,
+          kontak_pesan_id: null,
+          user_id: berkas.user_id 
+        }),
+        kirimNotifikasiSistem(req, {
+          judul: "Pengajuan Mutasi Desa Adat Ditolak",
+          deskripsi: "Permohonan mutasi desa adat telah ditolak oleh Admin Desa Tujuan karena berkas dinyatakan tidak valid.",
+          kategori: "LOG_SISTEM",
+          tautan_fitur: null,
+          desa_adat_id: null, 
+          sender_id: req.userId,
+          kontak_pesan_id: null,
+          user_id: null 
+        })
+      ]).catch(err => {
+        console.error("Gagal mengirim notifikasi saat validasi berkas mutasi desa adat:", err);
+      });
+    } else {
+      kirimNotifikasiSistem(req, {
+        judul: "Verifikasi Pengajuan Mutasi Desa Adat",
+        deskripsi: "Berkas pengajuan mutasi desa adat dinyatakan valid. Menunggu verifikasi final dari Admin Verifikator.",
+        kategori: "VERIFIKASI",
+        tautan_fitur: "/verifikasi-data/pengajuan-desa-adat",
+        desa_adat_id: null, 
+        sender_id: req.userId,
+        kontak_pesan_id: null,
+        user_id: null 
+      }). catch(err => {
+        console.error("Gagal mengirim notifikasi saat validasi berkas mutasi desa adat:", err);
+      });
+    }
+
+    return res.status(200).json({ 
       message: `Berkas permohonan desa berhasil ditandai sebagai ${status_validasi_berkas}.` 
     });
   } catch (error) {
-    await t.rollback();
-    res.status(500).json({ 
+    if (!t.finished) {
+      await t.rollback();
+    }
+    return res.status(500).json({ 
       message: error.message 
     });
   }
 };
 
 export const verifikasiPermohonanDesa = async (req, res) => {
-  // Deklarasi kolom input
-  const { 
-    status_permohonan, 
-    catatan_verifikasi 
-  } = req.body;
+  const { status_permohonan, catatan_verifikasi } = req.body;
+
+  // Validasi status verifikasi
+  const VALID_KEPUTUSAN_VERIFIKASI = ["Disetujui", "Ditolak"];
+  if (!VALID_KEPUTUSAN_VERIFIKASI.includes(status_permohonan)) {
+    return res.status(400).json({ 
+      message: "Status verifikasi permohonan tidak valid!" 
+    });
+  }
+
+  if (status_permohonan === "Ditolak" && (!catatan_verifikasi || catatan_verifikasi.trim() === "")) {
+    return res.status(400).json({ 
+      message: "Kolom catatan verifikasi wajib diisi jika permohonan ditolak!" 
+    });
+  }
   
   // Memulai transaksi database
   const t = await db.transaction();
 
   try {
-    // Lock row permohonan agar tidak diedit bersamaan
     const berkas = await PermohonanDesa.findByPk(req.params.id, { 
       transaction: t,
       lock: t.LOCK.UPDATE
@@ -280,16 +341,6 @@ export const verifikasiPermohonanDesa = async (req, res) => {
       });
     }
 
-    // Validasi status validasi berkas
-    const VALID_KEPUTUSAN_VERIFIKASI = ["Disetujui", "Ditolak"];
-    if (!VALID_KEPUTUSAN_VERIFIKASI.includes(status_permohonan)) {
-      await t.rollback();
-      return res.status(400).json({ 
-        message: "Status verifikasi permohonan tidak valid!" 
-      });
-    }
-
-    // Logika jika berkas permohonan belum di validasi
     if (berkas.status_validasi_berkas === "Menunggu Validasi Berkas") {
       await t.rollback();
       return res.status(400).json({
@@ -306,7 +357,6 @@ export const verifikasiPermohonanDesa = async (req, res) => {
         });
       }
 
-      // Logika sinkronisasi otomatis ke database
       await User.update({ 
         desa_adat_id: berkas.desa_adat_id_tujuan 
       }, {
@@ -322,20 +372,11 @@ export const verifikasiPermohonanDesa = async (req, res) => {
       }
     }
 
-    // Validasi input catatan super admin
-    if (status_permohonan === "Ditolak" && (!catatan_verifikasi || catatan_verifikasi.trim() === "")) {
-      await t.rollback();
-      return res.status(400).json({ 
-        message: "Kolom catatan verifikasi wajib diisi jika permohonan ditolak!" 
-      });
-    }
-
     // Menentukan catatan verifikasi secara adaptif jika dikosongkan saat menyetujui
     const catatanVerifikasiFinal = status_permohonan === "Disetujui" 
-      ? (catatan_verifikasi || "Permohonan pergantian desa adat resmi disetujui oleh Super Admin.")
+      ? (catatan_verifikasi || "Permohonan mutasi desa adat resmi disetujui oleh Super Admin.")
       : catatan_verifikasi;
     
-    // Update status permohonan
     await PermohonanDesa.update({
       status_permohonan,
       catatan_verifikasi: catatanVerifikasiFinal,
@@ -348,39 +389,74 @@ export const verifikasiPermohonanDesa = async (req, res) => {
 
     await t.commit();
 
-    res.status(200).json({ 
+    Promise.all([
+      kirimNotifikasiSistem(req, {
+        judul: "Permohonan Mutasi Desa Adat",
+        deskripsi: `Permohonan mutasi desa adat telah diverifikasi dengan status: ${status_permohonan.toUpperCase()}.`,
+        kategori: "INFORMASI",
+        tautan_fitur: null,
+        desa_adat_id: berkas.desa_adat_id_tujuan, 
+        sender_id: req.userId,
+        kontak_pesan_id: null,
+        user_id: null 
+      }),
+      kirimNotifikasiSistem(req, {
+        judul: "Permohonan Mutasi Desa Adat",
+        deskripsi: "Permohonan mutasi desa adat telah diverifikasi dan disetujui oleh Admin Desa Tujuan dan Admin Verifikator.",
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/pengajuan-desa-adat/my-data",
+        desa_adat_id: null, 
+        sender_id: req.userId,
+        kontak_pesan_id: null,
+        user_id: berkas.user_id 
+      })
+    ]).catch(err => {
+      console.error("Gagal mengirim notifikasi saat verifikasi final mutasi desa adat:", err);
+    });
+
+    return res.status(200).json({ 
       message: `Berkas permohonan berhasil diverifikasi dengan keputusan: ${status_permohonan}.` 
     });
   } catch (error) {
-    await t.rollback();
-    res.status(500).json({ 
+    if (!t.finished) {
+      await t.rollback();
+    }
+    return res.status(500).json({ 
       message: error.message 
     });
   }
 };
 
 export const batalkanPermohonanDesa = async (req, res) => {
+  // Memulai transaksi database
+  const t = await db.transaction();
+
   try {
     const berkas = await PermohonanDesa.findOne({
       where: {
         id: req.params.id, 
         user_id: req.userId 
-      }
+      },
+      transaction: t,
+      lock: t.LOCK.UPDATE
     });
 
     if (!berkas) {
+      await t.rollback();
       return res.status(404).json({ 
         message: "Berkas permohonan tidak ditemukan." 
       });
     }
 
-    if (berkas.status_validasi_berkas !== "Menunggu Validasi Berkas" && berkas.status_permohonan !== "Menunggu Verifikasi") {
+    const statusValidasiDB = (berkas.status_validasi_berkas || "").trim().toLowerCase();
+    const statusPermohonanDB = (berkas.status_permohonan || "").trim().toLowerCase();
+    if (statusValidasiDB !== "menunggu validasi berkas" || statusPermohonanDB !== "menunggu verifikasi") {
+      await t.rollback();
       return res.status(400).json({ 
-        message: "Berkas permohonan ini tidak dapat dibatalkan karena telah masuk ke dalam tahap pemeriksaan."
+        message: "Berkas permohonan ini tidak dapat dibatalkan karena telah masuk ke dalam tahap pemeriksaan atau selesai diproses."
       });
     }
 
-    // Mengubah status permohonan
     await PermohonanDesa.update({
       status_validasi_berkas: "Dibatalkan",
       status_permohonan: "Dibatalkan",
@@ -389,14 +465,45 @@ export const batalkanPermohonanDesa = async (req, res) => {
       tanggal_validasi: new Date(),
       tanggal_verifikasi: new Date()
     }, {
-      where: { id: berkas.id }
+      where: { id: berkas.id },
+      transaction: t
     });
 
-    res.status(200).json({ 
+    await t.commit();
+
+    Promise.all([
+      kirimNotifikasiSistem(req, {
+        judul: "Pembatalan Permohonan Mutasi Desa Adat",
+        deskripsi: `Pengajuan permohonan mutasi desa adat telah dibatalkan oleh Pihak Pemohon.`,
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/verifikasi-data/pengajuan-desa-adat",
+        desa_adat_id: berkas.desa_adat_id_tujuan, 
+        sender_id: req.userId,
+        kontak_pesan_id: null,
+        user_id: null 
+      }),
+      kirimNotifikasiSistem(req, {
+        judul: "Permohonan Mutasi Desa Adat Dibatalkan",
+        deskripsi: `Permohonan mutasi desa adat Anda telah Anda batalkan dan ditarik dari antrean verifikasi.`,
+        kategori: "PERINGATAN",
+        tautan_fitur: "/pengajuan-desa-adat/my-data",
+        desa_adat_id: null, 
+        sender_id: req.userId,
+        kontak_pesan_id: null,
+        user_id: berkas.user_id 
+      })
+    ]).catch(err => {
+      console.error("Gagal mengirim notifikasi saat pembatalan permohonan role mutasi desa adat:", err);
+    });
+
+    return res.status(200).json({ 
       message: "Berkas permohonan desa berhasil dibatalkan." 
     });
   } catch (error) {
-    res.status(500).json({ 
+    if (!t.finished) {
+      await t.rollback();
+    }
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -465,18 +572,18 @@ export const getPermohonanAdminDesa = async (req, res) => {
     const dataPermohonan = await PermohonanDesa.findAll({
       where: { 
         desa_adat_id_tujuan: req.desaAdatId,
-        status_validasi_berkas: { [Op.ne]: "Dibatalkan" }
+        status_validasi_berkas: "Menunggu Validasi Berkas"
       },
       include: PERMOHONAN_DESA_INCLUDE,
       order: [["tanggal_pengajuan", "DESC"]]
     });
 
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: "Berhasil mengambil data permohonan desa!", 
       data: dataPermohonan
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -486,20 +593,19 @@ export const getPermohonanSuperAdmin = async (req, res) => {
   try {
     const dataPermohonan = await PermohonanDesa.findAll({
       where: {
-        status_validasi_berkas: { 
-          [Op.or]: ["Berkas Valid", "Berkas Tidak Valid"] 
-        }
+        status_validasi_berkas: "Berkas Valid",
+        status_permohonan: "Menunggu Verifikasi"
       },
       include: PERMOHONAN_DESA_INCLUDE,
       order: [["tanggal_pengajuan", "DESC"]]
     });
 
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: "Berhasil mengambil data permohonan desa!", 
       data: dataPermohonan
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -512,12 +618,12 @@ export const getPermohonanSaya = async (req, res) => {
       include: PERMOHONAN_DESA_INCLUDE,
       order: [["tanggal_pengajuan", "DESC"]]
     });
-    res.status(200).json({ 
+    return res.status(200).json({ 
       message: "Berhasil mengambil data permohonan desa!", 
       data: dataPermohonan
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -537,7 +643,6 @@ export const getDetailPermohonanDesa = async (req, res) => {
       });
     }
 
-    // Hak akses operator
     if (req.role !== "Super Admin") {
       if (req.role === "Admin Desa") {
         if (berkas.desa_adat_id_tujuan !== req.desaAdatId) {
@@ -555,12 +660,12 @@ export const getDetailPermohonanDesa = async (req, res) => {
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Berhasil mengambil data permohonan desa!",
       data: berkas
     });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }

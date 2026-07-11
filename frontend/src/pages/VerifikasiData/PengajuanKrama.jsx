@@ -6,7 +6,10 @@ import {
   FaArrowLeft, 
   FaInfoCircle,
   FaSpinner,
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaHourglassHalf
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance';
 import Footer from '../../components/Footer/Footer';
@@ -74,7 +77,6 @@ const PengajuanKrama = ({ user }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   
-  // State alert notifikasi global
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
@@ -84,7 +86,13 @@ const PengajuanKrama = ({ user }) => {
   const isAdminDesa = user?.role === 'Admin Desa';
   const isSuperAdmin = user?.role === 'Super Admin';
 
-  // Helper: Mengambil data wilayah adat
+  const totalColumns = useMemo(() => {
+    let base = 6;
+    if (isAdminDesa) base += 1;
+    if (isSuperAdmin) base += 1;
+    return base;
+  }, [isAdminDesa, isSuperAdmin]);
+
   const fetchWilayahDanDesa = async () => {
     try {
       const [resDesa, resKec, resKab] = await Promise.all([
@@ -108,7 +116,6 @@ const PengajuanKrama = ({ user }) => {
     }
   };
 
-  // Helper: Fungsi mengambil data krama bali
   const fetchDataKrama = async () => {
     setIsLoading(true);
     try {
@@ -131,7 +138,6 @@ const PengajuanKrama = ({ user }) => {
     fetchDataKrama();
   }, []);
 
-  // Effect: Menutup dropdown ketika klik di luar area input
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
@@ -142,7 +148,7 @@ const PengajuanKrama = ({ user }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Helper: Mengambil list notifikasi yang masuk
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
   const fetchNotifikasiLengkap = async () => {
     if (!user) return;
     try {
@@ -163,7 +169,6 @@ const PengajuanKrama = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Helper: Menandai notifikasi telah dibaca
   const handleTandaiDibaca = async (notifId) => {
     try {
       await axiosInstance.patch(`/notifikasi/read/${notifId}`);
@@ -179,7 +184,6 @@ const PengajuanKrama = ({ user }) => {
     }
   };
 
-  // Effect: Alert diteruskan ke alert halaman lain
   useEffect(() => {
     if (location.state?.successMessage) {
       setAlert({ 
@@ -191,7 +195,7 @@ const PengajuanKrama = ({ user }) => {
     }
   }, [location]);
 
-  // Helper: Fungsi mengambil detail wilayah berdasarkan desa adat id
+  // Helper: Mengambil detail wilayah berdasarkan desa adat id
   const getWilayahLengkap = (desaId) => {
     const desa = daftarDesaRaw.find(d => String(d.id) === String(desaId));
     if (!desa) return null;
@@ -205,7 +209,6 @@ const PengajuanKrama = ({ user }) => {
     };
   };
 
-  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -215,13 +218,11 @@ const PengajuanKrama = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
-  // Helper: Menangani input pencarian
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
     setCurrentPage(1);
   };
   
-  // Helper: Fungsi search filter krama
   const filteredKrama = useMemo(() => {
     return kramaList.filter(krama => 
       krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -234,12 +235,10 @@ const PengajuanKrama = ({ user }) => {
   const currentItems = filteredKrama.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredKrama.length / itemsPerPage);
 
-  // Effect: Setting current page aktif default 1
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Fungsi pergi ke next page
   const goToPage = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
@@ -286,7 +285,6 @@ const PengajuanKrama = ({ user }) => {
     });
   };
 
-  // Halper: Style badge status permohonan
   const getStatusClass = (status) => {
     switch (status) {
       case 'Disetujui': 
@@ -452,7 +450,6 @@ const PengajuanKrama = ({ user }) => {
           )}
         </div>
       )}
-      {/* List Krama Bali */}
       <div className={styles.contentArea}>
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
@@ -487,7 +484,7 @@ const PengajuanKrama = ({ user }) => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-12">
+                  <td colSpan={totalColumns} className="text-center py-12">
                     <div className={styles.loadContainer}>
                       <div className={`${styles.loadSpinner} animate-spin`}></div>
                       <span>Memuat data...</span>
@@ -496,7 +493,7 @@ const PengajuanKrama = ({ user }) => {
                 </tr>
               ) : currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-16 text-gray-500">
+                  <td colSpan={totalColumns} className="text-center py-16 text-gray-500">
                     <div className={styles.infoDataContent}>
                       <FaInfoCircle className={styles.infoDataIcon} />
                       <p className="text-sm font-medium">
@@ -566,8 +563,7 @@ const PengajuanKrama = ({ user }) => {
                           onClick={() => {
                             const slug = createSlug(krama.nama_lengkap, krama.tipe_data, krama.id);
                             navigate(`/verifikasi-data/krama-bali/detail/${slug}`);
-                          }}
-                        >
+                          }}>
                           <FaInfoCircle /> Detail
                         </button>
                       </td>

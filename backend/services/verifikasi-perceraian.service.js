@@ -95,15 +95,8 @@ export const eksekusiVerifikasiPerceraian = async ({
     // SKENARIO A: Persetujuan Parsial Kawin Pade Gelahang
     if (perkawinan.jenis_perkawinan === "Pade Gelahang" && (!approvedSuami || !approvedIstri)) {
       const perkawinanParsial = await perkawinan.update({
-        data_perubahan: {
-          ...existingChanges,
-          PERCERAIAN: {
-            ...drafCerai,
-            is_approved_desa_suami: approvedSuami,
-            is_approved_desa_istri: approvedIstri,
-            updated_at: new Date()
-          }
-        },
+        is_approved_desa_suami: approvedSuami,
+        is_approved_desa_istri: approvedIstri,
         catatan_admin_desa: {
           ...newCatatanAdmin,
           status_verifikasi_perceraian: `Usulan draft perceraian telah diverifikasi dan disetujui oleh ${nama_desa_operator}. Menunggu verifikasi dari Admin Desa Pasangan.`
@@ -120,7 +113,7 @@ export const eksekusiVerifikasiPerceraian = async ({
     const hasilMutasiFisik = await prosesPerceraianBali({
       perkawinan_id: perkawinan.id,
       status_perkawinan: drafCerai.status_perkawinan,
-      tanggal_cerai: drafCerai.tanggal_cerai,
+      tanggal_cerai: drafCerai.tanggal_cerai, 
       pihak_meninggal: drafCerai.pihak_meninggal,
       pilihan_predana: drafCerai.pilihan_predana,
       user_id,

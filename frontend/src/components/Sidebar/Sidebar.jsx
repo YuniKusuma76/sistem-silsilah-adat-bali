@@ -45,7 +45,7 @@ const SIDEBAR_MENU = {
     { 
       path: "/home", 
       label: "Home", 
-      icon: <FaHome size={20} /> 
+      icon: <FaHome size={18} /> 
     },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
@@ -53,11 +53,11 @@ const SIDEBAR_MENU = {
     },{ 
       path: "/pengajuan-role/my-data", 
       label: "Pengajuan Role", 
-      icon: <LuUserPen size={20} /> 
+      icon: <LuUserPen size={18} /> 
     },{ 
       path: "/pengajuan-desa-adat/my-data", 
       label: "Pengajuan Desa Adat", 
-      icon: <MdOutlineEditLocationAlt size={20} /> 
+      icon: <MdOutlineEditLocationAlt size={18} /> 
     },{ 
       path: "/pusat-bantuan", 
       label: "Pusat Bantuan", 
@@ -68,8 +68,8 @@ const SIDEBAR_MENU = {
   Pakar: [
     { 
       path: "/home", 
-      label: "HOME", 
-      icon: <FaHome size={20} /> 
+      label: "Home", 
+      icon: <FaHome size={18} /> 
     },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
@@ -77,11 +77,11 @@ const SIDEBAR_MENU = {
     },{ 
       path: "/aturan-adat-bali", 
       label: "Aturan Adat Bali", 
-      icon: <GrDocumentConfig size={20} /> 
+      icon: <GrDocumentConfig size={18} /> 
     },{ 
       path: "/pengajuan-role/my-data", 
       label: "Pengajuan Role", 
-      icon: <LuUserPen size={20} /> 
+      icon: <LuUserPen size={18} /> 
     },{ 
       path: "/pusat-bantuan", 
       label: "Pusat Bantuan", 
@@ -92,8 +92,8 @@ const SIDEBAR_MENU = {
   Krama: [
     { 
       path: "/home", 
-      label: "HOME", 
-      icon: <FaHome size={20} /> 
+      label: "Home", 
+      icon: <FaHome size={18} /> 
     },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
@@ -101,11 +101,11 @@ const SIDEBAR_MENU = {
     },{ 
       path: "/pengajuan-role/my-data", 
       label: "Pengajuan Role", 
-      icon: <LuUserPen size={20} /> 
+      icon: <LuUserPen size={18} /> 
     },{ 
       path: "/pengajuan-desa-adat/my-data", 
       label: "Pengajuan Desa Adat", 
-      icon: <MdOutlineEditLocationAlt size={20} /> 
+      icon: <MdOutlineEditLocationAlt size={18} /> 
     },{ 
       path: "/pusat-bantuan", 
       label: "Pusat Bantuan", 
@@ -127,7 +127,7 @@ const SIDEBAR_MENU = {
     },{ 
       path: "/aturan-adat-bali", 
       label: "Aturan Adat Bali", 
-      icon: <GrDocumentConfig size={20} /> 
+      icon: <GrDocumentConfig size={18} /> 
     },{ 
       path: "/wilayah-adat-bali", 
       label: "Wilayah Adat Bali", 
@@ -143,9 +143,13 @@ const SIDEBAR_MENU = {
       label: "Verifikasi Data", 
       icon: <MdApproval size={18} /> 
     },{ 
+      path: "/pengajuan-role/my-data", 
+      label: "Pengajuan Role", 
+      icon: <LuUserPen size={18} /> 
+    },{ 
       path: "/pesan-masuk", 
       label: "Laporan & Pesan Masuk", 
-      icon: <MdMoveToInbox  size={20} /> 
+      icon: <MdMoveToInbox  size={18} /> 
     }
   ],
 
@@ -163,7 +167,7 @@ const SIDEBAR_MENU = {
     },{ 
       path: "/aturan-adat-bali", 
       label: "Aturan Adat Bali", 
-      icon: <GrDocumentConfig size={20} /> 
+      icon: <GrDocumentConfig size={18} /> 
     },{ 
       path: "/wilayah-adat-bali", 
       label: "Wilayah Adat Bali", 
@@ -181,7 +185,7 @@ const SIDEBAR_MENU = {
     },{ 
       path: "/pesan-masuk", 
       label: "Laporan & Pesan Masuk", 
-      icon: <MdMoveToInbox  size={20} /> 
+      icon: <MdMoveToInbox  size={18} /> 
     }
   ]
 };
@@ -192,9 +196,8 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
   const currentPath = location.pathname;
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [localDisplayName, setLocalDisplayName] = useState("");
+  const [localDisplayName, setLocalDisplayName] = useState('');
 
-  // Effect: Memperbarui data profile
   useEffect(() => {
     if (user) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -202,14 +205,13 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
     }
   }, [user]);
 
-  // Helper: Mengambil data profile terbaru dari server
   const refreshSidebarProfile = async () => {
     try {
       const response = await axiosInstance.get('/users/profile');
       const updatedUser = response.data.data.user || response.data.data;
       setLocalDisplayName(updatedUser.display_name);
     } catch (error) {
-      console.error("Gagal refresh sidebar:", error);
+      console.error("Gagal melakukan refresh pada sidebar:", error);
     }
   };
 
@@ -222,12 +224,11 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
 
   const role = user?.role || "Guest";
 
-  // Helper: Fungsi untuk dropdown sidebar
+  // Helper: fungsi untuk dropdown sidebar
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };
 
-  // Helper: Fungsi untuk logout
   const handleLogoutClick = () => {
     setIsDropdownOpen(false);
     if (onLogout) {
@@ -235,7 +236,6 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
     }
   };
 
-  // Effect: Menutup dropdown ketika klik di luar area
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -256,7 +256,6 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
             <img src="/logo.webp" alt="Sistem Silsilah Adat Bali" className="object-contain max-h-full" />
           </div>
         </div>
-        {/* Content Autentikasi */}
         {user ? (
           <div className={styles.loginBorder} ref={dropdownRef}>
             <div className="flex items-center gap-3">
@@ -270,7 +269,6 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
                 </div>
                 <div className={styles.circleGreen}></div>
               </div>
-              {/* Username */}
               <div className="flex-1 cursor-pointer" onClick={toggleDropdown}>
                 <div className={styles.boxUsername}>
                   <h3 className="font-bold text-white text-sm select-none">
@@ -285,7 +283,6 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
                 </div>
               </div>
             </div>
-            {/* Dropdown Menu */}
             {isDropdownOpen && (
               <div className={`${styles.dropdown} animate-fade-in-down`}>
                 <Link to="/profile" className={styles.profile} onClick={() => setIsDropdownOpen(false)}>
@@ -322,10 +319,10 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
               if (menu.type === "divider") {
                 return <li key={index} className={styles.sidebarDivider}></li>;
               }
-              // Logic Active State:
               const isActive = menu.path === '/home' 
                 ? currentPath === '/home'
                 : currentPath.startsWith(menu.path);
+
               return (
                 <li key={index} className={`${styles.menuItem} ${isActive ? styles.isActive : styles.notActive}`}>
                   <Link to={menu.path} className="flex items-center w-full px-6 py-4">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HiOutlineOfficeBuilding } from 'react-icons/hi';
 import { MdOutlineTerrain, MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -38,8 +39,9 @@ const formatWaktuRelatif = (dateString) => {
 
 const Dashboard = ({ user }) => {
   const notifDropdownRef = useRef(null);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(true);
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
@@ -59,14 +61,12 @@ const Dashboard = ({ user }) => {
     roleViewer: 0,
   });
 
-  // State alert notifikasi global
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
     message: '' 
   });
 
-  // Effect: Menghitung jumlah data setiap route
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -181,7 +181,6 @@ const Dashboard = ({ user }) => {
     },
   ];
 
-  // Effect: Menutup dropdown ketika klik di luar area input
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
@@ -192,7 +191,7 @@ const Dashboard = ({ user }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Helper: Mengambil list notifikasi yang masuk
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
   const fetchNotifikasiLengkap = async () => {
     if (!user) return;
     try {
@@ -213,7 +212,6 @@ const Dashboard = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Helper: Menandai notifikasi telah dibaca
   const handleTandaiDibaca = async (notifId) => {
     try {
       await axiosInstance.patch(`/notifikasi/read/${notifId}`);
@@ -240,14 +238,14 @@ const Dashboard = ({ user }) => {
 
   return (
     <div className={styles.dashboardContainer}>
-      {/* Navbar */}
+      {/* Navbar Section */}
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
             Dashboard Overview
           </h2>
           <p className={styles.navSubtitle}>
-            Berikut adalah ringkatan aktivitas data silsilah adat bali
+            Berikut adalah ringkasan aktivitas data silsilah adat bali
           </p>
         </div>
         <div className={styles.navRight}>
@@ -295,10 +293,9 @@ const Dashboard = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>

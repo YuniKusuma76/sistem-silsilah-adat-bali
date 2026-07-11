@@ -282,10 +282,6 @@
   @apply bg-amber-500 text-white font-bold px-2.5 py-1 rounded-md text-[10px] uppercase inline-flex items-center gap-1.5 animate-pulse;
 }
 
-.badgeRejected {
-  @apply bg-red-100 text-red-700 font-bold px-2.5 py-1 rounded-md text-[10px] uppercase inline-flex items-center gap-1.5;
-}
-
 .noteColumn {
   @apply md:col-span-2 border-t border-gray-200 pt-2 mt-1;
 }
@@ -314,12 +310,20 @@
   @apply w-full text-sm p-3 rounded-xl border border-gray-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-gray-700;
 }
 
-.btnEditModal {
-  @apply bg-amber-500 hover:bg-amber-600 text-black text-[11px] font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150 inline-flex items-center;
+.btnSaveModal {
+  @apply bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
 }
 
 .btnRejectModal {
-  @apply bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150 inline-flex items-center;
+  @apply bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-sm transition-colors duration-150;
+}
+
+.btnCancel {
+  @apply px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
+}
+
+.btnDelete {
+  @apply inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-all;
 }
 
 .cardAreaChange {
@@ -418,12 +422,12 @@
   @apply text-blue-600 hover:text-blue-800 font-semibold text-[11px] flex items-center gap-1 mt-1 transition-colors hover:underline underline-offset-4;
 }
 
-.animate-fade-in {
-  @apply animate-[fadeIn_0.5s_ease-out];
-}
-
 .labelDraftChange {
   @apply ml-1 px-1.5 py-0.5 text-[7px] font-bold bg-amber-100 text-amber-700 rounded border border-amber-200 animate-pulse;
+}
+
+.noteChange {
+  @apply mt-2.5 p-3 bg-amber-50/40 border border-amber-100/70 rounded-md shadow-inner flex flex-col gap-1 mx-3 mb-3;
 }
 
 .fieldReg {
@@ -452,6 +456,18 @@
 
 .fieldKramaCr {
   @apply inline-flex items-center gap-1 mt-1 text-[10px] text-amber-700 font-mono font-bold bg-amber-50/50 px-1.5 py-0.5 rounded border border-amber-200/50;
+}
+
+.tabTarget {
+  @apply flex-1 text-center py-2 text-xs font-bold uppercase tracking-wider rounded transition-all;
+}
+
+.tabTargetDisable {
+  @apply opacity-70 ml-2 cursor-not-allowed bg-stone-100 text-stone-400 border border-stone-200;
+}
+
+.animate-fade-in {
+  @apply animate-[fadeIn_0.5s_ease-out];
 }
 
 @keyframes fadeIn {

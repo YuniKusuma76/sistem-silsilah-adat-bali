@@ -15,12 +15,16 @@ const Register = ({ onClose, onSwitchLogin }) => {
   const dropdownRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [daftarDesaAdat, setDaftarDesaAdat] = useState([]);
 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const [daftarDesa, setDaftarDesa] = useState([]);
+  const [daftarKecamatan, setDaftarKecamatan] = useState([]);
+  const [daftarKabupaten, setDaftarKabupaten] = useState([]);
+  const [daftarProvinsi, setDaftarProvinsi] = useState([]);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -39,21 +43,32 @@ const Register = ({ onClose, onSwitchLogin }) => {
     provinsi: ''
   });
 
-  // Effect: Mengambil data master desa adat
   useEffect(() => {
     const fetchDesaAdat = async () => {
       try {
-        const response = await axiosInstance.get(`/desa-adat`);
-        const data = response.data?.data || response.data || [];
-        setDaftarDesaAdat(data);
+        const [resDesa, resKec, resKab, resProv] = await Promise.all([
+          axiosInstance.get('/desa-adat'),
+          axiosInstance.get('/kecamatan'),
+          axiosInstance.get('/kabupaten'),
+          axiosInstance.get('/provinsi'),
+        ]);
+
+        const dataDesaAdat = resDesa.data?.data || resDesa.data || [];
+        const dataKecamatan = resKec.data?.data || resKec.data || [];
+        const dataKabupaten = resKab.data?.data || resKab.data || [];
+        const dataProvinsi = resProv.data?.data || resProv.data || [];
+
+        setDaftarDesa(dataDesaAdat);
+        setDaftarKecamatan(dataKecamatan);
+        setDaftarKabupaten(dataKabupaten);
+        setDaftarProvinsi(dataProvinsi);
       } catch (error) {
-        console.error("Gagal memuat data desa adat:", error);
+        console.error("Gagal memuat data wilayah adat:", error);
       }
     };
     fetchDesaAdat();
   }, []);
 
-  // Effect: Menutup dropdown otomatis ketika klik di luar area input desa adat
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -64,7 +79,6 @@ const Register = ({ onClose, onSwitchLogin }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Effect: Mencegah melakukan scroll ketika modal tampil
   useEffect(() => {
     document.body.classList.add("no-scroll");
     return () => {
@@ -72,13 +86,28 @@ const Register = ({ onClose, onSwitchLogin }) => {
     };
   }, []);
 
-  // Filter data desa berdasarkan ketikan user
-  const desaFiltered = searchTerm.trim() === "" ? daftarDesaAdat : daftarDesaAdat.filter((desa) => {
+  // Helper: filter data desa adat berdasarkan input form
+  const desaFiltered = searchTerm.trim() === "" ? daftarDesa : daftarDesa.filter((desa) => {
     const namaDesa = (desa.nama_desa_adat || desa.nama_desa || desa.nama || '').toLowerCase();
     return namaDesa.includes(searchTerm.toLowerCase());
   });
 
-  // Helper: Mengatasi perubahan form input
+  // HELPER WILAYAH ADAT: Mengambil data lengkap hierarki wilayah adat
+  const getWilayahLengkap = (desaId) => {
+    const desa = daftarDesa.find(d => String(d.id) === String(desaId));
+    if (!desa) return null;
+
+    const kec = daftarKecamatan.find(k => String(k.id) === String(desa.kecamatan_id));
+    const kab = daftarKabupaten.find(kb => String(kb.id) === String(kec?.kabupaten_id));
+    const prov = daftarProvinsi.find(p => String(p.id) === String(kab?.provinsi_id));
+
+    return {
+      kecamatan: kec ? kec.nama_kecamatan : '-',
+      kabupaten: kab ? kab.nama_kabupaten : '-',
+      provinsi: prov ? prov.nama_provinsi : '-'
+    };
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -87,7 +116,6 @@ const Register = ({ onClose, onSwitchLogin }) => {
     }));
   };
 
-  // Helper: Memilih desa dari list dropdown
   const handleSelectDesa = async (desa) => {
     const namaTerpilih = desa.nama_desa_adat || desa.nama_desa || desa.nama;
     setSearchTerm(namaTerpilih);
@@ -137,7 +165,7 @@ const Register = ({ onClose, onSwitchLogin }) => {
     }
   };
 
-  // Effect: Pesan error hilang otomatis saat user mulai memperbaiki input
+  // Effect: pesan error hilang otomatis
   useEffect(() => {
     if (message && messageType === 'error') {
       setMessage('');
@@ -150,7 +178,7 @@ const Register = ({ onClose, onSwitchLogin }) => {
     e.stopPropagation();
   };
 
-  // SUBMIT DATA
+  // SUBMIT DATA:
   const submitRegister = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -205,7 +233,7 @@ const Register = ({ onClose, onSwitchLogin }) => {
       if (error.response && error.response.data && error.response.data.message) {
         setMessage(error.response.data.message);
       } else {
-        setMessage("Terjadi kesalahan pada server.");
+        setMessage("Terjadi kesalahan pada sistem. Periksa koneksi Anda!");
       }
       setMessageType('error');
     } finally {
@@ -220,17 +248,14 @@ const Register = ({ onClose, onSwitchLogin }) => {
           onClick={!isLoading ? onClose : undefined} 
           className={`${styles.xButton} ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
           aria-label="Close Modal"
-          disabled={isLoading}
-        >
+          disabled={isLoading}>
           <IoMdClose size={24} className="hover:rotate-90 transition-transform duration-300" />
         </button>
-
         <div className={styles.logoContainer}>
           <div className="w-48 h-48 md:w-80 md:h-80 relative">
             <img src="/logo.webp" alt="Sistem Silsilah Adat Bali" className="w-full h-full object-contain" />
           </div>
         </div>
-
         <div className={styles.inputRegister}>
           <form className="w-full flex flex-col mt-5" onSubmit={submitRegister}>
             {/* Full Name Input */}
@@ -291,16 +316,23 @@ const Register = ({ onClose, onSwitchLogin }) => {
               {showDropdown && (
                 <div className={styles.dropdownPanel}>
                   {desaFiltered.length > 0 ? (
-                    desaFiltered.map((desa) => (
-                      <button
-                        key={desa.id}
-                        type="button"
-                        onClick={() => handleSelectDesa(desa)}
-                        className={styles.dropdownInput}
-                      >
-                        {desa.nama_desa_adat || desa.nama_desa || desa.nama}
-                      </button>
-                    ))
+                    desaFiltered.map((desa) => {
+                      const wilayah = getWilayahLengkap(desa.id);
+                      return (
+                        <button
+                          key={desa.id}
+                          type="button"
+                          onClick={() => handleSelectDesa(desa)}
+                          className={styles.dropdownInput}>
+                          <p className="text-xs font-bold text-gray-800">
+                            {desa.nama_desa_adat || desa.nama_desa || desa.nama}
+                          </p>
+                          <p className="text-[9px] text-gray-500 uppercase">
+                            {wilayah?.kecamatan || '-'} • {wilayah?.kabupaten || '-'}
+                          </p>
+                        </button>
+                      );
+                    })
                   ) : (
                     <div className={styles.dropdownWarn}>
                       {searchTerm.length > 0 ? "Desa adat tidak ditemukan" : "Memuat data..."}
@@ -367,12 +399,10 @@ const Register = ({ onClose, onSwitchLogin }) => {
                 type="button" 
                 className={styles.eyePassword} 
                 disabled={isLoading} 
-                onClick={() => setShowPassword(!showPassword)}
-              >
+                onClick={() => setShowPassword(!showPassword)}>
                 {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
               </button>
             </div>
-
             <div className={`${styles.inputGroup} relative`}>
               <div className={styles.iconWrapper}>
                 <FaLock size={20} />
@@ -391,8 +421,7 @@ const Register = ({ onClose, onSwitchLogin }) => {
                 type="button" 
                 className={styles.eyePassword} 
                 disabled={isLoading} 
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                 {showConfirmPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
               </button>
             </div>
@@ -420,8 +449,7 @@ const Register = ({ onClose, onSwitchLogin }) => {
             <button 
               type="submit" 
               disabled={isLoading} 
-              className={`${styles.btnRegister} ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:opacity-90'}`}
-            >
+              className={`${styles.btnRegister} ${isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:opacity-90'}`}>
               {isLoading ? (
                 <>
                   <span className={styles.spinner}></span>
@@ -435,8 +463,7 @@ const Register = ({ onClose, onSwitchLogin }) => {
                 type="button" 
                 onClick={!isLoading ? onSwitchLogin : undefined} 
                 className={styles.switchModal}
-                disabled={isLoading}
-              >
+                disabled={isLoading}>
                 Login Here
               </button>
             </div>

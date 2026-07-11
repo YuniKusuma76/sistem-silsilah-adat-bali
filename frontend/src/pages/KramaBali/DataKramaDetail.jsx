@@ -30,7 +30,8 @@ import {
   FaArrowRight,
   FaHourglassHalf,
   FaPlusCircle,
-  FaEye
+  FaEye,
+  FaIdCardAlt 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -1011,58 +1012,107 @@ const DataKramaDetail = ({ user }) => {
     );
   };
 
-  const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text') => {
-    let data_perubahan_kawin = modalKawinData?.data_perubahan;
+const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text') => {
+  let data_perubahan_kawin = modalKawinData?.data_perubahan;
 
-    if (data_perubahan_kawin && data_perubahan_kawin.data_perubahan) {
-      data_perubahan_kawin = data_perubahan_kawin.data_perubahan;
+  if (data_perubahan_kawin && data_perubahan_kawin.data_perubahan) {
+    data_perubahan_kawin = data_perubahan_kawin.data_perubahan;
+  }
+  if (!data_perubahan_kawin) return null;
+
+  let nilaiBaru;
+
+  if (data_perubahan_kawin.PERCERAIAN && data_perubahan_kawin.PERCERAIAN[namaField] !== undefined) {
+    nilaiBaru = data_perubahan_kawin.PERCERAIAN[namaField];
+  } else if (data_perubahan_kawin.UPDATE_PERKAWINAN && data_perubahan_kawin.UPDATE_PERKAWINAN[namaField] !== undefined) {
+    nilaiBaru = data_perubahan_kawin.UPDATE_PERKAWINAN[namaField];
+  } else if (data_perubahan_kawin[namaField] !== undefined) {
+    nilaiBaru = data_perubahan_kawin[namaField];
+  } else {
+    return null;
+  }
+
+  let nilaiLamaDiformat = nilaiLama;
+  let nilaiBaruDiformat = nilaiBaru;
+
+  // 1. Format Tipe Tanggal
+  if (type === 'date') {
+    nilaiLamaDiformat = formatDate(nilaiLama);
+    nilaiBaruDiformat = formatDate(nilaiBaru);
+  }
+
+  // ============================================================
+  // LOGIKA TRANSLASI NAMA PURUSA / PRADANA (ANTI ID ANGKA LAMA)
+  // ============================================================
+  if (namaField === 'suami_id' || namaField === 'istri_id') {
+    const relasiKey = namaField === 'suami_id' ? 'suami' : 'istri';
+    const kramaLama = modalKawinData?.[relasiKey];
+
+    // Tampilkan Nama Lengkap Krama Lama jika objek relasinya tersedia dari Eager Loading
+    if (kramaLama?.nama_lengkap) {
+      const isLamaDraft = kramaLama?.status_verifikasi === 'Draft';
+      nilaiLamaDiformat = `${kramaLama.nama_lengkap}${isLamaDraft ? ' [DRAFT]' : ''}`;
+    } else if (nilaiLama) {
+      nilaiLamaDiformat = `Krama ID: ${nilaiLama}`;
     }
-    if (!data_perubahan_kawin) return null;
 
-    let nilaiBaru;
-
-    if (data_perubahan_kawin.PERCERAIAN && data_perubahan_kawin.PERCERAIAN[namaField] !== undefined) {
-      nilaiBaru = data_perubahan_kawin.PERCERAIAN[namaField];
-    } else if (data_perubahan_kawin.UPDATE_PERKAWINAN && data_perubahan_kawin.UPDATE_PERKAWINAN[namaField] !== undefined) {
-      nilaiBaru = data_perubahan_kawin.UPDATE_PERKAWINAN[namaField];
-    } else if (data_perubahan_kawin[namaField] !== undefined) {
-      nilaiBaru = data_perubahan_kawin[namaField];
+    // Terjemahkan Nilai Baru jika terjadi pergantian Krama Pasangan
+    if (String(nilaiBaru) === String(kramaLama?.id || nilaiLama)) {
+      nilaiBaruDiformat = nilaiLamaDiformat;
     } else {
-      return null;
+      // Kasus data berubah ekstrem (pilih krama baru): Bongkar titipan nama baru di catatan_update
+      let namaDariCatatan = "";
+      try {
+        const targetSearchObj = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin;
+        const parsedCatatan = JSON.parse(targetSearchObj?.catatan_update || modalKawinData?.catatan_update);
+        namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
+      } catch (e) { e
+        namaDariCatatan = "";
+      }
+
+      if (namaDariCatatan) {
+        nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
+      } else if (data_perubahan_kawin?.[relasiKey]?.nama_lengkap) {
+        nilaiBaruDiformat = `${data_perubahan_kawin[relasiKey].nama_lengkap} [DRAFT]`;
+      } else {
+        nilaiBaruDiformat = `Krama ID: ${nilaiBaru} [DRAFT]`;
+      }
     }
+  }
 
-    let nilaiLamaDiformat = nilaiLama;
+  // Sembunyikan baris jika tidak ada perubahan nilai nyata
+  if (String(nilaiLamaDiformat ?? '').trim() === String(nilaiBaruDiformat ?? '').trim()) {
+    return null;
+  }
 
-    if (type === 'date') {
-      nilaiLamaDiformat = formatDate(nilaiLama);
-      nilaiBaru = formatDate(nilaiBaru);
-    }
-
-    if (String(nilaiLamaDiformat ?? '').trim() === String(nilaiBaru ?? '').trim()) {
-      return null;
-    }
-
-    return (
-      <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
-        <td className={styles.labelChange}>
-          {label}
-        </td>
-        <td className="p-3 border-r border-gray-100">
-          <span className={styles.oldValue}>
-            {nilaiLamaDiformat ?? '-'}
+  return (
+    <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
+      <td className={styles.labelChange}>
+        {label}
+      </td>
+      <td className="p-3 border-r border-gray-100">
+        <span className={styles.oldValue}>
+          {nilaiLamaDiformat ?? '-'}
+        </span>
+      </td>
+      <td className="p-3">
+        <div className="flex items-center gap-2">
+          <FaArrowRight className={styles.arrows} />
+          <span className={styles.newValue}>
+            {nilaiBaruDiformat?.includes('[DRAFT]') ? (
+              <>
+                {nilaiBaruDiformat.replace(' [DRAFT]', '')} 
+                <span className={styles.labelDraftChange}>DRAFT</span>
+              </>
+            ) : (
+              nilaiBaruDiformat ?? '-'
+            )}
           </span>
-        </td>
-        <td className="p-3">
-          <div className="flex items-center gap-2">
-            <FaArrowRight className={styles.arrows} />
-            <span className={styles.newValue}>
-              {nilaiBaru ?? '-'}
-            </span>
-          </div>
-        </td>
-      </tr>
-    );
-  };
+        </div>
+      </td>
+    </tr>
+  );
+};
 
   if (isLoading) {
     return (
@@ -1254,87 +1304,98 @@ const DataKramaDetail = ({ user }) => {
       <div className="p-8 flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {/* Data Krama Bali */}
-            <ModernCard title="Identitas Krama Bali" icon={<FaUser className="text-white" />}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <InfoItem 
-                  label="Nama Lengkap" 
-                  icon={<FaIdCard />} 
-                  value={krama.nama_lengkap} 
-                />
-                <InfoItem 
-                  label="Nama Panggilan" 
-                  icon={<FaUser />} 
-                  value={krama.nama_panggilan} 
-                />
-                <InfoItem 
-                  label="Jenis Kelamin" 
-                  icon={<FaVenusMars />} 
-                  value={krama.jenis_kelamin} 
-                />
-                <InfoItem 
-                  label="Tanggal Lahir" 
-                  icon={<FaBirthdayCake />} 
-                  value={formatDate(krama.tanggal_lahir)} 
-                />
-                <InfoItem 
-                  label="Tipe Data" 
-                  icon={<FaSitemap />} 
-                  value={krama.tipe_data} 
-                />
-                <InfoItem 
-                  label="Status Hidup" 
-                  icon={<FaHeart className={krama.status_hidup === "Meninggal" 
-                    ? "text-gray-400 text-xs" 
-                    : "text-red-600 text-xs"} />
-                  }
-                  value={(() => {
-                    let colorClass = 'bg-blue-100 text-blue-600'; 
-                    if (krama.status_hidup === 'Hidup') {
-                      colorClass = 'bg-green-100 text-green-700';
-                    } else if (krama.status_hidup === 'Meninggal') {
-                      colorClass = 'bg-red-100 text-red-700';
-                    } else if (krama.status_hidup === 'Tidak Diketahui') {
-                      colorClass = 'bg-gray-200 text-gray-700';
+            {/* CARD: Data Krama Bali */}
+            <div className="relative">
+              <ModernCard title="Identitas Krama Bali" icon={<FaUser className="text-white" />}>
+                <div className={styles.fieldReg}>
+                  <FaIdCardAlt className="text-amber-700 text-xs mb-0.5" />
+                  <span className="text-[10px] font-semibold text-amber-800 uppercase tracking-wider mr-1">
+                    No. Reg:
+                  </span>
+                  <span className="font-mono font-extrabold tracking-wider text-stone-900 text-xs">
+                    {krama.nomor_pendaftaran || "-"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <InfoItem 
+                    label="Nama Lengkap" 
+                    icon={<FaIdCard />} 
+                    value={krama.nama_lengkap} 
+                  />
+                  <InfoItem 
+                    label="Nama Panggilan" 
+                    icon={<FaUser />} 
+                    value={krama.nama_panggilan} 
+                  />
+                  <InfoItem 
+                    label="Jenis Kelamin" 
+                    icon={<FaVenusMars />} 
+                    value={krama.jenis_kelamin} 
+                  />
+                  <InfoItem 
+                    label="Tanggal Lahir" 
+                    icon={<FaBirthdayCake />} 
+                    value={formatDate(krama.tanggal_lahir)} 
+                  />
+                  <InfoItem 
+                    label="Tipe Data" 
+                    icon={<FaSitemap />} 
+                    value={krama.tipe_data} 
+                  />
+                  <InfoItem 
+                    label="Status Hidup" 
+                    icon={<FaHeart className={krama.status_hidup === "Meninggal" 
+                      ? "text-gray-400 text-xs" 
+                      : "text-red-600 text-xs"} />
                     }
-                    return (
-                      <span className={`${styles.statusHidup} ${colorClass}`}>
-                        {krama.status_hidup}
-                      </span>
-                    );
-                  })()}
-                />
-                <div className="md:col-span-2 space-y-4">
-                  {krama.is_bali ? (
-                    <>
+                    value={(() => {
+                      let colorClass = 'bg-blue-100 text-blue-600'; 
+                      if (krama.status_hidup === 'Hidup') {
+                        colorClass = 'bg-green-100 text-green-700';
+                      } else if (krama.status_hidup === 'Meninggal') {
+                        colorClass = 'bg-red-100 text-red-700';
+                      } else if (krama.status_hidup === 'Tidak Diketahui') {
+                        colorClass = 'bg-gray-200 text-gray-700';
+                      }
+                      return (
+                        <span className={`${styles.statusHidup} ${colorClass}`}>
+                          {krama.status_hidup}
+                        </span>
+                      );
+                    })()}
+                  />
+                  <div className="md:col-span-2 space-y-4">
+                    {krama.is_bali ? (
+                      <>
+                        <InfoItem 
+                          label="Tempat Asal Khusus" 
+                          value={krama.tempat_asal_khusus?.trim() ? krama.tempat_asal_khusus : "-"} 
+                          icon={<FaMapMarkerAlt />} 
+                        />
+                        <InfoItem 
+                          label="Wilayah Adat/Asal Krama" 
+                          value={wilayahAdatLengkap} 
+                          icon={<FaMapMarkerAlt />} 
+                        />
+                      </>
+                    ) : (
                       <InfoItem 
-                        label="Tempat Asal Khusus" 
-                        value={krama.tempat_asal_khusus?.trim() ? krama.tempat_asal_khusus : "-"} 
+                        label="Alamat Asal" 
+                        value={alamatAsalLuar} 
                         icon={<FaMapMarkerAlt />} 
                       />
-                      <InfoItem 
-                        label="Wilayah Adat/Asal Krama" 
-                        value={wilayahAdatLengkap} 
-                        icon={<FaMapMarkerAlt />} 
-                      />
-                    </>
-                  ) : (
-                    <InfoItem 
-                      label="Alamat Asal" 
-                      value={alamatAsalLuar} 
-                      icon={<FaMapMarkerAlt />} 
-                    />
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-              {hasAccess && (
-                <div className="flex justify-end mt-3 border-t border-gray-100">
-                  <button onClick={() => setIsOpenModalKrama(true)} className={styles.btnInfoDetail}>
-                    <FaEdit className="mb-0.5"/> Kelola Data
-                  </button>
-                </div>
-              )}
-            </ModernCard>
+                {hasAccess && (
+                  <div className="flex justify-end mt-3 border-t border-gray-100">
+                    <button onClick={() => setIsOpenModalKrama(true)} className={styles.btnInfoDetail}>
+                      <FaEdit className="mb-0.5"/> Kelola Data
+                    </button>
+                  </div>
+                )}
+              </ModernCard>
+            </div>
             {/* Data Orang Tua */}
             <div className={styles.cardSection}>
               <div className={styles.headerSection}>
@@ -1500,35 +1561,54 @@ const DataKramaDetail = ({ user }) => {
                   {perkawinanAktifList && perkawinanAktifList.length > 0 ? (
                     <div className="space-y-4">
                       {perkawinanAktifList.map((pAktif, index) => {
+                        console.log("DEBUG DATA PERKAWINAN CARD:", pAktif);
                         const namaPasanganAktif = String(pAktif.suami_id) === String(krama.id)
                           ? pAktif.istri?.nama_lengkap || "Istri"
                           : pAktif.suami?.nama_lengkap || "Suami";
 
+                        const noRegPasanganAktif = String(pAktif.suami_id) === String(krama.id)
+                          ? (pAktif.istri?.nomor_pendaftaran || pAktif.nomor_pendaftaran_istri || "-")
+                          : (pAktif.suami?.nomor_pendaftaran || pAktif.nomor_pendaftaran_suami || "-"); 
+
                         return (
                           <div key={pAktif.id || index} className={`${styles.cardPerkawinan} fallback-style`}>
                             <div className="flex justify-between items-center mb-3">
-                              <span className={styles.titleCardPerkawinan}>
-                                Perkawinan #{index + 1} {perkawinanAktifList.length > 1}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className={styles.titleCardPerkawinan}>
+                                  Perkawinan #{index + 1}
+                                </span>
+                                <span title="Nomor pendaftaran perkawinan ke dalam sistem" className={styles.labelRegPwh}>
+                                  {pAktif.nomor_pendaftaran || "-"}
+                                </span>
+                              </div>
                               <span className={styles.titleStatus}>
                                 Kawin
                               </span>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                               <InfoItem 
                                 label="Jenis Perkawinan" 
                                 value={pAktif.jenis_perkawinan} 
                                 icon={<FaIdCard/>} 
                               />
                               <InfoItem 
-                                label="Nama Pasangan" 
-                                value={namaPasanganAktif} 
-                                icon={<FaUser/>} 
-                              />
-                              <InfoItem 
                                 label="Tanggal Perkawinan" 
                                 value={formatDate(pAktif.tanggal_perkawinan)} 
                                 icon={<FaCalendarAlt/>} 
+                              />
+                              <InfoItem 
+                                label="Nama Pasangan" 
+                                value={
+                                  <div className={styles.fieldPasangan}>
+                                    <span className={styles.fieldNama}>
+                                      {namaPasanganAktif}
+                                    </span>
+                                    <div title="Nomor pendaftaran krama di dalam sistem" className={styles.fieldKramaPwh}>
+                                      <span>No.Reg: {noRegPasanganAktif}</span>
+                                    </div>
+                                  </div>
+                                } 
+                                icon={<FaUser/>} 
                               />
                             </div>
                             {hasAccess && (
@@ -1548,7 +1628,7 @@ const DataKramaDetail = ({ user }) => {
                   ) : (
                     <div className="p-4 rounded-lg border border-gray-100/70">
                       <p className="text-gray-400 text-xs italic text-center py-2">
-                        Data perkawinan adat saat ini tidak ada yang tercatat aktif.
+                        Data perkawinan adat saat ini tidak ada yang tercatat aktif
                       </p>
                     </div>
                   )}
@@ -1564,19 +1644,30 @@ const DataKramaDetail = ({ user }) => {
                           ? pLama.istri?.nama_lengkap || "Istri" 
                           : pLama.suami?.nama_lengkap || "Suami";
                         const isCeraiMati = pLama.status_perkawinan?.toLowerCase().includes('mati');
+                        const noRegPasanganLama = String(pLama.suami_id) === String(krama.id)
+                          ? (pLama.istri?.nomor_pendaftaran || pLama.nomor_pendaftaran_istri || "-")
+                          : (pLama.suami?.nomor_pendaftaran || pLama.nomor_pendaftaran_suami || "-");
 
                         return (
                           <div key={pLama.id || idx} className="relative group">
                             <div className={`${styles.toggleDot} ${isCeraiMati ? styles.dotAktif : styles.dotLampau}`} />
                             <div className={styles.cardRiwayat}>
                               <div className="space-y-2 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-bold text-gray-800 text-sm tracking-tight">
-                                    {namaPasanganLama}
-                                  </span>
-                                  <span className={styles.titleJenis}>
+                                <div className="flex flex-col items-start justify-start">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-gray-800 text-sm tracking-tight block">
+                                      {namaPasanganLama}
+                                    </span>
+                                    <span className={styles.titleJenis}>
                                     Perkawinan {pLama.jenis_perkawinan}
                                   </span>
+                                    <span title="Nomor pendaftaran perkawinan ke dalam sistem" className={styles.labelRegCr}>
+                                      {pLama.nomor_pendaftaran || "-"}
+                                    </span>
+                                  </div>
+                                  <div title="Nomor pendaftaran krama di dalam sistem" className={styles.fieldKramaCr}>
+                                    <span>No.Reg: {noRegPasanganLama}</span>
+                                  </div>
                                 </div>
                                 <div className="text-xs text-gray-500 flex items-center gap-1.5">
                                   <FaCalendarAlt className="text-gray-300 mb-0.5 text-[11px]" />
@@ -1759,6 +1850,11 @@ const DataKramaDetail = ({ user }) => {
                     <span className={styles.badgePending}>
                       <FaExclamationTriangle size={11} className="mb-0.5" /> 
                       <span>Menunggu Verifikasi</span>
+                    </span>
+                  ) : status_verifikasi === "Ditolak" ? (
+                    <span className={styles.badgeRejected}>
+                      <FaTimes size={11} /> 
+                      <span>Pengajuan Ditolak</span>
                     </span>
                   ) : (
                     <span className={styles.badgeSuccess}>
@@ -2151,6 +2247,8 @@ const DataKramaDetail = ({ user }) => {
                               </tr>
                             </thead>
                             <tbody>
+                              {renderPerubahanPerkawinanRow("Nama Suami", modalKawinData?.suami_id, "suami_id")}
+                              {renderPerubahanPerkawinanRow("Nama Istri", modalKawinData?.istri_id, "istri_id")}
                               {renderPerubahanPerkawinanRow("Jenis Perkawinan", modalKawinData?.jenis_perkawinan, "jenis_perkawinan")}
                               {renderPerubahanPerkawinanRow("Tanggal Perkawinan", modalKawinData?.tanggal_perkawinan, "tanggal_perkawinan", "date")}
                               {renderPerubahanPerkawinanRow("Status Perkawinan", modalKawinData?.status_perkawinan, "status_perkawinan")}

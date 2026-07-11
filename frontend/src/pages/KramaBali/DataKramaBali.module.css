@@ -51,23 +51,27 @@
 }
 
 .searchWrapper {
-  @apply relative w-full max-w-md;
+  @apply relative flex items-center flex-1;
 }
 
 .searchIcon {
-  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400;
+  @apply absolute left-3 text-slate-400 text-sm pointer-events-none;
 }
 
 .searchInput {
-  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3A2000]/10 transition-all;
+  @apply w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg outline-none bg-slate-50 transition-all duration-200;
+}
+
+.searchInput:focus {
+  @apply border-amber-700 bg-white ring-1 ring-amber-700/20;
 }
 
 .btnTrehPuncak {
-  @apply inline-flex items-center gap-2 bg-[#3A2000] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-amber-800 active:scale-95 transition-all shadow-md shadow-gray-200;
+  @apply inline-flex items-center gap-2 bg-[#3A2000] text-white px-5 py-2.5 rounded-lg text-xs font-bold hover:bg-amber-800 active:scale-95 transition-all shadow-md shadow-gray-200;
 }
 
 .btnMyData {
-  @apply inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-200;
+  @apply inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-200;
 }
 
 .tableWrapper {
@@ -75,19 +79,19 @@
 }
 
 .table {
-  @apply w-full border-collapse;
+  @apply w-full border-collapse text-left;
 }
 
 .table thead tr {
-  @apply bg-[#3A2000] text-white text-xs uppercase tracking-widest;
+  @apply bg-[#3A2000] text-white text-[11px] uppercase tracking-widest font-bold;
 }
 
 .table th {
-  @apply py-4 px-6 font-semibold;
+  @apply py-4 px-6;
 }
 
 .table td {
-  @apply py-4 px-6 border-b border-gray-50 text-sm;
+  @apply py-5 px-6 border-b border-gray-100 text-sm align-middle;
 }
 
 .table tr:last-child td {
@@ -131,7 +135,7 @@
 }
 
 .pagination {
-  @apply mt-6 flex justify-between items-center text-xs text-gray-500 font-medium;
+  @apply mt-6 flex justify-between items-center text-xs text-gray-400 font-medium tracking-wide;
 }
 
 .pageButtons {
@@ -139,15 +143,11 @@
 }
 
 .btnPageNumber {
-  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-all;
+  @apply w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 font-bold transition-all duration-200;
 }
 
 .activePage {
-  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-md;
-}
-
-.detailWilayah {
-  @apply text-[10px] text-amber-800 uppercase font-bold tracking-wider mt-0.5;
+  @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-sm;
 }
 
 .notifDropdownMenu {

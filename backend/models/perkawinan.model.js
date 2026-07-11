@@ -9,6 +9,10 @@ const Perkawinan = db.define("tb_perkawinan", {
     primaryKey: true,
     autoIncrement: true
   },
+  nomor_pendaftaran: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
   suami_id: {
     type: DataTypes.INTEGER,
     allowNull: false
@@ -93,6 +97,7 @@ const Perkawinan = db.define("tb_perkawinan", {
   freezeTableName: true,
   timestamps: true,
   indexes: [
+    { fields: ["nomor_pendaftaran"] },
     { fields: ["suami_id"] },
     { fields: ["istri_id"] },
     { fields: ["status_perkawinan"] },

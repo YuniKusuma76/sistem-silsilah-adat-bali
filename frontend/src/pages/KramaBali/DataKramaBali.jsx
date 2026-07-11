@@ -190,7 +190,6 @@ const DataKramaBali = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
-  // Helper: fungsi mengambil detail wilayah adat berdasarkan desa adat id
   const getWilayahLengkap = (desaId) => {
     const desa = daftarDesaRaw.find(d => String(d.id) === String(desaId));
     if (!desa) return null;
@@ -204,13 +203,11 @@ const DataKramaBali = ({ user }) => {
     };
   };
 
-  // Helper: menangani input pencarian
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
     setCurrentPage(1);
   };
   
-  // Helper: fungsi search filter krama
   const filteredKrama = useMemo(() => {
     return kramaList.filter(krama => 
       krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -454,7 +451,6 @@ const DataKramaBali = ({ user }) => {
             )}
           </div>
         </div>
-        {/* Tabel Krama Bali */}
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>

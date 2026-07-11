@@ -14,6 +14,7 @@ import RiwayatPeranAdat from "./riwayat-peran-adat.model.js";
 import AturanAdatBali from "./aturan-adat.model.js";
 import KontakPesan from "./kontak-pesan.model.js";
 import Notifikasi from "./notifikasi.model.js";
+import KomentarAturanAdat from "./komentar-aturan.model.js";
 
 const BOBOT_EVENT = {
   "LAHIR": 1, 
@@ -152,6 +153,24 @@ User.hasMany(AturanAdatBali, {
 AturanAdatBali.belongsTo(User, {
   foreignKey: "dibuat_oleh",
   as: "pakar_aturan"
+});
+
+AturanAdatBali.hasMany(KomentarAturanAdat, { 
+  foreignKey: "aturan_adat_id", 
+  as: "komentar" 
+});
+KomentarAturanAdat.belongsTo(AturanAdatBali, { 
+  foreignKey: "aturan_adat_id",
+  as: "aturan" 
+});
+
+User.hasMany(KomentarAturanAdat, { 
+  foreignKey: "user_id", 
+  as: "komentar_user" 
+});
+KomentarAturanAdat.belongsTo(User, { 
+  foreignKey: "user_id",
+  as: "pengirim_komentar"
 });
 
 // RELASI MODEL KRAMA BALI
@@ -390,6 +409,7 @@ export {
   User,
   KontakPesan,
   Notifikasi,
+  KomentarAturanAdat,
   PermohonanRole,
   PermohonanDesa,
   AturanAdatBali,

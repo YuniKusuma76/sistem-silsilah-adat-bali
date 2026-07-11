@@ -4,7 +4,11 @@ import {
   RelasiKrama,
   KramaBali,
   User,
-  DesaAdat
+  DesaAdat,
+  RiwayatPeranAdat,
+  RiwayatKeluarga,
+  Keluarga,
+  Perkawinan
 } from "../models/associations.js";
 import { buatAnakAngkat } from "../services/anak-angkat.service.js";
 import { buatAnakKandung } from "../services/anak-kandung.service.js";
@@ -22,14 +26,7 @@ const VALID_STATUS_HUBUNGAN = [
 
 const VALID_STATUS_VERIFIKASI = [
   "Draft",
-  "Menunggu Pelepasan",
-  "Menunggu Penerimaan",
   "Disetujui",
-  "Ditolak"
-];
-
-const VALID_STATUS = [
-  "Disetujui", 
   "Ditolak"
 ];
 
@@ -67,12 +64,7 @@ const RELASI_INCLUDE = [
 
 export const getAllRelasiKrama = async (req, res) => {
   try {
-    const {
-      mode,
-      ayah_id,
-      ibu_id,
-      anak_id
-    } = req.query;
+    const { mode, ayah_id, ibu_id, anak_id } = req.query;
 
     const currentUserId = req.userId;
     const userRole = req.role;
@@ -112,78 +104,91 @@ export const getAllRelasiKrama = async (req, res) => {
       if (isAdmin) {
         if (userRole === "Admin Desa") {
           if (anak_id && anak_id !== "undefined" && anak_id !== "null") {
-            const kramaAnak = await KramaBali.findByPk(anak_id);
-
-            // validasi otoritas lintas Desa Adat
-            if (kramaAnak && String(kramaAnak.desa_adat_id) !== String(userDesaId)) {
-              whereCondition.status_verifikasi = "Disetujui";
-              territorialCondition = null; 
-            } else {
-              whereCondition.status_verifikasi = {
-                [Op.in]: ["Disetujui", "Draft", "Menunggu Penerimaan", "Menunggu Pelepasan"]
-              };
-
-              territorialCondition = {
-                [Op.or]: [
-                  { "$anak.desa_adat_id$": userDesaId },
-                  { "$ayah.desa_adat_id$": userDesaId },
-                  { "$ibu.desa_adat_id$": userDesaId },
-                  { desa_adat_id_tujuan: userDesaId },
-                  {
-                    [Op.and]: [
-                      { "$anak.tipe_data$": "Leluhur" },
-                      { user_id: currentUserId }
-                    ]
-                  }
-                ]
-              };
-            } 
-          } else {
-            whereCondition[Op.or] = [
-              { status_verifikasi: { 
-                  [Op.in]: ["Draft", "Menunggu Penerimaan", "Menunggu Pelepasan"] 
-                } 
-              },
-              { 
-                status_verifikasi: "Disetujui", 
-                is_pending_update: true 
-              }
-            ];
-
+            whereCondition.status_verifikasi = { [Op.in]: ["Disetujui", "Draft"] };
+            // kondisi berdasarkan status hubungan
             territorialCondition = {
               [Op.or]: [
-                { "$anak.desa_adat_id$": userDesaId },
-                { "$ayah.desa_adat_id$": userDesaId },
-                { "$ibu.desa_adat_id$": userDesaId },
-                { desa_adat_id_tujuan: userDesaId }
+                {
+                  [Op.and]: [
+                    { status_hubungan: "Anak Kandung" },
+                    { "$anak.desa_adat_id$": userDesaId }
+                  ]
+                },
+                {
+                  [Op.and]: [
+                    { status_hubungan: "Anak Angkat" },
+                    {
+                      [Op.or]: [
+                        { "$anak.desa_adat_id$": userDesaId },
+                        { "$ayah.desa_adat_id$": userDesaId },
+                        { "$ibu.desa_adat_id$": userDesaId }
+                      ]
+                    }
+                  ]
+                },
+                { desa_adat_id_tujuan: userDesaId },
+                {
+                  [Op.and]: [
+                    { "$anak.tipe_data$": "Leluhur" },
+                    { user_id: currentUserId }
+                  ]
+                }
+              ]
+            };
+          } else {
+            whereCondition[Op.or] = [
+              { status_verifikasi: "Draft" },
+              { status_verifikasi: "Disetujui", is_pending_update: true }
+            ];
+            // kondisi menampilkan data verifikasi
+            territorialCondition = {
+              [Op.or]: [
+                {
+                  [Op.and]: [
+                    { "$anak.desa_adat_id$": userDesaId },
+                    { approved_asal_by: null }
+                  ]
+                },
+                {
+                  [Op.and]: [
+                    { desa_adat_id_tujuan: userDesaId },
+                    { approved_tujuan_by: null }
+                  ]
+                },
+                {
+                  [Op.and]: [
+                    { status_hubungan: "Anak Angkat" },
+                    { approved_asal_by: null },
+                    {
+                      [Op.or]: [
+                        { "$ayah.desa_adat_id$": userDesaId },
+                        { "$ibu.desa_adat_id$": userDesaId }
+                      ]
+                    }
+                  ]
+                }
               ]
             };
           }
         } else if (userRole === "Super Admin") {
           if (anak_id && anak_id !== "undefined" && anak_id !== "null") {
-            whereCondition.status_verifikasi = {
-              [Op.in]: ["Disetujui", "Draft", "Menunggu Penerimaan", "Menunggu Pelepasan"]
-            };
+            whereCondition.status_verifikasi = { [Op.in]: ["Disetujui", "Draft"] };
           } else {
             whereCondition[Op.or] = [
-              { status_verifikasi: { [Op.in]: ["Draft", "Menunggu Penerimaan", "Menunggu Pelepasan"] } },
+              { status_verifikasi: "Draft" },
               { status_verifikasi: "Disetujui", is_pending_update: true }
             ];
           }
         }
       } else if (isKrama) {
         whereCondition.user_id = currentUserId; 
-        whereCondition.status_verifikasi = {
-          [Op.in]: ["Draft", "Menunggu Penerimaan", "Menunggu Pelepasan", "Disetujui"]
-        };
+        whereCondition.status_verifikasi = { [Op.in]: ["Draft", "Disetujui"] };
       }
     }
     // Kondisi 2: Mengambil semua data milik user yang login
     else if (mode === "personal") {
       whereCondition.user_id = currentUserId;
-      whereCondition.status_verifikasi = {
-        [Op.in]: ["Draft", "Menunggu Penerimaan", "Menunggu Pelepasan", "Disetujui"]
-      };
+      whereCondition.status_verifikasi = { [Op.in]: ["Draft", "Disetujui"] };
     }
     // Kondisi 3: Mengambil semua data orang lain yang telah disetujui
     else if (mode === "public") {
@@ -201,16 +206,11 @@ export const getAllRelasiKrama = async (req, res) => {
       }
     }
 
-    // Menggabungkan filter jika diakses Admin Desa saat verifikasi
+    // menggabungkan filter jika diakses Admin Desa saat verifikasi
     let finalWhere = { ...whereCondition };
 
     if (territorialCondition) {
-      finalWhere = {
-        [Op.and]: [
-          whereCondition,
-          territorialCondition
-        ]
-      };
+      finalWhere = { [Op.and]: [whereCondition, territorialCondition] };
     }
 
     const RELASI_INCLUDE_KHUSUS = [
@@ -219,26 +219,22 @@ export const getAllRelasiKrama = async (req, res) => {
         as: "anak",
         required: true,
         attributes: ["id", "nama_lengkap", "jenis_kelamin", "status_hidup", "tipe_data", "desa_adat_id"]
-      },
-      {
+      },{
         model: User,
         as: "pembuat_relasi",
         required: false,
         attributes: ["id", "full_name", "email", "role"]
-      },
-      {
+      },{
         model: KramaBali,
         as: "ayah",
         required: false,
         attributes: ["id", "nama_lengkap", "jenis_kelamin", "status_hidup", "tipe_data", "desa_adat_id"]
-      },
-      {
+      },{
         model: KramaBali,
         as: "ibu",
         required: false,
         attributes: ["id", "nama_lengkap", "jenis_kelamin", "status_hidup", "tipe_data", "desa_adat_id"]
-      },
-      {
+      },{
         model: DesaAdat,
         as: "desa_tujuan",
         required: false, 
@@ -425,7 +421,7 @@ export const createRelasiKrama = async (req, res) => {
   const t = await db.transaction();
 
   try {
-    const {
+    let {
       anak_id,
       ayah_id,
       ibu_id,
@@ -439,7 +435,6 @@ export const createRelasiKrama = async (req, res) => {
     const userRole = req.role;
     const adminDesaId = req.desaAdatId;
 
-    // Validasi looping data silsilah
     if (anak_id === ayah_id || anak_id === ibu_id) {
       throw { 
         status: 400, 
@@ -482,6 +477,32 @@ export const createRelasiKrama = async (req, res) => {
       };
     }
 
+    // melihat hubungan perkawinan orang tua pengangkat
+    if (status_hubungan === "Anak Angkat" && (!ayah_id || !ibu_id)) {
+      const kramaOrangTuaId = ayah_id || ibu_id;
+
+      const perkawinanAktif = await Perkawinan.findOne({
+        where: {
+          [Op.or]: [
+            { 
+              suami_id: kramaOrangTuaId, 
+              status_perkawinan: "Kawin" 
+            },{ 
+              istri_id: kramaOrangTuaId, 
+              status_perkawinan: "Kawin" 
+            }
+          ]
+        },
+        transaction: t
+      });
+
+      if (perkawinanAktif) {
+        ayah_id = perkawinanAktif.suami_id;
+        ibu_id = perkawinanAktif.istri_id;
+        perkawinan_id = perkawinanAktif.id;
+      }
+    }
+
     const desaTujuanId = ayah ? ayah.desa_adat_id : (ibu ? ibu.desa_adat_id : null);
     const isLintasDesa = desaTujuanId && anak.desa_adat_id && parseInt(anak.desa_adat_id) !== parseInt(desaTujuanId);
 
@@ -498,13 +519,13 @@ export const createRelasiKrama = async (req, res) => {
     if (existingRelasi) {
       throw { 
         status: 400, 
-        message: `Relasi sebagai ${status_hubungan} untuk krama ini sudah terdaftar atau sedang dalam peninjauan.`
+        message: `Data relasi sebagai ${status_hubungan} untuk krama ini sudah terdaftar atau sedang dalam proses peninjauan.`
       };
     }
 
     // LOGIKA AUTO-APPROVAL RELASI KRAMA
     let statusVerifAwal = "Draft";
-    let catatanAdminDesa = "Menunggu verifikasi dari Admin Desa.";
+    let catatanAdminDesa = "Pengajuan data relasi krama baru berhasil disimpan! Menunggu verifikasi dari Admin Desa.";
     let idApprovedAsal = null;
     let idApprovedTujuan = null;
 
@@ -518,7 +539,7 @@ export const createRelasiKrama = async (req, res) => {
         catatanAdminDesa = "Data diverifikasi otomatis oleh sistem (Input by Super Admin).";
       } else if (isLintasDesa) {
         statusVerifAwal = "Draft"; 
-        catatanAdminDesa = `Pendaftaran relasi krama lintas desa oleh Admin Desa diajukan sebagai draft. Menunggu koordinasi birokrasi antar desa adat.`;
+        catatanAdminDesa = `Pendaftaran relasi krama lintas desa adat oleh Admin Desa diajukan sebagai draft. Menunggu koordinasi birokrasi antar desa adat.`;
       } else {
         statusVerifAwal = "Disetujui";
         idApprovedAsal = currentUserId;
@@ -530,7 +551,9 @@ export const createRelasiKrama = async (req, res) => {
     let tglAngkatDateOnly = null;
 
     if (status_hubungan === "Anak Angkat" && tanggal_pengangkatan) {
-      tglAngkatDateOnly = tanggal_pengangkatan.includes('T') ? tanggal_pengangkatan.split('T')[0] : tanggal_pengangkatan.split(' ')[0];
+      tglAngkatDateOnly = tanggal_pengangkatan.includes('T') 
+        ? tanggal_pengangkatan.split('T')[0] 
+        : tanggal_pengangkatan.split(' ')[0];
     }
 
     const commonParams = {
@@ -587,7 +610,9 @@ export const createRelasiKrama = async (req, res) => {
           ibu,
           anak,
           perkawinan_id,
-          ...commonParams
+          user_id: currentUserId,
+          status_verifikasi: statusVerifAwal,
+          catatan_admin_desa: catatanAdminDesa
         }, t);
       } else {
         const servicePayload = { 
@@ -605,7 +630,7 @@ export const createRelasiKrama = async (req, res) => {
           if (!perkawinan_id) {
             throw { 
               status: 400, 
-              message: "Pencatatan anak kandung warga aktif wajib menyertakan data perkawinan orang tua!"
+              message: "Pencatatan anak kandung krama aktif wajib menyertakan data perkawinan orang tua!"
             };
           }
           relasiBaru = await buatAnakKandung(servicePayload, t);
@@ -648,9 +673,9 @@ export const createRelasiKrama = async (req, res) => {
 
     await t.commit();
 
-    let responseMessage = "Data relasi silsilah krama berhasil diajukan! Menunggu proses verifikasi.";
+    let responseMessage = "Data relasi krama baru berhasil diajukan! Menunggu proses verifikasi dari Admin Desa Bersangkutan.";
     if (statusVerifAwal === "Disetujui") {
-      responseMessage = "Data relasi silsilah krama berhasil diproses dan aktif di pohon silsilah keluarga!";
+      responseMessage = "Data relasi krama baru berhasil diproses dan aktif di bagan silsilah keluarga!";
     }
 
     return res.status(201).json({
@@ -675,29 +700,25 @@ export const verifikasiRelasiKrama = async (req, res) => {
   const userRole = req.role;
   const userDesaId = req.desaAdatId;
 
-  const { 
-    status_verifikasi, 
-    catatan_admin_desa 
-  } = req.body;
+  const { status_verifikasi, catatan_admin_desa } = req.body;
   
+  const VALID_STATUS = ["Disetujui", "Ditolak"];
   if (!VALID_STATUS.includes(status_verifikasi)) {
-    throw {
-      status: 400,
+    return res.status(400).json({ 
       message: "Status verifikasi tidak valid!"
-    };
+    });
   }
 
-  // Mulai transaksi database
+  // Mulai Transaksi Database
   const t = await db.transaction();
 
   try {
-    // Validasi ketersediaan data relasi krama dan wilayah adat
     const relasi = await RelasiKrama.findByPk(id, { 
       include: [
         { 
           model: KramaBali, 
           as: "anak", 
-          attributes: ["id", "desa_adat_id", "tipe_data"],
+          attributes: ["id", "nama_lengkap", "jenis_kelamin", "desa_adat_id", "tipe_data"],
           include: [{ 
             model: DesaAdat, 
             as: "wilayah_adat", 
@@ -733,283 +754,266 @@ export const verifikasiRelasiKrama = async (req, res) => {
       };
     }
 
-    const statusSaatIni = relasi.status_verifikasi;
-
-    // Validasi ketika status sudah final
-    if (statusSaatIni === "Disetujui" && !relasi.is_pending_update) {
+    if (relasi.is_pending_update) {
       throw { 
         status: 400, 
-        message: "Proses verifikasi dihentikan! Relasi ini sudah disetujui secara permanen." 
+        message: "Proses verifikasi dihentikan! Gunakan modul verifikasi perubahan data untuk memproses data perubahan relasi krama."
       };
     }
 
+    const statusSaatIni = relasi.status_verifikasi;
+
+    if (statusSaatIni === "Disetujui") {
+      throw { 
+        status: 400, 
+        message: "Proses verifikasi dihentikan! Relasi krama ini sudah disetujui dan disahkan secara permanen." 
+      };
+    }
     if (statusSaatIni === "Ditolak") {
       throw { 
         status: 400, 
-        message: "Proses verifikasi dihentikan! Relasi ini sudah berstatus ditolak." 
+        message: "Proses verifikasi dihentikan! Relasi krama ini sudah berstatus ditolak." 
       };
     }
-    
-    let dataPerubahanRaw = relasi.data_perubahan;
 
-    if (dataPerubahanRaw && dataPerubahanRaw.data_perubahan) {
-      dataPerubahanRaw = dataPerubahanRaw.data_perubahan;
-    }
-
-    // IDENTIFIKASI DAN OTORISASI WILAYAH ADAT
+    // OTORITAS HAK AKSES WILAYAH ADAT
     const anakDesaId = relasi.anak?.desa_adat_id;
-    const desaTujuanId = relasi.desa_adat_id_tujuan || dataPerubahanRaw?.desa_adat_id_tujuan;
+    const desaTujuanId = relasi.desa_adat_id_tujuan;
 
-    const isLintasDesa = desaTujuanId && parseInt(anakDesaId) !== parseInt(desaTujuanId);
+    const idAnakDesa = anakDesaId ? String(anakDesaId).trim() : null;
+    const idDesaTujuan = desaTujuanId ? String(desaTujuanId).trim() : null;
+    const isLintasDesaAktif = idDesaTujuan && idAnakDesa !== idDesaTujuan;
+
     const isAdminAsal = parseInt(userDesaId) === parseInt(anakDesaId);
     const isAdminTujuan = desaTujuanId && parseInt(userDesaId) === parseInt(desaTujuanId);
 
     if (userRole === "Admin Desa") {
-      if (isLintasDesa) {
-        // Tahap 1: Approval desa adat asal anak
-        if (statusSaatIni === "Draft" && !isAdminAsal) {
+      if (isLintasDesaAktif) {
+        if (!isAdminAsal && !isAdminTujuan) {
           throw { 
             status: 403, 
-            message: "Proses verifikasi dihentikan! Tahap pelepasan relasi krama lintas desa adat wajib disetujui oleh Admin Desa Asal Anak terlebih dahulu." };
-        }
-        // Tahap 2: Approval desa adat tujuan/ calon orang tua angkat
-        if (statusSaatIni === "Menunggu Penerimaan" && !isAdminTujuan) {
-          throw { 
-            status: 403, 
-            message: "Proses verifikasi dihentikan! Tahap penerimaan anak lintas desa adat wajib diverifikasi oleh Admin Desa Tujuan/Admin Desa Orang Tua Angkat." };
-        }
-        // Tahapan Terbalik dari Menunggu Pelepasan
-        if (statusSaatIni === "Menunggu Pelepasan" && !isAdminAsal) {
-          throw { 
-            status: 403, 
-            message: "Proses verifikasi dihentikan! Data pengajuan relasi krama memerlukan persetujuan pelepasan resmi dari Admin Desa Asal Anak." 
+            message: "Otoritas mengakses data ditolak! Anda bukan merupakan bagian dari Admin Desa Asal maupun Admin Desa Tujuan pengajuan ini." 
           };
         }
       } else {
         if (parseInt(anakDesaId) !== parseInt(userDesaId)) {
           throw { 
             status: 403, 
-            message: "Otoritas ditolak! Wilayah desa adat berbeda." 
+            message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda." 
           };
         }
       }
     }
 
     // ============================================================
-    // CASE 1: PROSES VERIFIKASI DITOLAK
+    // KONDISI 1: PROSES VERIFIKASI DITOLAK
     // ============================================================
     if (status_verifikasi === "Ditolak") {
       if (!catatan_admin_desa) {
         throw { 
           status: 400, 
-          message: "Catatan alasan penolakan wajib disertakan!" 
+          message: "Catatan verifikasi wajib diisi jika pengajuan ditolak!" 
         };
       }
 
-      const statusFinalTolak = relasi.is_pending_update ? relasi.status_sebelum_draft : "Ditolak";
       const namaDesaAsal = relasi.anak?.wilayah_adat?.nama_desa_adat || "Asal";
       const operatorVerifikator = userRole === "Super Admin" 
         ? "Super Admin" 
         : `${userRole} Desa Adat ${isAdminAsal ? namaDesaAsal : "Tujuan"}`;
 
       await relasi.update({
-        status_verifikasi: statusFinalTolak,
-        is_pending_update: false,
-        data_perubahan: null,
-        status_sebelum_draft: null,
-        desa_adat_id_tujuan: null,
-        catatan_admin_desa: `Pengajuan relasi krama ditolak oleh ${operatorVerifikator}. Alasan: ${catatan_admin_desa}.`,
+        status_verifikasi: "Ditolak",
+        catatan_admin_desa: `[DITOLAK]: ${catatan_admin_desa}.`,
       }, { transaction: t });
 
       await kirimNotifikasiSistem(req, {
         judul: "Pengajuan Relasi Krama Ditolak",
-        deskripsi: `Pengajuan relasi krama untuk anak ${relasi.anak?.nama_lengkap} ditolak oleh Admin Desa.`,
+        deskripsi: `Draft pengajuan relasi krama baru untuk anak ${relasi.anak?.nama_lengkap} ditolak oleh ${operatorVerifikator}.`,
         kategori: "LOG_SISTEM",
-        tautan_fitur: "/krama-bali/my-data",
+        tautan_fitur: "/krama-bali",
         desa_adat_id: anakDesaId,
         sender_id: currentUserId,
-        kontak_pesan_id: null,
+        kontak_pesan_id: null, 
         user_id: null
       }, t);
 
       await t.commit();
       return res.status(200).json({ 
-        message: `Pengajuan relasi krama berhasil ditolak.` 
+        message: "Pengajuan relasi krama berhasil ditolak." 
       });
     }
 
     // ============================================================
-    // CASE 2: VERIFIKASI DISETUJUI
+    // KONDISI 2: VERIFIKASI DISETUJUI 
     // ============================================================
-    let nextStatusVerifikasi = "Disetujui"; 
+    let nextStatusVerifikasi = "Draft";
     let idApprovedAsal = relasi.approved_asal_by;
     let idApprovedTujuan = relasi.approved_tujuan_by;
-    let catatanFinal = catatan_admin_desa || `Pangajuan relasi krama disetujui oleh ${userRole}.`;
+    let catatanFinal = catatan_admin_desa || `Pengajuan relasi krama telah disetujui dan disahkan oleh ${userRole}.`;
 
     if (userRole === "Super Admin") {
       nextStatusVerifikasi = "Disetujui";
       idApprovedAsal = currentUserId;
       idApprovedTujuan = currentUserId;
-    } else if (isLintasDesa) {
-      // Kondisi 1: Admin Desa Asal telah setuju melepas silsilah anak
-      if (statusSaatIni === "Draft") {
-        nextStatusVerifikasi = "Menunggu Penerimaan";
-        idApprovedAsal = currentUserId;
-        catatanFinal = catatan_admin_desa || `Tahap Pelepasan Anak disetujui oleh Admin Desa Asal. Menunggu konfirmasi penerimaan dari Admin Desa Tujuan/Admin Desa Orang Tua Angkat.`;
-      } 
-      // Kondisi 2: Admin Desa Tujuan telah setuju menerima silsilah anak
-      else if (statusSaatIni === "Menunggu Penerimaan") {
-        nextStatusVerifikasi = "Disetujui"; 
-        idApprovedTujuan = currentUserId;
-        catatanFinal = catatan_admin_desa || `Tahap Penerimaan Anak disetujui oleh Admin Desa Tujuan/Admin Desa Orang Tua Angkat. Relasi lintas desa dinyatakan sah dan aktif.`;
-      } 
-      // Kondisi 3: Tahapn sebaliknya
-      else if (statusSaatIni === "Menunggu Pelepasan") {
+    } else if (isLintasDesaAktif) {
+      if (isAdminAsal) idApprovedAsal = currentUserId;
+      if (isAdminTujuan) idApprovedTujuan = currentUserId;
+
+      // approval birokrasi dua arah lengkap
+      if (idApprovedAsal && idApprovedTujuan) {
         nextStatusVerifikasi = "Disetujui";
-        idApprovedAsal = currentUserId;
-        catatanFinal = catatan_admin_desa || `Tahap Pelepasan Anak disetujui oleh Admin Desa Asal. Relasi lintas desa dinyatakan sah dan aktif.`;
-      } 
+        catatanFinal = "Persetujuan lintas desa adat lengkap! Relasi krama dinyatakan sah dan aktif di dalam silsilah Adat Bali.";
+      } else {
+        nextStatusVerifikasi = "Draft";
+        catatanFinal = isAdminAsal 
+          ? "Pengajuan relasi krama telah disetujui oleh Admin Desa Asal. Menunggu persetujuan dari Admin Desa Tujuan."
+          : "Pengajuan relasi krama telah disetujui oleh Admin Desa Tujuan. Menunggu persetujuan dari Admin Desa Asal.";
+      }
     } else {
       nextStatusVerifikasi = "Disetujui";
       idApprovedAsal = currentUserId;
       idApprovedTujuan = currentUserId;
     }
 
-    let payloadUpdateKrama = {
-      status_verifikasi: nextStatusVerifikasi,
-      catatan_admin_desa: catatanFinal,
-      approved_asal_by: idApprovedAsal,
-      approved_tujuan_by: idApprovedTujuan
-    };
+    let hasilService = null;
+    let relasiFinalId = id;
 
-    let relasiBaruId = id;
-
-    // MENENTUKAN MANAJEMEN STAGING BUFFER JSONB
-    if (nextStatusVerifikasi !== "Disetujui") {
-      payloadUpdateKrama.is_pending_update = relasi.is_pending_update;
-      await relasi.update(payloadUpdateKrama, { transaction: t });
-    } else {
-      let dataGabunganFinal = { ...relasi.get() };
-
-      if (relasi.is_pending_update && dataPerubahanRaw) {
-        dataGabunganFinal = { 
-          ...dataGabunganFinal, 
-          ...dataPerubahanRaw 
-        };
-      }
-
-      await eksekusiRollbackRelasi(relasi, t);
-      await relasi.destroy({ transaction: t });
-
-      const targetStatusHubungan = dataGabunganFinal.status_hubungan;
-      const targetPerkawinanId = dataGabunganFinal.perkawinan_id;
-      const rawTanggalAngkat = dataGabunganFinal.tanggal_pengangkatan;
-
-      let tglAngkatDateOnly = null;
-
-      if (targetStatusHubungan === "Anak Angkat" && rawTanggalAngkat) {
-        tglAngkatDateOnly = rawTanggalAngkat.includes('T') ? rawTanggalAngkat.split('T')[0] : rawTanggalAngkat.split(' ')[0];
-      }
+    if (nextStatusVerifikasi === "Draft") {
+      await relasi.update({
+        approved_asal_by: idApprovedAsal,
+        approved_tujuan_by: idApprovedTujuan,
+        catatan_admin_desa: catatanFinal
+      }, { transaction: t });
+    } else if (nextStatusVerifikasi === "Disetujui") {
+      await relasi.update({
+        status_verifikasi: "Disetujui",
+        approved_asal_by: idApprovedAsal,
+        approved_tujuan_by: idApprovedTujuan,
+        catatan_admin_desa: catatanFinal
+      }, { transaction: t });
 
       const serviceParam = { 
-        ...dataGabunganFinal, 
-        tanggal_pengangkatan: tglAngkatDateOnly, 
+        ...relasi.get(), 
+        anak: relasi.anak, 
+        ayah: relasi.ayah, 
+        ibu: relasi.ibu,
         user_id: currentUserId, 
         status_verifikasi: "Disetujui",
         catatan_admin_desa: catatanFinal,
-        is_pending_update: false,
-        is_verifikasi: true,
-        data_perubahan: null,
-        desa_adat_id_tujuan: null,
         approved_asal_by: idApprovedAsal,
-        approved_tujuan_by: idApprovedTujuan
+        approved_tujuan_by: idApprovedTujuan,
+        is_verifikasi: true
       };
 
-      let hasilService;
       const isLeluhurMode = relasi.anak?.tipe_data === "Leluhur" || relasi.ayah?.tipe_data === "Leluhur" || relasi.ibu?.tipe_data === "Leluhur";
 
       if (isLeluhurMode) {
         hasilService = await integrasiRelasiLeluhur({
-          ...serviceParam,
+          id: relasi.id,
+          anak_id: relasi.anak_id,
+          ayah_id: relasi.ayah_id,
+          ibu_id: relasi.ibu_id,
+          status_hubungan: relasi.status_hubungan,
+          urutan_lahir: relasi.urutan_lahir,
+          tanggal_pengangkatan: relasi.tanggal_pengangkatan,
           ayah: relasi.ayah,
           ibu: relasi.ibu,
-          anak: relasi.anak
+          anak: relasi.anak,
+          perkawinan_id: relasi.perkawinan_id,
+          user_id: currentUserId,
+          status_verifikasi: "Disetujui",
+          catatan_admin_desa: catatanFinal
         }, t);
       } else {
-        if (targetStatusHubungan === "Anak Kandung") {
-          if (!targetPerkawinanId) {
-            throw { 
-              status: 400, 
-              message: "Pencatatan anak kandung wajib menyertakan data perkawinan orang tua!" 
-            };
-          }
+        if (relasi.status_hubungan === "Anak Kandung") {
           hasilService = await buatAnakKandung(serviceParam, t);
-        } else if (targetStatusHubungan === "Anak Angkat") {
-          if (targetPerkawinanId) {
+        } else if (relasi.status_hubungan === "Anak Angkat") {
+          if (relasi.perkawinan_id) {
             hasilService = await anakAngkatPasangan(serviceParam, t);
           } else {
             hasilService = await buatAnakAngkat(serviceParam, t);
           }
         }
       }
-      relasiBaruId = hasilService?.id || hasilService?.relasi?.id || id;
+      relasiFinalId = hasilService?.id || hasilService?.relasi?.id || id;
     }
 
-    const targetDesaId = userDesaId || anakDesaId || desaTujuanId;
+    const notifikasiPromises = [];
+    const deskripsiNotif = nextStatusVerifikasi === "Disetujui"
+      ? `Relasi krama (${relasi.status_hubungan}) atas nama ${relasi.anak?.nama_lengkap} telah disahkan dan aktif di dalam silsilah Adat Bali.`
+      : `Pengajuan relasi krama lintas desa adat diperbarui: ${catatanFinal}`;
+    
+    const kategoriNotif = nextStatusVerifikasi === "Disetujui" ? "LOG_SISTEM" : "VERIFIKASI";
 
-    await kirimNotifikasiSistem(req, {
-      judul: nextStatusVerifikasi === "Disetujui" ? "Pengajuan Relasi Krama Disetujui" : "Pengajuan Relasi Lintas Desa",
-      deskripsi: nextStatusVerifikasi === "Disetujui"
-        ? `Relasi krama atas nama ${relasi.anak?.nama_lengkap} telah disahkan dan aktif di dalam sistem.`
-        : `Data relasi krama lintas desa adat masuk ke tahap: ${nextStatusVerifikasi}. Menunggu verifikasi dari Admin Desa Bersangkutan.`,
-      kategori: nextStatusVerifikasi === "Disetujui" ? "LOG_SISTEM" : "VERIFIKASI",
-      tautan_fitur: "/krama-bali/my-data",
-      desa_adat_id: targetDesaId,
-      sender_id: currentUserId,
-      kontak_pesan_id: null,
-      user_id: null
-    }, t);
+    if (isLintasDesaAktif) {
+      const setDesaUnik = new Set();
+      if (anakDesaId) setDesaUnik.add(parseInt(anakDesaId));
+      if (desaTujuanId) setDesaUnik.add(parseInt(desaTujuanId));
+
+      setDesaUnik.forEach((idDesa) => {
+        notifikasiPromises.push(kirimNotifikasiSistem(req, {
+          judul: nextStatusVerifikasi === "Disetujui" ? "Relasi Krama Lintas Desa Adat Aktif" : "Update Persetujuan Lintas Desa Adat",
+          deskripsi: deskripsiNotif, 
+          kategori: kategoriNotif,
+          tautan_fitur: "/krama-bali", 
+          desa_adat_id: idDesa, 
+          sender_id: currentUserId, 
+          kontak_pesan_id: null, 
+          user_id: null
+        }, t));
+      });
+    } else {
+      notifikasiPromises.push(kirimNotifikasiSistem(req, {
+        judul: "Verifikasi Relasi Krama",
+        deskripsi: deskripsiNotif, 
+        kategori: kategoriNotif, 
+        tautan_fitur: "/krama-bali",
+        desa_adat_id: userDesaId || anakDesaId, 
+        sender_id: currentUserId, 
+        kontak_pesan_id: null, 
+        user_id: null
+      }, t));
+    }
+
+    await Promise.all(notifikasiPromises);
+
+    let dataResponFinal = null;
+    if (nextStatusVerifikasi === "Disetujui") {
+      dataResponFinal = await RelasiKrama.findByPk(relasiFinalId, {
+        include: [
+          { model: KramaBali, as: "anak", attributes: ["id", "nama_lengkap"] },
+          { model: KramaBali, as: "ayah", attributes: ["id", "nama_lengkap"] },
+          { model: KramaBali, as: "ibu", attributes: ["id", "nama_lengkap"] }
+        ],
+        transaction: t
+      });
+    } else {
+      dataResponFinal = relasi;
+    }
 
     await t.commit();
 
-    const updatedData = await RelasiKrama.findByPk(relasiBaruId, { 
-      include: [
-        { 
-          model: KramaBali, 
-          as: "anak", 
-          attributes: ["id", "nama_lengkap", "desa_adat_id"] 
-        },{ 
-          model: KramaBali, 
-          as: "ayah", 
-          attributes: ["id", "nama_lengkap", "desa_adat_id"] 
-        },{ 
-          model: KramaBali, 
-          as: "ibu", 
-          attributes: ["id", "nama_lengkap", "desa_adat_id"] 
-        }
-      ]
-    });
-
     return res.status(200).json({
       message: nextStatusVerifikasi === "Disetujui" 
-        ? "Data relasi krama berhasil disetujui! Bagan pohon keluarga telah diperbarui secara resmi."
-        : `Data relasi krama berhasil diverifikasi. Status saat ini: ${nextStatusVerifikasi}.`,
-      data: updatedData
+        ? "Data relasi krama berhasil disetujui penuh! Bagan silsilah keluarga telah diperbarui."
+        : `Persetujuan berhasil disimpan. ${catatanFinal}`,
+      data: dataResponFinal
     });
   } catch (error) {
     if (t && !t.finished) {
-      await t.rollback();
+      await t.rollback(); 
     }
+    console.error("🔥 ERROR CONTROLLER VERIFIKASI BARU:", error);
     const statusCode = error.status || 500;
     return res.status(statusCode).json({ 
-      message: error.message || "Terjadi kesalahan pada server saat memproses verifikasi." 
+      message: error.message || "Terjadi kesalahan pada server saat memproses verifikasi relasi baru." 
     });
   }
 };
 
 export const updateRelasiKramaById = async (req, res) => {
   const { id } = req.params;
-
+  
   const currentUserId = req.userId;
   const userRole = req.role;
   const adminDesaId = req.desaAdatId;
@@ -1017,6 +1021,7 @@ export const updateRelasiKramaById = async (req, res) => {
 
   // Mulai transaksi database
   const t = await db.transaction();
+  let transactionCommittedOrRolledBack = false;
 
   try {
     // Validasi ketersediaan data relasi krama
@@ -1049,8 +1054,8 @@ export const updateRelasiKramaById = async (req, res) => {
       KramaBali.findByPk(anakIdAktif, { 
         transaction: t 
       }),
-      targetAyahId ? KramaBali.findByPk(targetAyahId, {
-        transaction: t
+      targetAyahId ? KramaBali.findByPk(targetAyahId, { 
+        transaction: t 
       }) : null,
       targetIbuId ? KramaBali.findByPk(targetIbuId, { 
         transaction: t 
@@ -1066,13 +1071,17 @@ export const updateRelasiKramaById = async (req, res) => {
 
     const desaTujuanId = ayah ? ayah.desa_adat_id : (ibu ? ibu.desa_adat_id : null);
     const isLintasDesa = desaTujuanId && anak.desa_adat_id && parseInt(anak.desa_adat_id) !== parseInt(desaTujuanId);
-
     const rawTanggalAngkat = dataUpdate.tanggal_pengangkatan || relasi.tanggal_pengangkatan;
+    
     let tglAngkatDateOnly = null;
 
     if (targetStatusHubungan === "Anak Angkat" && rawTanggalAngkat) {
-      tglAngkatDateOnly = rawTanggalAngkat.includes('T') ? rawTanggalAngkat.split('T')[0] : rawTanggalAngkat.split(' ')[0];
+      tglAngkatDateOnly = rawTanggalAngkat.includes('T') 
+        ? rawTanggalAngkat.split('T')[0] 
+        : rawTanggalAngkat.split(' ')[0];
     }
+
+    const tglAngkatTimestamp = tglAngkatDateOnly ? `${tglAngkatDateOnly}T00:00:00.000Z` : null;
 
     // =====================================================================
     // JALUR 1: UPDATE RELASI JALUR ROLE KRAMA
@@ -1097,12 +1106,12 @@ export const updateRelasiKramaById = async (req, res) => {
         data_perubahan: cleanDataPerubahan, 
         status_verifikasi: statusBaru,
         desa_adat_id_tujuan: dataUpdate.desa_adat_id_tujuan || cleanDataPerubahan.desa_adat_id_tujuan || null,
-        catatan_admin_desa: "Adanya usulan perubahan data relasi krama! Menunggu verifikasi dari Admin Desa."
+        catatan_admin_desa: "Adanya usulan perubahan data relasi krama! Menunggu verifikasi dari Admin Desa Bersangkutan."
       }, { transaction: t });
 
       await kirimNotifikasiSistem(req, {
         judul: "Usulan Perubahan Relasi Krama",
-        deskripsi: `Adanya pengajuan usulan perubahan data silsilah relasi krama untuk anak atas nama ${anak?.nama_lengkap}. Menunggu verifikasi dari Admin Desa.`,
+        deskripsi: `Adanya pengajuan usulan perubahan data silsilah relasi krama untuk anak atas nama ${anak?.nama_lengkap}. Menunggu verifikasi dari Admin Desa Bersangkutan.`,
         kategori: "VERIFIKASI",
         tautan_fitur: "/verifikasi-data/relasi-krama",
         desa_adat_id: adminDesaId || anak.desa_adat_id,
@@ -1112,6 +1121,8 @@ export const updateRelasiKramaById = async (req, res) => {
       }, t);
 
       await t.commit();
+      transactionCommittedOrRolledBack = true;
+
       return res.status(200).json({ 
         message: statusSaatIni === "Disetujui"
           ? "Usulan perubahan berhasil diajukan! Data silsilah aktif tetap menggunakan data lama hingga disetujui oleh Admin Desa."
@@ -1145,7 +1156,7 @@ export const updateRelasiKramaById = async (req, res) => {
       statusVerifTarget = "Disetujui";
       idApprovedAsal = currentUserId;
       idApprovedTujuan = currentUserId;
-      catatanUpdate = "Data relasi krama diperbarui dan diverifikasi otomatis (Input by Super Admin).";
+      catatanUpdate = "Data relasi krama diverifikasi dan disetujui otomatis (Input by Super Admin).";
     } else if (isLintasDesa) {
       statusVerifTarget = "Draft";
       idApprovedAsal = null;
@@ -1168,7 +1179,7 @@ export const updateRelasiKramaById = async (req, res) => {
       approved_tujuan_by: idApprovedTujuan
     };
 
-    let relasiBaru;
+    let relasiBaru = null;
 
     // EKSEKUSI PARSIAL DATA PRUBAHAN
     if (statusVerifTarget !== "Disetujui") {
@@ -1187,53 +1198,223 @@ export const updateRelasiKramaById = async (req, res) => {
         }
       }, { transaction: t });
     } else {
-      await eksekusiRollbackRelasi(relasi, t);
-      await relasi.destroy({ transaction: t });
+      // Evaluasi Tipe Update Data
+      const isPerubahanStruktural = 
+        (dataUpdate.hasOwnProperty('ayah_id') && dataUpdate.ayah_id !== relasi.ayah_id) ||
+        (dataUpdate.hasOwnProperty('ibu_id') && dataUpdate.ibu_id !== relasi.ibu_id) ||
+        (dataUpdate.hasOwnProperty('status_hubungan') && dataUpdate.status_hubungan !== relasi.status_hubungan);
 
-      const isLeluhurMode = anak.tipe_data === "Leluhur" || ayah?.tipe_data === "Leluhur" || ibu?.tipe_data === "Leluhur";
+      if (isPerubahanStruktural) {
+        await eksekusiRollbackRelasi(relasi, t);
+        await relasi.destroy({ transaction: t });
 
-      const servicePayload = { 
-        anak_id: anakIdAktif,
-        ayah_id: targetAyahId,
-        ibu_id: targetIbuId,
-        status_hubungan: targetStatusHubungan,
-        tanggal_pengangkatan: tglAngkatDateOnly,
-        urutan_lahir: dataUpdate.urutan_lahir || relasi.urutan_lahir || null,
-        perkawinan_id: targetPerkawinanId,
-        is_verifikasi: false,
-        ...commonParams
-      };
-
-      if (isLeluhurMode) {
-        relasiBaru = await integrasiRelasiLeluhur({
-          ...servicePayload,
-          ayah,
-          ibu,
-          anak
-        }, t);
-      } else {
-        if (targetStatusHubungan === "Anak Kandung") {
-          if (!targetPerkawinanId) {
-            throw { 
-              status: 400, 
-              message: "Pencatatan anak kandung warga aktif wajib menyertakan data perkawinan orang tua!" 
-            };
-          }
-          relasiBaru = await buatAnakKandung(servicePayload, t);
-        } else if (targetStatusHubungan === "Anak Angkat") {
-          if (targetPerkawinanId) {
-            relasiBaru = await anakAngkatPasangan(servicePayload, t);
-          } else {
-            relasiBaru = await buatAnakAngkat(servicePayload, t);
+        const isLeluhurMode = anak.tipe_data === "Leluhur" || ayah?.tipe_data === "Leluhur" || ibu?.tipe_data === "Leluhur";
+        
+        const servicePayload = { 
+          anak_id: anakIdAktif,
+          ayah_id: targetAyahId,
+          ibu_id: targetIbuId,
+          status_hubungan: targetStatusHubungan,
+          tanggal_pengangkatan: tglAngkatDateOnly,
+          urutan_lahir: dataUpdate.urutan_lahir || relasi.urutan_lahir || null,
+          perkawinan_id: targetPerkawinanId,
+          is_verifikasi: false,
+          ...commonParams
+        };
+        
+        if (isLeluhurMode) {
+          relasiBaru = await integrasiRelasiLeluhur({ 
+            ...servicePayload, 
+            ayah, 
+            ibu, 
+            anak 
+          }, t);
+        } else {
+          if (targetStatusHubungan === "Anak Kandung") {
+            if (!targetPerkawinanId) {
+              throw { 
+                status: 400, 
+                message: "Pencatatan anak kandung krama aktif wajib menyertakan data perkawinan orang tua!" 
+              };
+            }
+            relasiBaru = await buatAnakKandung(servicePayload, t);
+          } else if (targetStatusHubungan === "Anak Angkat") {
+            if (targetPerkawinanId) {
+              relasiBaru = await anakAngkatPasangan(servicePayload, t);
+            } else {
+              relasiBaru = await buatAnakAngkat(servicePayload, t);
+            }
           }
         }
+      } else {
+        // Perubahan tanggan linimasa
+        await relasi.update({
+          tanggal_pengangkatan: tglAngkatDateOnly,
+          catatan_admin_desa: catatanUpdate,
+          ...commonParams
+        }, { transaction: t });
+
+        // menyesuaikan event date riwayat keluarga dan peran adat
+        if (targetStatusHubungan === "Anak Angkat" && tglAngkatTimestamp) {
+          const kepalaKeluargaId = targetAyahId || targetIbuId;
+
+          if (kepalaKeluargaId) {
+            const isAdopsiPasangan = relasi.ayah_id && relasi.ibu_id;
+            
+            // JALUR A: KHUSUS ORANG TUA TUNGGAL
+            if (!isAdopsiPasangan) {
+              const riwayatAnakLama = await RiwayatKeluarga.findOne({
+                where: {
+                  krama_id: anakIdAktif,
+                  kategori_event: "PENGANGKATAN"
+                },
+                transaction: t
+              });
+
+              if (riwayatAnakLama) {
+                const tglLamaMurni = riwayatAnakLama.awal_masuk instanceof Date 
+                  ? riwayatAnakLama.awal_masuk.toISOString().split('T')[0]
+                  : riwayatAnakLama.awal_masuk.split('T')[0];
+                const awalHariLama = new Date(`${tglLamaMurni}T00:00:00.000Z`);
+                const akhirHariLama = new Date(`${tglLamaMurni}T23:59:59.999Z`);
+
+                const keluargaTarget = await Keluarga.findOne({
+                  where: {
+                    kepala_keluarga_id: parseInt(kepalaKeluargaId),
+                    jenis_keluarga: "Keluarga Angkat"
+                  },
+                  transaction: t
+                });
+
+                // menyesuaikan event date riwayat dengan tanggal yang baru
+                if (keluargaTarget) {
+                  await RiwayatKeluarga.update(
+                    { awal_masuk: new Date(tglAngkatTimestamp) },
+                    {
+                      where: {
+                        krama_id: parseInt(kepalaKeluargaId),
+                        keluarga_id: keluargaTarget.id,
+                        kedudukan: "Kepala Keluarga",
+                        awal_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                      },
+                      transaction: t
+                    }
+                  );
+                }
+
+                await RiwayatPeranAdat.update(
+                  { mulai_tanggal: new Date(tglAngkatTimestamp) },
+                  { 
+                    where: { 
+                      krama_id: parseInt(kepalaKeluargaId), 
+                      kategori_event: "PENGANGKATAN",
+                      mulai_tanggal: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    }, 
+                    transaction: t 
+                  }
+                );
+
+                // menutup riwayat lama dengan tanggal yang baru
+                await RiwayatPeranAdat.update(
+                  { selesai_tanggal: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: parseInt(kepalaKeluargaId),
+                      kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] },
+                      selesai_tanggal: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+
+                await RiwayatKeluarga.update(
+                  { akhir_masuk: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: parseInt(kepalaKeluargaId),
+                      kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] },
+                      akhir_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+
+                await RiwayatKeluarga.update(
+                  { akhir_masuk: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: anakIdAktif,
+                      kategori_event: "LAHIR", 
+                      akhir_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+              }
+
+              // menyesuaikan riwayat keluarga disisi anak
+              await RiwayatKeluarga.update(
+                { awal_masuk: new Date(tglAngkatTimestamp) },
+                { 
+                  where: { 
+                    krama_id: anakIdAktif, 
+                    kategori_event: "PENGANGKATAN" 
+                  }, 
+                  transaction: t 
+                }
+              );
+            // JALUR B: KHUSUS PASANGAN SUAMI ISTRI
+            } else {
+              const riwayatAnakLamaPasutri = await RiwayatKeluarga.findOne({
+                where: { 
+                  krama_id: anakIdAktif, 
+                  kategori_event: "PENGANGKATAN" 
+                },
+                transaction: t
+              });
+
+              if (riwayatAnakLamaPasutri) {
+                const tglLamaMurni = riwayatAnakLamaPasutri.awal_masuk instanceof Date 
+                  ? riwayatAnakLamaPasutri.awal_masuk.toISOString().split('T')[0]
+                  : riwayatAnakLamaPasutri.awal_masuk.split('T')[0];
+                const awalHariLama = new Date(`${tglLamaMurni}T00:00:00.000Z`);
+                const akhirHariLama = new Date(`${tglLamaMurni}T23:59:59.999Z`);
+
+                // menyesuaikan event date riwayat sesuai tanggal yang baru
+                await RiwayatKeluarga.update(
+                  { akhir_masuk: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: anakIdAktif,
+                      kategori_event: "LAHIR",
+                      akhir_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+              }
+
+              await RiwayatKeluarga.update(
+                { awal_masuk: new Date(tglAngkatTimestamp) },
+                { 
+                  where: { 
+                    krama_id: anakIdAktif, 
+                    kategori_event: "PENGANGKATAN" 
+                  }, 
+                  transaction: t 
+                }
+              );
+            }
+          }
+        }
+        relasiBaru = relasi;
       }
     }
 
     const targetDesaId = adminDesaId || anak.desa_adat_id || desaTujuanId;
-
+    
     await kirimNotifikasiSistem(req, {
-      judul: statusVerifTarget === "Disetujui" ? "Pembaruan Data Relasi Krama" : "Antrean Perubahan Relasi Krama Lintas Desa",
+      judul: statusVerifTarget === "Disetujui" ? "Pembaruan Data Relasi Krama" : "Antrean Perubahan Relasi Lintas Desa Adat",
       deskripsi: statusVerifTarget === "Disetujui"
         ? `Perubahan data relasi krama dengan hubungan sebagai ${targetStatusHubungan.toLowerCase()} berhasil disahkan oleh ${userRole}.`
         : `Usulan perubahan data relasi krama lintas desa adat dengan hubungan sebagai ${targetStatusHubungan.toLowerCase()} masuk antrean draft peninjauan baru. Menunggu verifikasi dari Admin Desa Bersangkutan.`,
@@ -1246,7 +1427,7 @@ export const updateRelasiKramaById = async (req, res) => {
     }, t);
 
     const finalRelasiId = statusVerifTarget === "Disetujui" 
-      ? (relasiBaru?.id || relasiBaru?.relasi?.id) 
+      ? (relasiBaru?.id || relasiBaru?.relasi?.id || relasi.id) 
       : id;
     
     const updateRelasi = await RelasiKrama.findByPk(finalRelasiId, {
@@ -1263,7 +1444,7 @@ export const updateRelasiKramaById = async (req, res) => {
           model: KramaBali, 
           as: "ibu", 
           attributes: ["id", "nama_lengkap", "desa_adat_id"] 
-        }, { 
+        },{ 
           model: DesaAdat, 
           as: "desa_tujuan", 
           attributes: ["id", "nama_desa_adat"] 
@@ -1273,6 +1454,7 @@ export const updateRelasiKramaById = async (req, res) => {
     });
     
     await t.commit();
+    transactionCommittedOrRolledBack = true;
 
     let responseMessage = "Data relasi krama berhasil diperbarui secara resmi dan aktif di silsilah!";
     if (statusVerifTarget === "Draft") {
@@ -1284,7 +1466,7 @@ export const updateRelasiKramaById = async (req, res) => {
       data: updateRelasi 
     });
   } catch (error) {
-    if (t && !t.finished) {
+    if (!transactionCommittedOrRolledBack) {
       await t.rollback();
     }
     const statusCode = error.status || 500;
@@ -1294,7 +1476,546 @@ export const updateRelasiKramaById = async (req, res) => {
   }
 };
 
-export const cancelUpdateRelasi = async (req, res) => {
+export const verifikasiUpdateRelasiKrama = async (req, res) => {
+  const { id } = req.params;
+
+  const currentUserId = req.userId;
+  const userRole = req.role;
+  const userDesaId = req.desaAdatId;
+
+  const { status_verifikasi, catatan_admin_desa } = req.body;
+
+  const VALID_STATUS = ["Disetujui", "Ditolak"];
+  if (!VALID_STATUS.includes(status_verifikasi)) {
+    return res.status(400).json({ 
+      message: "Status verifikasi tidak valid!"
+    });
+  }
+
+  // Mulai transaksi database
+  const t = await db.transaction();
+
+  try {
+    const relasi = await RelasiKrama.findByPk(id, { 
+      include: [
+        { 
+          model: KramaBali, 
+          as: "anak", 
+          attributes: ["id", "nama_lengkap", "jenis_kelamin", "desa_adat_id", "tipe_data"],
+          include: [{ 
+            model: DesaAdat, 
+            as: "wilayah_adat", 
+            attributes: ["nama_desa_adat"] 
+          }]
+        }
+      ],
+      transaction: t
+    });
+
+    if (!relasi) {
+      throw { 
+        status: 404, 
+        message: "Data relasi krama tidak ditemukan." 
+      };
+    }
+
+    if (!relasi.is_pending_update || !relasi.data_perubahan) {
+      throw { 
+        status: 400, 
+        message: "Proses verifikasi dihentikan! Data relasi krama ini tidak memiliki riwayat usulan perubahan data yang aktif." 
+      };
+    }
+
+    const statusSaatIni = relasi.status_verifikasi;
+
+    if (statusSaatIni === "Disetujui" && !relasi.is_pending_update) {
+      throw { 
+        status: 400, 
+        message: "Proses verifikasi dihentikan! Relasi krama ini sudah disetujui dan disahkan secara permanen." 
+      };
+    }
+
+    let dataPerubahanRaw = relasi.data_perubahan;
+    if (dataPerubahanRaw && dataPerubahanRaw.data_perubahan) {
+      dataPerubahanRaw = dataPerubahanRaw.data_perubahan;
+    }
+
+    // OTORITAS HAK AKSES WILAYAH ADAT
+    const anakDesaId = relasi.anak?.desa_adat_id;
+    const desaTujuanId = relasi.desa_adat_id_tujuan || dataPerubahanRaw?.desa_adat_id_tujuan;
+
+    const idAnakDesa = anakDesaId ? String(anakDesaId).trim() : null;
+    const idDesaTujuan = desaTujuanId ? String(desaTujuanId).trim() : null;
+    const isLintasDesaAktif = idDesaTujuan && idAnakDesa !== idDesaTujuan;
+
+    const isAdminAsal = parseInt(userDesaId) === parseInt(anakDesaId);
+    const isAdminTujuan = desaTujuanId && parseInt(userDesaId) === parseInt(desaTujuanId);
+
+    if (userRole === "Admin Desa") {
+      if (isLintasDesaAktif) {
+        if (!isAdminAsal && !isAdminTujuan) {
+          throw { 
+            status: 403, 
+            message: "Otoritas mengakses data ditolak! Anda bukan merupakan bagian dari Admin Desa Asal maupun Admin Desa Tujuan pengajuan ini." 
+          };
+        }
+      } else {
+        if (parseInt(anakDesaId) !== parseInt(userDesaId)) {
+          throw { 
+            status: 403, 
+            message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda." 
+          };
+        }
+      }
+    }
+
+    // ============================================================
+    // KONDISI 1: PROSES VERIFIKASI PERUBAHAN DITOLAK
+    // ============================================================
+    if (status_verifikasi === "Ditolak") {
+      if (!catatan_admin_desa) {
+        throw { 
+          status: 400, 
+          message: "Catatan verifikasi wajib diisi jika pengajuan ditolak!" 
+        };
+      }
+
+      const namaDesaAsal = relasi.anak?.wilayah_adat?.nama_desa_adat || "Asal";
+      const operatorVerifikator = userRole === "Super Admin" 
+        ? "Super Admin" 
+        : `${userRole} Desa Adat ${isAdminAsal ? namaDesaAsal : "Tujuan"}`;
+      const statusRollbackSistem = relasi.status_sebelum_draft || "Disetujui";
+
+      await relasi.update({
+        status_verifikasi: statusRollbackSistem,
+        is_pending_update: false,
+        data_perubahan: null,
+        status_sebelum_draft: null,
+        desa_adat_id_tujuan: null,
+        approved_asal_by: null,
+        approved_tujuan_by: null,
+        catatan_admin_desa: `[PERUBAHAN DITOLAK]: ${catatan_admin_desa}.`,
+      }, { transaction: t });
+
+      await kirimNotifikasiSistem(req, {
+        judul: "Usulan Perubahan Relasi Krama Ditolak",
+        deskripsi: `Usulan perubahan data relasi krama untuk anak ${relasi.anak?.nama_lengkap} ditolak oleh ${operatorVerifikator}. Data relasi kembali menggunakan data lama yang sah.`,
+        kategori: "LOG_SISTEM",
+        tautan_fitur: "/krama-bali",
+        desa_adat_id: anakDesaId,
+        sender_id: currentUserId,
+        kontak_pesan_id: null, 
+        user_id: null
+      }, t);
+
+      await t.commit();
+      return res.status(200).json({ 
+        message: "Usulan perubahan data relasi krama berhasil ditolak." 
+      });
+    }
+
+    // ============================================================
+    // KONDISI 2: PROSES VERIFIKASI PERUBAHAN DISETUJUI
+    // ============================================================
+    let nextStatusVerifikasi = "Draft";
+    let catatanFinal = catatan_admin_desa || `Perubahan data relasi krama telah disetujui dan disahkan oleh ${userRole}.`;
+    let idApprovedAsal = relasi.approved_asal_by;
+    let idApprovedTujuan = relasi.approved_tujuan_by;
+
+    if (userRole === "Super Admin") {
+      nextStatusVerifikasi = "Disetujui";
+      idApprovedAsal = currentUserId;
+      idApprovedTujuan = currentUserId;
+      catatanFinal = "Perubahan relasi krama diverifikasi dan disetujui otomatis (Input by Super Admin).";
+    } else if (isLintasDesaAktif) {
+      if (isAdminAsal) idApprovedAsal = currentUserId;
+      if (isAdminTujuan) idApprovedTujuan = currentUserId;
+
+      // approval birokrasi dua arah lengkap
+      if (idApprovedAsal && idApprovedTujuan) {
+        nextStatusVerifikasi = "Disetujui";
+        catatanFinal = "Persetujuan perubahan relasi lintas desa adat lengkap! Relasi krama dinyatakan sah dan aktif di dalam silsilah Adat Bali.";
+      } else {
+        nextStatusVerifikasi = "Draft";
+        catatanFinal = isAdminAsal 
+          ? "Perubahan data relasi krama telah disetujui oleh Admin Desa Asal. Menunggu persetujuan dari Admin Desa Tujuan."
+          : "Perubahan data relasi krama telah disetujui oleh Admin Desa Tujuan. Menunggu persetujuan dari Admin Desa Asal.";
+      }
+    } else {
+      nextStatusVerifikasi = "Disetujui";
+      idApprovedAsal = currentUserId;
+      idApprovedTujuan = currentUserId;
+    }
+
+    let hasilService = null;
+    let relasiBaruId = id;
+
+    if (nextStatusVerifikasi === "Draft") {
+      await relasi.update({
+        approved_asal_by: idApprovedAsal,
+        approved_tujuan_by: idApprovedTujuan,
+        catatan_admin_desa: catatanFinal
+      }, { transaction: t });
+    } else if (nextStatusVerifikasi === "Disetujui") {
+      const targetAyahId = dataPerubahanRaw.hasOwnProperty('ayah_id') ? dataPerubahanRaw.ayah_id : relasi.ayah_id;
+      const targetIbuId = dataPerubahanRaw.hasOwnProperty('ibu_id') ? dataPerubahanRaw.ibu_id : relasi.ibu_id;
+      const targetStatusHubungan = dataPerubahanRaw.hasOwnProperty('status_hubungan') ? dataPerubahanRaw.status_hubungan : relasi.status_hubungan;
+      const targetPerkawinanId = dataPerubahanRaw.perkawinan_id || null;
+
+      // Validasi pencatatan ganda relasi aktif
+      const existingRelasiActive = await RelasiKrama.findOne({
+        where: {
+          id: { [Op.ne]: id },
+          anak_id: relasi.anak_id,
+          status_hubungan: targetStatusHubungan,
+          status_verifikasi: "Disetujui"
+        },
+        transaction: t
+      });
+
+      if (existingRelasiActive) {
+        throw { 
+          status: 400, 
+          message: `Proses verifikasi gagal! Relasi krama sebagai ${targetStatusHubungan} untuk anak ini sudah terdaftar resmi melalui antrean data lain.`
+        };
+      }
+
+      const dataGabunganFinal = {
+        ...relasi.get(),
+        ...dataPerubahanRaw,
+        id: id
+      };
+
+      const rawTanggalAngkat = dataGabunganFinal.tanggal_pengangkatan;
+      let tglAngkatDateOnly = null;
+
+      if (targetStatusHubungan === "Anak Angkat" && rawTanggalAngkat) {
+        tglAngkatDateOnly = rawTanggalAngkat.includes('T') 
+          ? rawTanggalAngkat.split('T')[0] 
+          : rawTanggalAngkat.split(' ')[0];
+      }
+
+      const tglAngkatTimestamp = tglAngkatDateOnly ? `${tglAngkatDateOnly}T00:00:00.000Z` : null;
+
+      // Validasi ketersediaan data ayah dan ibu
+      const [ayahBaru, ibuBaru] = await Promise.all([
+        targetAyahId ? KramaBali.findByPk(targetAyahId, { 
+          transaction: t 
+        }) : null,
+        targetIbuId ? KramaBali.findByPk(targetIbuId, { 
+          transaction: t 
+        }) : null
+      ]);
+
+      const commonParams = {
+        user_id: currentUserId,
+        status_verifikasi: "Disetujui",
+        catatan_admin_desa: catatanFinal,
+        is_pending_update: false,
+        desa_adat_id_tujuan: isLintasDesaAktif ? desaTujuanId : null,
+        approved_asal_by: idApprovedAsal,
+        approved_tujuan_by: idApprovedTujuan
+      };
+
+      const servicePayload = { 
+        anak_id: relasi.anak_id,
+        ayah_id: targetAyahId,
+        ibu_id: targetIbuId,
+        status_hubungan: targetStatusHubungan,
+        tanggal_pengangkatan: tglAngkatDateOnly,
+        urutan_lahir: dataPerubahanRaw.urutan_lahir || relasi.urutan_lahir || null,
+        perkawinan_id: targetPerkawinanId,
+        is_verifikasi: true,
+        ...commonParams
+      };
+
+      // Evaluasi Tipe Update Data
+      const isPerubahanStruktural = 
+        (dataPerubahanRaw.hasOwnProperty('ayah_id') && dataPerubahanRaw.ayah_id !== relasi.ayah_id) ||
+        (dataPerubahanRaw.hasOwnProperty('ibu_id') && dataPerubahanRaw.ibu_id !== relasi.ibu_id) ||
+        (dataPerubahanRaw.hasOwnProperty('status_hubungan') && dataPerubahanRaw.status_hubungan !== relasi.status_hubungan);
+
+      if (isPerubahanStruktural) {
+        await eksekusiRollbackRelasi(relasi, t);
+        await relasi.destroy({ transaction: t });
+
+        const isLeluhurMode = relasi.anak?.tipe_data === "Leluhur" || ayahBaru?.tipe_data === "Leluhur" || ibuBaru?.tipe_data === "Leluhur";
+
+        if (isLeluhurMode) {
+          hasilService = await integrasiRelasiLeluhur({ 
+            ...servicePayload, 
+            ayah, 
+            ibu, 
+            anak 
+          }, t);
+        } else {
+          if (targetStatusHubungan === "Anak Kandung") {
+            if (!targetPerkawinanId) {
+              throw { 
+                status: 400, 
+                message: "Proses verifikasi dihentikan! Perubahan relasi krama menjadi Anak Kandung wajib menyertakan data perkawinan orang tua yang valid." 
+              };
+            }
+            hasilService = await buatAnakKandung(servicePayload, t);
+          } else if (targetStatusHubungan === "Anak Angkat") {
+            if (targetPerkawinanId) {
+              hasilService = await anakAngkatPasangan(servicePayload, t);
+            } else {
+              hasilService = await buatAnakAngkat(servicePayload, t);
+            }
+          }
+        }
+        relasiBaruId = hasilService?.id || hasilService?.relasi?.id || id;
+      } else {
+        // Perubahan tanggal linimasa
+        await relasi.update({
+          tanggal_pengangkatan: tglAngkatDateOnly,
+          data_perubahan: null,
+          ...commonParams
+        }, { transaction: t });
+
+        // menyesuaikan event date riwayat keluarga dan peran adat
+        if (targetStatusHubungan === "Anak Angkat" && tglAngkatTimestamp) {
+          const kepalaKeluargaId = targetAyahId || targetIbuId;
+
+          if (kepalaKeluargaId) {
+            const isAdopsiPasangan = relasi.ayah_id && relasi.ibu_id;
+
+            // JALUR A: KHUSUS ORANG TUA TUNGGAL
+            if (!isAdopsiPasangan) {
+              const riwayatAnakLama = await RiwayatKeluarga.findOne({
+                where: {
+                  krama_id: anakIdAktif,
+                  kategori_event: "PENGANGKATAN"
+                },
+                transaction: t
+              });
+
+              if (riwayatAnakLama) {
+                const tglLamaMurni = riwayatAnakLama.awal_masuk instanceof Date 
+                  ? riwayatAnakLama.awal_masuk.toISOString().split('T')[0]
+                  : riwayatAnakLama.awal_masuk.split('T')[0];
+                const awalHariLama = new Date(`${tglLamaMurni}T00:00:00.000Z`);
+                const akhirHariLama = new Date(`${tglLamaMurni}T23:59:59.999Z`);
+
+                const keluargaTarget = await Keluarga.findOne({
+                  where: {
+                    kepala_keluarga_id: parseInt(kepalaKeluargaId),
+                    jenis_keluarga: "Keluarga Angkat"
+                  },
+                  transaction: t
+                });
+
+                // menyesuaikan event date riwayat dengan tanggal yang baru
+                if (keluargaTarget) {
+                  await RiwayatKeluarga.update(
+                    { awal_masuk: new Date(tglAngkatTimestamp) },
+                    {
+                      where: {
+                        krama_id: parseInt(kepalaKeluargaId),
+                        keluarga_id: keluargaTarget.id,
+                        kedudukan: "Kepala Keluarga",
+                        awal_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                      },
+                      transaction: t
+                    }
+                  );
+                }
+
+                await RiwayatPeranAdat.update(
+                  { mulai_tanggal: new Date(tglAngkatTimestamp) },
+                  { 
+                    where: { 
+                      krama_id: parseInt(kepalaKeluargaId), 
+                      kategori_event: "PENGANGKATAN",
+                      mulai_tanggal: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    }, 
+                    transaction: t 
+                  }
+                );
+
+                // menutup riwayat lama dengan tanggal yang baru
+                await RiwayatPeranAdat.update(
+                  { selesai_tanggal: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: parseInt(kepalaKeluargaId),
+                      kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] },
+                      selesai_tanggal: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+
+                await RiwayatKeluarga.update(
+                  { akhir_masuk: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: parseInt(kepalaKeluargaId),
+                      kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] },
+                      akhir_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+
+                await RiwayatKeluarga.update(
+                  { akhir_masuk: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: anakIdAktif,
+                      kategori_event: "LAHIR", 
+                      akhir_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+              }
+
+              // menyesuaikan riwayat keluarga disisi anak
+              await RiwayatKeluarga.update(
+                { awal_masuk: new Date(tglAngkatTimestamp) },
+                { 
+                  where: { 
+                    krama_id: anakIdAktif, 
+                    kategori_event: "PENGANGKATAN" 
+                  }, 
+                  transaction: t 
+                }
+              );
+            // JALUR B: KHUSUS PASANGAN SUAMI ISTRI
+            } else {
+              const riwayatAnakLamaPasutri = await RiwayatKeluarga.findOne({
+                where: { 
+                  krama_id: anakIdAktif, 
+                  kategori_event: "PENGANGKATAN" 
+                },
+                transaction: t
+              });
+
+              if (riwayatAnakLamaPasutri) {
+                const tglLamaMurni = riwayatAnakLamaPasutri.awal_masuk instanceof Date 
+                  ? riwayatAnakLamaPasutri.awal_masuk.toISOString().split('T')[0]
+                  : riwayatAnakLamaPasutri.awal_masuk.split('T')[0];
+                const awalHariLama = new Date(`${tglLamaMurni}T00:00:00.000Z`);
+                const akhirHariLama = new Date(`${tglLamaMurni}T23:59:59.999Z`);
+
+                // menyesuaikan event date riwayat sesuai tanggal yang baru
+                await RiwayatKeluarga.update(
+                  { akhir_masuk: new Date(tglAngkatTimestamp) },
+                  {
+                    where: {
+                      krama_id: anakIdAktif,
+                      kategori_event: "LAHIR",
+                      akhir_masuk: { [Op.between]: [awalHariLama, akhirHariLama] }
+                    },
+                    transaction: t
+                  }
+                );
+              }
+
+              await RiwayatKeluarga.update(
+                { awal_masuk: new Date(tglAngkatTimestamp) },
+                { 
+                  where: { 
+                    krama_id: anakIdAktif, 
+                    kategori_event: "PENGANGKATAN" 
+                  }, 
+                  transaction: t 
+                }
+              );
+            }
+          }
+        }
+      }
+    }
+
+    const notifikasiPromises = [];
+    const statusHubunganFinal = dataPerubahanRaw?.status_hubungan || relasi.status_hubungan;
+
+    const deskripsiNotif = nextStatusVerifikasi === "Disetujui"
+      ? `Perubahan data relasi krama sebagai ${statusHubunganFinal} untuk anak ${relasi.anak?.nama_lengkap} telah disahkan secara resmi oleh Admin Desa Bersangkutan.`
+      : `Persetujuan perubahan data relasi krama lintas desa adat diperbarui: ${catatanFinal}`;
+    
+    const kategoriNotif = nextStatusVerifikasi === "Disetujui" ? "LOG_SISTEM" : "VERIFIKASI";
+
+    if (isLintasDesaAktif) {
+      const setDesaUnik = new Set();
+      if (anakDesaId) setDesaUnik.add(parseInt(anakDesaId));
+      if (desaTujuanId) setDesaUnik.add(parseInt(desaTujuanId));
+
+      setDesaUnik.forEach((idDesa) => {
+        notifikasiPromises.push(kirimNotifikasiSistem(req, {
+          judul: nextStatusVerifikasi === "Disetujui" ? "Perubahan Relasi Lintas Desa Adat" : "Update Persetujuan Perubahan Relasi",
+          deskripsi: deskripsiNotif, 
+          kategori: kategoriNotif,
+          tautan_fitur: "/krama-bali", 
+          desa_adat_id: idDesa, 
+          sender_id: currentUserId, 
+          kontak_pesan_id: null, 
+          user_id: null
+        }, t));
+      });
+    } else {
+      notifikasiPromises.push(kirimNotifikasiSistem(req, {
+        judul: "Verifikasi Perubahan Relasi",
+        deskripsi: deskripsiNotif, 
+        kategori: kategoriNotif, 
+        tautan_fitur: "/krama-bali",
+        desa_adat_id: userDesaId || anakDesaId, 
+        sender_id: currentUserId, 
+        kontak_pesan_id: null, 
+        user_id: null
+      }, t));
+    }
+
+    await Promise.all(notifikasiPromises);
+    let dataResponFinal = null;
+
+    if (nextStatusVerifikasi === "Disetujui") {
+      dataResponFinal = await RelasiKrama.findByPk(relasiBaruId, {
+        include: [
+          { 
+            model: KramaBali, 
+            as: "anak", 
+            attributes: ["id", "nama_lengkap"] 
+          },{ 
+            model: KramaBali, 
+            as: "ayah", 
+            attributes: ["id", "nama_lengkap"] 
+          },{ 
+            model: KramaBali, 
+            as: "ibu", 
+            attributes: ["id", "nama_lengkap"] 
+          }
+        ],
+        transaction: t
+      });
+    } else {
+      dataResponFinal = relasi;
+    }
+
+    await t.commit(); 
+
+    return res.status(200).json({
+      message: nextStatusVerifikasi === "Disetujui" 
+        ? "Usulan perubahan data relasi krama berhasil disetujui penuh! Bagan silsilah baru telah dikalkulasi ulang secara resmi."
+        : `Persetujuan perubahan berhasil disimpan. ${catatanFinal}`,
+      data: dataResponFinal
+    });
+  } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback(); 
+    }
+    console.error("🔥 ERROR CONTROLLER VERIFIKASI PERUBAHAN RELASI:", error);
+    const statusCode = error.status || 500;
+    return res.status(statusCode).json({ 
+      message: error.message || "Terjadi kesalahan pada server saat memproses verifikasi perubahan relasi." 
+    });
+  }
+};
+
+export const cancelUpdateRelasiKrama = async (req, res) => {
   const { id } = req.params;
 
   const currentUserId = req.userId;
@@ -1305,18 +2026,12 @@ export const cancelUpdateRelasi = async (req, res) => {
   const t = await db.transaction();
 
   try {
-    // Validasi ketersediaan data relasi krama
     const relasi = await RelasiKrama.findByPk(id, { 
       include: [
         {
           model: KramaBali,
           as: "anak",
-          attributes: ["id", "desa_adat_id"],
-          include: [{ 
-            model: DesaAdat, 
-            as: "wilayah_adat", 
-            attributes: ["nama_desa_adat"] 
-          }]
+          attributes: ["id", "desa_adat_id", "nama_lengkap"]
         }
       ],
       transaction: t 
@@ -1329,56 +2044,59 @@ export const cancelUpdateRelasi = async (req, res) => {
       };
     }
 
-    // VALIDASI HAK AKSES MANAJEMEN DATA RELASI
-    const isOwner = relasi.user_id === currentUserId;
-    const isSuperAdmin = userRole === "Super Admin";
-
-    const isDesaMatch = userRole === "Admin Desa" && (
-      parseInt(relasi.anak?.desa_adat_id) === parseInt(userDesaId) ||
-      (relasi.desa_adat_id_tujuan && parseInt(relasi.desa_adat_id_tujuan) === parseInt(userDesaId))
-    );
-
-    if (!isOwner && !isDesaMatch && !isSuperAdmin) {
-      throw { 
-        status: 403, 
-        message: "Otoritas mengakses data ditolak!" 
-      };
-    }
-
-    if (!relasi.is_pending_update) {
+    if (!relasi.is_pending_update || !relasi.data_perubahan) {
       throw { 
         status: 400, 
         message: "Proses membatalkan dihentikan! Tidak ada usulan draft perubahan data yang aktif pada data relasi krama ini." 
       };
     }
 
+    let dataPerubahanRaw = relasi.data_perubahan;
+
+    if (dataPerubahanRaw && dataPerubahanRaw.data_perubahan) {
+      dataPerubahanRaw = dataPerubahanRaw.data_perubahan;
+    }
+
+    // VALIDASI HAK AKSES MANAJEMEN DATA RELASI
+    const isOwner = relasi.user_id === currentUserId;
+    const isSuperAdmin = userRole === "Super Admin";
+
+    const desaTujuanUsulanId = relasi.desa_adat_id_tujuan || dataPerubahanRaw?.desa_adat_id_tujuan;
+    const isDesaMatch = userRole === "Admin Desa" && (
+      parseInt(relasi.anak?.desa_adat_id) === parseInt(userDesaId) ||
+      (desaTujuanUsulanId && parseInt(desaTujuanUsulanId) === parseInt(userDesaId))
+    );
+
+    if (!isOwner && !isDesaMatch && !isSuperAdmin) {
+      throw { 
+        status: 403, 
+        message: "Otoritas mengakses data ditolak! Anda tidak memiliki hak untuk membatalkan usulan perubahan ini." 
+      };
+    }
+
     // =========================================================
     // LOGIKA PEMULIHAN STATUS & TERITORIAL FISIK
     // =========================================================
-    const statusPulih = relasi.status_sebelum_draft || "Draft";
+    const statusPulih = relasi.status_sebelum_draft || "Disetujui";
     let idApprovedAsalFinal = relasi.approved_asal_by;
     let idApprovedTujuanFinal = relasi.approved_tujuan_by;
     let catatanBaru = `Usulan perubahan data telah dibatalkan oleh ${userRole}.`;
-
     let nextDesaTujuanId = relasi.desa_adat_id_tujuan;
 
     if (statusPulih === "Ditolak") {
-      catatanBaru = "Usulan perbaikan data telah dibatalkan! Status penolakan sebelumnya dipulihkan.";
+      catatanBaru = `Usulan perbaikan data telah dibatalkan oleh ${userRole}. Status penolakan sebelumnya dipulihkan.`;
       idApprovedAsalFinal = null;
       idApprovedTujuanFinal = null;
       nextDesaTujuanId = null;
     } else if (statusPulih === "Draft") {
-      catatanBaru = "Usulan perubahan data telah dibatalkan! Status dipulihkan menjadi draft kembali.";
+      catatanBaru = `Usulan perubahan lintas desa dibatalkan oleh ${userRole}. Status dikembalikan menjadi Draft usulan awal.`;
       idApprovedAsalFinal = null;
       idApprovedTujuanFinal = null;
-      nextDesaTujuanId = null;
     } else if (statusPulih === "Disetujui") {
-      catatanBaru = "Usulan perubahan data telah dibatalkan! Struktur silsilah keluarga aktif tetap menggunakan data sah yang lama.";
-      nextDesaTujuanId = null;
-    } else if (statusPulih === "Menunggu Penerimaan") {
-      catatanBaru = "Usulan perubahan data telah dibatalkan! Status dipulihkan ke antrean peninjauan Admin Desa Tujuan/Admin Desa Orang Tua Angkat.";
-    } else if (statusPulih === "Menunggu Pelepasan") {
-      catatanBaru = "Usulan perubahan data telah dibatalkan! Status dipulihkan ke antrean peninjauan Desa Adat Asal Anak.";
+      catatanBaru = `Usulan perubahan data telah dibatalkan oleh ${userRole}. Struktur silsilah keluarga aktif tetap menggunakan data sah yang lama.`;
+      idApprovedAsalFinal = null;
+      idApprovedTujuanFinal = null;
+      nextDesaTujuanId = null; 
     }
 
     await relasi.update({
@@ -1392,11 +2110,11 @@ export const cancelUpdateRelasi = async (req, res) => {
       approved_tujuan_by: idApprovedTujuanFinal
     }, { transaction: t });
 
-    const targetDesaId = userDesaId || relasi.anak?.desa_adat_id || relasi.desa_adat_id_tujuan;
+    const targetDesaId = userDesaId || relasi.anak?.desa_adat_id;
 
     await kirimNotifikasiSistem(req, {
-      judul: "Usulan Perubahan Dibatalkan",
-      deskripsi: `Draf usulan perbaikan/perubahan relasi krama atas nama ${relasi.anak?.nama_lengkap} telah dibatalkan oleh ${userRole}.`,
+      judul: "Usulan Perubahan Relasi Dibatalkan",
+      deskripsi: `Draft usulan perbaikan/perubahan relasi krama untuk anak atas nama ${relasi.anak?.nama_lengkap} telah dibatalkan oleh ${userRole}.`,
       kategori: "LOG_SISTEM",
       tautan_fitur: "/krama-bali",
       desa_adat_id: targetDesaId,
@@ -1414,6 +2132,7 @@ export const cancelUpdateRelasi = async (req, res) => {
     if (t && !t.finished) {
       await t.rollback();
     }
+    console.error("🔥 ERROR CONTROLLER CANCEL UPDATE RELASI:", error);
     const statusCode = error.status || 500;
     return res.status(statusCode).json({ 
       message: error.message || "Terjadi kesalahan pada server saat membatalkan draft perubahan relasi krama." 
@@ -1444,7 +2163,7 @@ export const deleteRelasiKramaById = async (req, res) => {
         { 
           model: KramaBali, 
           as: "anak", 
-          attributes: ["id", "desa_adat_id"] 
+          attributes: ["id", "desa_adat_id", "nama_lengkap"] 
         }
       ],
       transaction: t
@@ -1453,22 +2172,28 @@ export const deleteRelasiKramaById = async (req, res) => {
     if (!relasi) {
       throw { 
         status: 404, 
-        message: "Data draft pengajuan relasi krama tidak ditemukan." 
+        message: "Data pengajuan relasi krama tidak ditemukan." 
       };
     }
-
+    
     if (relasi.status_verifikasi === "Disetujui") {
       throw {
         status: 400,
-        message: "Proses menghapus data dihentikan! Data relasi silsilah ini telah disetujui secara resmi dan aktif di pohon silsilah keluarga aktif."
+        message: "Proses menghapus data dihentikan! Data relasi krama ini telah diverifikasi dan disetujui."
       };
     }
 
+    if (relasi.is_pending_update) {
+      throw {
+        status: 400,
+        message: "Proses menghapus data dihentikan! Data relasi krama ini masih memiliki antrean draft perubahan data yang aktif. Batalkan usulan perubahan terlebih dahulu."
+      };
+    }
+
+    // OTORITAS HAK AKSES WILAYAH ADAT
     const anakDesaId = relasi.anak?.desa_adat_id;
     const desaTujuanId = relasi.desa_adat_id_tujuan;
     const isLintasDesa = desaTujuanId && anakDesaId && parseInt(anakDesaId) !== parseInt(desaTujuanId);
-
-    // VALIDASI OTORITAS HAK AKSES MANAJEMEN DATA
     const isOwner = relasi.user_id === currentUserId;
     const isSuperAdmin = userRole === "Super Admin";
 
@@ -1485,7 +2210,7 @@ export const deleteRelasiKramaById = async (req, res) => {
     if (!isOwner && !isSuperAdmin && !isDesaMatch) {
       throw { 
         status: 403, 
-        message: "Otoritas mengakses data ditolak!" 
+        message: "Otoritas mengakses data ditolak! Anda tidak memiliki hak akses untuk menghapus pengajuan relasi ini." 
       };
     }
 
@@ -1493,12 +2218,14 @@ export const deleteRelasiKramaById = async (req, res) => {
     await t.commit();
 
     return res.status(200).json({
-      message: "Data draft pengajuan relasi krama berhasil dihapus secara permanen dari antrean sistem."
+      message: `Data pengajuan relasi krama berstatus ${relasi.status_verifikasi.toLowerCase()} berhasil dihapus secara permanen dari antrean sistem.`
     });
+
   } catch (error) {
     if (t && !t.finished) {
       await t.rollback();
     }
+    console.error("🔥 ERROR CONTROLLER DELETE RELASI:", error);
     const statusCode = error.status || 500;
     return res.status(statusCode).json({
       message: error.message || "Terjadi kesalahan pada server saat menghapus data relasi krama."

@@ -103,50 +103,6 @@
 }
 
 .notifDropdownMenu {
-  @apply absolute top-full right-0 mt-2 w-[400px] bg-white rounded-xl border border-gray-200 z-50 overflow-hidden;
-  box-shadow:
-    0 10px 25px -5px rgba(0, 0, 0, 0.08),
-    0 8px 10px -6px rgba(0, 0, 0, 0.04);
-  animation: slideDown 0.15s ease-out;
-}
-
-.notifDropdownHeader {
-  @apply py-3 px-4 bg-gray-50/70 border-b border-gray-200/80;
-}
-
-.notifDropdownBody {
-  @apply bg-white;
-}
-
-.notifItemRow {
-  @apply flex justify-between items-center py-3 px-4 transition-all duration-150 ease-in-out border-b border-gray-50 last:border-b-0;
-}
-
-.notifItemRow:hover {
-  @apply bg-gray-50/80 cursor-pointer;
-}
-
-.notifItemRow.rowUnread {
-  @apply bg-amber-50;
-}
-
-.notifItemRow.rowRead {
-  @apply bg-white;
-}
-
-.badgeKategoriKecil {
-  @apply bg-bali-brown text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wide;
-}
-
-.btnReadKecil {
-  @apply bg-white text-amber-800 border border-amber-800/60 text-[10px] font-bold px-2.5 py-0.5 rounded transition-all duration-150 ease-in-out whitespace-nowrap;
-}
-
-.btnReadKecil:hover {
-  @apply bg-amber-800 text-white border-amber-800;
-}
-
-.notifDropdownMenu {
   @apply absolute right-0 mt-2 w-[400px] bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden;
 }
 

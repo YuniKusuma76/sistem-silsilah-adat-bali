@@ -35,12 +35,28 @@ const AturanAdatBali = db.define("tb_aturan_adat_bali", {
   },
   status_aturan: {
     type: DataTypes.ENUM("Aktif","Non-Aktif"),
-    defaultValue: "Aktif",
+    defaultValue: "Non-Aktif",
     allowNull: false
   },
   dibuat_oleh: {
     type: DataTypes.INTEGER,
     allowNull: false
+  },
+  status_sebelum_draft: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: null
+  },
+  is_pending_update: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    comment: "Field penanda adanya usulan perubahan yang belum ditinjau"
+  },
+  data_perubahan: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    comment: "Field untuk menyimpan data baru sementara sebelum di-approve"
   }
 }, {
   freezeTableName: true,

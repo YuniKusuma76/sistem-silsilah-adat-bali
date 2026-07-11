@@ -67,28 +67,31 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
     if (idKeluargaLama) {
       await Keluarga.update(
         { status_keluarga: "Aktif" },
-        { where: { id: idKeluargaLama }, transaction: t }
+        { 
+          where: { id: idKeluargaLama }, 
+          transaction: t 
+        }
       );
     }
   }
 
-  const dapatkanRentangHariISO = (stringTanggal) => {
+  const dapatkanWaktuMurniObj = (stringTanggal) => {
     if (!stringTanggal) return null;
-    const tglMurni = stringTanggal.includes('T') ? stringTanggal.split('T')[0] : stringTanggal.split(' ')[0];
-
-    const awalHari = new Date(`${tglMurni} 00:00:00`);
-    const akhirHari = new Date(`${tglMurni} 23:59:59`);
-    return {
-      [Op.between]: [awalHari, akhirHari]
-    };
+    const tglMurni = stringTanggal.includes('T') 
+      ? stringTanggal.split('T')[0] 
+      : stringTanggal.split(' ')[0];
+    const awalHari = new Date(`${tglMurni}T00:00:00.000Z`);
+    const akhirHari = new Date(`${tglMurni}T23:59:59.999Z`);
+    return { awalHari, akhirHari };
   };
 
   // KONDISI 1: ROLLBACK DAMPAK ANAK KANDUNG
   if (status_hubungan === "Anak Kandung") {
+    const waktuLahir = dapatkanWaktuMurniObj(anak.tanggal_lahir);
+    
     await RiwayatKeluarga.destroy({
       where: {
         krama_id: anak_id,
-        awal_masuk: dapatkanRentangHariISO(anak.tanggal_lahir),
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
         kedudukan: "Anggota",
@@ -106,25 +109,48 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
 
   // KONDISI 2: ROLLBACK DAMPAK ANAK ANGKAT
   if (status_hubungan === "Anak Angkat") {
-    if (!tanggal_pengangkatan) {
-      throw new Error("Tanggal pengangkatan tidak ditemukan, proses rollback dihentikan.");
+    const waktuAdopsi = tanggal_pengangkatan ? dapatkanWaktuMurniObj(tanggal_pengangkatan) : null;
+
+    let riwayatSebelumAdopsi = null;
+    
+    // mengambil riwayat sebelum pengangkatan
+    if (waktuAdopsi) {
+      riwayatSebelumAdopsi = await RiwayatKeluarga.findOne({
+        where: { 
+          krama_id: anak_id, 
+          akhir_masuk: { 
+            [Op.between]: [waktuAdopsi.awalHari, waktuAdopsi.akhirHari] 
+          } 
+        },
+        include: [{ 
+          model: Keluarga, 
+          as: "detail_keluarga", 
+          required: false 
+        }],
+        transaction: t
+      });
     }
 
-    const rentangHariAdopsi = dapatkanRentangHariISO(tanggal_pengangkatan);
-
-    const riwayatSebelumAdopsi = await RiwayatKeluarga.findOne({
-      where: { 
-        krama_id: anak_id, 
-        akhir_masuk: rentangHariAdopsi 
-      },
-      include: [{ association: "detail_keluarga" }],
-      transaction: t
-    });
+    // mencari riwayat lama yang event datenya pernah ditutup
+    if (!riwayatSebelumAdopsi) {
+      riwayatSebelumAdopsi = await RiwayatKeluarga.findOne({
+        where: { 
+          krama_id: anak_id, 
+          akhir_masuk: { [Op.ne]: null } 
+        },
+        order: [["akhir_masuk", "DESC"]],
+        include: [{ 
+          model: Keluarga, 
+          as: "detail_keluarga", 
+          required: false 
+        }],
+        transaction: t
+      });
+    }
 
     await RiwayatKeluarga.destroy({
       where: {
         krama_id: anak_id,
-        awal_masuk: rentangHariAdopsi,
         kategori_event: "PENGANGKATAN",
         bobot_event: BOBOT_EVENT["PENGANGKATAN"],
         kedudukan: "Anggota",
@@ -133,19 +159,15 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       transaction: t
     });
 
-    // Backward Stitching Reversal: Membuka kembali linimasa keluarga sebelum adopsi
-    await RiwayatKeluarga.update(
-      { akhir_masuk: null }, 
-      { 
-        where: {
-          krama_id: anak_id,
-          akhir_masuk: rentangHariAdopsi
-        },
-        transaction: t
-      }
-    );
+    // Backward Stitching Reversal: Buka kembali linimasa riwayat lama krama
+    if (riwayatSebelumAdopsi) {
+      await riwayatSebelumAdopsi.update(
+        { akhir_masuk: null },
+        { transaction: t }
+      );
+    }
 
-    // menghitung sisa draft pengangkatan sah
+    // menghitung sisa data adopsi sah yang terdaftar di orang tua ini
     const sisaAnakAngkat = await RelasiKrama.count({
       where: {
         id: { [Op.ne]: relasi_id },
@@ -163,26 +185,41 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       await RiwayatPeranAdat.destroy({
         where: {
           krama_id: kepala_keluarga_lama_id,
-          event_date: rentangHariAdopsi,
           kategori_event: "PENGANGKATAN"
         },
         transaction: t
       });
       
-      await RiwayatPeranAdat.update(
-        { selesai_tanggal: null },
-        { 
-          where: {
-            krama_id: kepala_keluarga_lama_id,
-            selesai_tanggal: rentangHariAdopsi,
-            kategori_event: "PENGANGKATAN"
-          },
-          transaction: t
-        }
-      );
+      if (waktuAdopsi) {
+        await RiwayatPeranAdat.update(
+          { selesai_tanggal: null },
+          { 
+            where: {
+              krama_id: kepala_keluarga_lama_id,
+              selesai_tanggal: { 
+                [Op.between]: [waktuAdopsi.awalHari, waktuAdopsi.akhirHari] 
+              }
+            },
+            transaction: t
+          }
+        );
+      } else {
+        await RiwayatPeranAdat.update(
+          { selesai_tanggal: null },
+          { 
+            where: { 
+              krama_id: kepala_keluarga_lama_id, 
+              selesai_tanggal: { [Op.ne]: null } 
+            },
+            order: [["selesai_tanggal", "DESC"]],
+            limit: 1,
+            transaction: t
+          }
+        );
+      }
     }
 
-    // menghapus keluarga angkat jika tidak ada entitas krama
+    // hapus total entitas keluarga angkat jika sisa krama anak angkat habis
     if (sisaAnakAngkat === 0 && kepala_keluarga_lama_id) {
       const keluargaAngkat = await Keluarga.findOne({
         where: {
@@ -209,16 +246,50 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       mode: "ANGKAT"
     }, t);
 
-    // Memulihkan Mutasi Desa Adat Anak
+    // memulihkan Mutasi Wilayah Desa Adat Anak
     if (riwayatSebelumAdopsi && riwayatSebelumAdopsi.detail_keluarga) {
       const idDesaAsal = riwayatSebelumAdopsi.detail_keluarga.desa_adat_id;
 
       if (idDesaAsal) {
         await KramaBali.update(
           { desa_adat_id: idDesaAsal },
-          { where: { id: anak_id }, transaction: t }
+          { 
+            where: { id: anak_id }, 
+            transaction: t 
+          }
         );
       }
+    }
+
+    // membuka kembali riwayat keluar keluarga kandung
+    if (waktuAdopsi) {
+      await RiwayatKeluarga.update(
+        { akhir_masuk: null },
+        {
+          where: {
+            krama_id: anak_id,
+            kategori_event: "LAHIR",
+            akhir_masuk: { 
+              [Op.between]: [waktuAdopsi.awalHari, waktuAdopsi.akhirHari] 
+            }
+          },
+          transaction: t
+        }
+      );
+    } else {
+      await RiwayatKeluarga.update(
+        { akhir_masuk: null },
+        {
+          where: {
+            krama_id: anak_id,
+            kategori_event: "LAHIR",
+            akhir_masuk: { [Op.ne]: null }
+          },
+          order: [["akhir_masuk", "DESC"]],
+          limit: 1,
+          transaction: t
+        }
+      );
     }
   }
 };
@@ -226,9 +297,10 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
 export const batalkanRelasiKrama = async (relasiId) => {
   // Mulai transaksi database
   const t = await db.transaction();
+  let transactionCommittedOrRolledBack = false;
 
   try {
-    // Validasi ketersediaan data relasi
+    // Validasi ketersediaan data relasi krama
     const relasi = await RelasiKrama.findByPk(relasiId, {
       transaction: t
     });
@@ -238,12 +310,17 @@ export const batalkanRelasiKrama = async (relasiId) => {
     }
 
     await eksekusiRollbackRelasi(relasi, t);
-    await relasi.destroy({ transaction: t });
+    
+    await RelasiKrama.destroy({
+      where: { id: relasiId },
+      transaction: t
+    });
 
     await t.commit();
+    transactionCommittedOrRolledBack = true;
     return true;
   } catch (error) {
-    if (t && !t.finished) {
+    if (!transactionCommittedOrRolledBack) {
       await t.rollback();
     }
     throw error;

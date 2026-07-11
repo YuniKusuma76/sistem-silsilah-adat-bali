@@ -101,17 +101,6 @@ export const createDesaAdat = async (req, res) => {
 
     const senderId = req.user?.id || null;
 
-    await kirimNotifikasiSistem(req, {
-      judul: "Wilayah Desa Adat Baru",
-      deskripsi: `Desa Adat ${formattedName} telah ditambahkan ke Kecamatan ${dataKecamatan.nama_kecamatan}.`,
-      kategori: "INFORMASI",
-      tautan_fitur: null,
-      desa_adat_id: null,
-      sender_id: senderId,
-      kontak_pesan_id: null,
-      user_id: null
-    });
-
     return res.status(201).json({
       message: "Data desa adat berhasil ditambahkan!",
       data: newDesa

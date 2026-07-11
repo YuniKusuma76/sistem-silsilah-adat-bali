@@ -4,6 +4,7 @@ import { buatKeluargaLeluhur } from "./keluarga.service.js";
 import { simpanRiwayatKeluarga } from "./riwayat-keluarga.service.js";
 
 export const integrasiPerkawinanLeluhur = async ({
+  nomor_pendaftaran,
   suami_id,
   istri_id,
   status_perkawinan,
@@ -49,11 +50,10 @@ export const integrasiPerkawinanLeluhur = async ({
 
   const jenisPerkawinanValid = jenis_perkawinan || "Biasa";
   const tanggalPerkawinanMurni = tanggal_perkawinan || new Date().toISOString().split('T')[0];
-
-  const jamSekarang = new Date().toTimeString().split(' ')[0];
-  const finalTanggalLeluhurDateTime = new Date(`${tanggalPerkawinanMurni} ${jamSekarang}`);
+  const finalTanggalLeluhurDateTime = new Date(`${tanggalPerkawinanMurni} ${new Date().toTimeString().split(' ')[0]}`);
 
   const perkawinan = await Perkawinan.create({
+    nomor_pendaftaran: nomor_pendaftaran,
     suami_id,
     istri_id,
     status_perkawinan: status_perkawinan || "Kawin",

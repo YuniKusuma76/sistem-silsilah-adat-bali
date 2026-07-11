@@ -1,4 +1,5 @@
 import { Op } from "sequelize";
+import { customAlphabet } from "nanoid";
 import db from "../config/db.config.js";
 import {
   KramaBali,
@@ -17,7 +18,6 @@ import { mappingAturanAdatBali } from "../services/decision-tree.service.js";
 import { simpanRiwayatPeranAdat } from "../services/riwayat-peran-adat.service.js";
 import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
 
-// Validasi Input Valid
 const VALID_JENIS_KELAMIN = [
   "Laki-laki", 
   "Perempuan", 
@@ -48,7 +48,10 @@ const BOBOT_EVENT = {
   "CERAI": 4
 };
 
-// Data Krama Include
+// Helper: membuat nomor pendafatran otomatis
+const karakter = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const generateNoRegistrasi = customAlphabet(karakter, 7);
+
 const KRAMA_INCLUDE = [
   {
     model: User,
@@ -238,6 +241,12 @@ export const getAllKrama = async (req, res) => {
                 { status_verifikasi: "Disetujui" },
                 { is_pending_update: true }
               ]
+            },
+            { 
+              [Op.and]: [
+                { status_verifikasi: "Ditolak" },
+                { is_pending_update: true }
+              ]
             }
           ]
         };
@@ -250,6 +259,19 @@ export const getAllKrama = async (req, res) => {
             },
             {
               status_verifikasi: "Disetujui",
+              is_pending_update: true,
+              [Op.or]: [
+                {
+                  [Op.and]: [
+                    { "data_perubahan.desa_adat_id": { [Op.is]: null } },
+                    { desa_adat_id: userDesaId }
+                  ]
+                },
+                {"data_perubahan.desa_adat_id": userDesaId}
+              ]
+            },
+            {
+              status_verifikasi: "Ditolak",
               is_pending_update: true,
               [Op.or]: [
                 {
@@ -298,6 +320,7 @@ export const getAllKrama = async (req, res) => {
         return {
           id: krama.id,
           nama_lengkap: krama.nama_lengkap,
+          nomor_pendaftaran: krama.nomor_pendaftaran,
           nama_panggilan: krama.nama_panggilan,
           jenis_kelamin: krama.jenis_kelamin,
           tanggal_lahir: krama.tanggal_lahir,
@@ -413,19 +436,21 @@ export const createKrama = async (req, res) => {
       tipe_data,
     } = req.body;
 
-    // Validasi input form
     if (!nama_lengkap) {
       throw { 
         status: 400, 
         message: "Nama lengkap wajib diisi!" 
       };
     }
+
     if (!VALID_TIPE_DATA.includes(tipe_data)) {
       throw { 
         status: 400, 
         message: "Tipe data tidak valid!" 
       };
     }
+
+    const finalGenerateNomor = generateNoRegistrasi();
 
     // Mulai transaksi database
     t = await db.transaction();
@@ -489,6 +514,7 @@ export const createKrama = async (req, res) => {
     }
 
     const kramaBaru = await KramaBali.create({
+      nomor_pendaftaran: finalGenerateNomor,
       nama_lengkap,
       nama_panggilan: nama_panggilan || null,
       jenis_kelamin: jenis_kelamin || "Tidak Diketahui",
@@ -530,7 +556,6 @@ export const createKrama = async (req, res) => {
       }, t);
     }
 
-    // Setting notifikasi
     if (isAuthedToApprove) {
       await kirimNotifikasiSistem(req, {
         judul: "Pendaftaran Data Krama Bali",
@@ -584,12 +609,8 @@ export const verifikasiKrama = async (req, res) => {
     const userRole = req.role;
     const userDesaId = req.desaAdatId;
 
-    const { 
-      status_verifikasi, 
-      catatan_admin_desa 
-    } = req.body;
+    const { status_verifikasi, catatan_admin_desa } = req.body;
 
-    // Validasi status verifikasi
     const VALID_STATUS = ["Disetujui", "Ditolak"];
     if (!VALID_STATUS.includes(status_verifikasi)) {
       return res.status(400).json({ 
@@ -622,9 +643,8 @@ export const verifikasiKrama = async (req, res) => {
 
     // VALIDASI ANTREAN PENGAJUAN AKTIF
     const statusSaatIni = krama.status_verifikasi;
-    const isTrueVerif = statusSaatIni === "Draft" || 
-      statusSaatIni === "Ditolak" || 
-      (statusSaatIni === "Disetujui" && krama.is_pending_update === true);
+    const isPendingUpdateData = krama.is_pending_update === true;
+    const isTrueVerif = statusSaatIni === "Draft" || statusSaatIni === "Ditolak" || (statusSaatIni === "Disetujui" && krama.is_pending_update === true);
 
     if (!isTrueVerif) {
       throw { 
@@ -638,7 +658,6 @@ export const verifikasiKrama = async (req, res) => {
     const desaTujuanId = krama.is_pending_update && krama.data_perubahan?.desa_adat_id
       ? Number(krama.data_perubahan.desa_adat_id)
       : null;
-
     const isMutasiLintasDesa = desaTujuanId && Number(desaAsalId) !== Number(desaTujuanId);
 
     if (userRole === "Admin Desa") {
@@ -662,6 +681,10 @@ export const verifikasiKrama = async (req, res) => {
       transaction: t
     });
 
+    const labelOperator = userRole === "Admin Desa" 
+      ? `Admin Desa ${krama.wilayah_adat?.nama_desa_adat || "Adat"}` 
+      : userRole;
+
     // =======================================================
     // CASE 1: VERIFIKASI DITOLAK
     // =======================================================
@@ -676,22 +699,22 @@ export const verifikasiKrama = async (req, res) => {
       const statusKembali = krama.is_pending_update 
         ? krama.status_sebelum_draft 
         : "Ditolak";
-      const labelPenolak = userRole === "Admin Desa" 
-        ? `Admin Desa ${krama.wilayah_adat?.nama_desa_adat || "Adat"}` 
-        : userRole;
 
       await krama.update({
         status_verifikasi: statusKembali,
-        catatan_admin_desa: `Data krama bali telah ditolak oleh ${labelPenolak}. ${catatan_admin_desa.trim()}`,
+        catatan_admin_desa: isPendingUpdateData ? `[PERUBAHAN DITOLAK]: ${catatan_admin_desa.trim()}.` : `[DITOLAK]: ${catatan_admin_desa.trim()}.`,
         is_pending_update: false,
         data_perubahan: null,
         status_sebelum_draft: null
       }, { transaction: t });
 
-      // Setting notifikasi
+      const deskripsiNotifTolak = isPendingUpdateData
+        ? `Usulan perubahan data krama bali atas nama ${krama.nama_lengkap} telah ditolak oleh ${labelOperator}. Catatan: ${catatan_admin_desa}`
+        : `Pengajuan pendaftaran krama bali baru atas nama ${krama.nama_lengkap} telah ditolak oleh ${labelOperator}. Catatan: ${catatan_admin_desa}`;
+
       await kirimNotifikasiSistem(req, {
-        judul: "Data Krama Bali Ditolak",
-        deskripsi: catatan_admin_desa,
+        judul: isPendingUpdateData ? "Perubahan Data Krama Bali Ditolak" : "Pendaftaran Data Krama Bali Ditolak",
+        deskripsi: deskripsiNotifTolak,
         kategori: "PERINGATAN",
         tautan_fitur: "/krama-bali/my-data",
         desa_adat_id: null,
@@ -707,7 +730,7 @@ export const verifikasiKrama = async (req, res) => {
       });
 
       return res.status(200).json({
-        message: `Data krama bali atas nama ${krama.nama_lengkap} resmi ditolak oleh ${userRole}.`,
+        message: `Data krama bali atas nama ${krama.nama_lengkap} resmi ditolak oleh ${labelOperator}.`,
         data: kramaTerbaru
       });
     }
@@ -717,18 +740,19 @@ export const verifikasiKrama = async (req, res) => {
     // ======================================================
     let finalUpdate = {
       status_verifikasi: "Disetujui",
-      catatan_admin_desa: catatan_admin_desa?.trim() || (krama.is_pending_update 
-        ? `Usulan perubahan data krama bali resmi disahkan oleh ${userRole}.`
-        : `Pengajuan pendaftaran krama bali baru telah disetujui oleh ${userRole}.`),
+      catatan_admin_desa: catatan_admin_desa?.trim() || (isPendingUpdateData 
+        ? `Usulan perubahan data krama bali resmi diverifikasi dan disetujui oleh ${userRole}.`
+        : `Pengajuan pendaftaran krama bali baru telah diverifikasi dan disetujui oleh ${userRole}.`),
       is_pending_update: false,
       status_sebelum_draft: null,
       data_perubahan: null
     };
 
+    const idDesaAsalUntukNotif = krama.desa_adat_id;
+
     // BONGKAR BUFFER JSONB: jika ada data di buffer, pindahkan ke kolom utama
-    if (krama.is_pending_update && krama.data_perubahan) {
+    if (isPendingUpdateData && krama.data_perubahan) {
       const dataBaru = krama.data_perubahan;
-      // marge data dari JSONB ke objek update
       finalUpdate = { 
         ...finalUpdate, 
         ...dataBaru 
@@ -736,8 +760,7 @@ export const verifikasiKrama = async (req, res) => {
 
       // Sinkronisasi kronologis jika ada perubahan tanggal lahir
       if (dataBaru.tanggal_lahir && krama.tipe_data === "Keturunan") {
-        const jamSekarang = new Date().toTimeString().split(' ')[0];
-        const tanggalBaruDateTime = new Date(`${dataBaru.tanggal_lahir} ${jamSekarang}`);
+        const tanggalBaruDateTime = new Date(`${dataBaru.tanggal_lahir} ${new Date().toTimeString().split(' ')[0]}`);
         
         if (riwayatPeranLama) {
           await riwayatPeranLama.update({ 
@@ -753,6 +776,7 @@ export const verifikasiKrama = async (req, res) => {
           },
           transaction: t
         });
+
         if (riwayatKeluargaExist) {
           await riwayatKeluargaExist.update({ 
             awal_masuk: tanggalBaruDateTime 
@@ -761,13 +785,8 @@ export const verifikasiKrama = async (req, res) => {
       }
     }
 
-    await krama.update(finalUpdate, { 
-      transaction: t 
-    });
-
-    const kramaRefreshed = await krama.reload({ 
-      transaction: t 
-    });
+    await krama.update(finalUpdate, { transaction: t });
+    const kramaRefreshed = krama
 
     // ===========================================================
     // LOGIKA EVALUASI DECISION TREE UNTUK DATA BARU
@@ -780,10 +799,9 @@ export const verifikasiKrama = async (req, res) => {
         const keputusan = await mappingAturanAdatBali("LAHIR", {
           jenis_kelamin: jenisKelaminAktif
         }, t);
-
-        const jamSekarang = new Date().toTimeString().split(' ')[0];
+        
         const tglMulai = tanggalLahirAktif 
-          ? new Date(`${tanggalLahirAktif} ${jamSekarang}`)
+          ? new Date(`${tanggalLahirAktif} ${new Date().toTimeString().split(' ')[0]}`)
           : new Date();
 
         if (riwayatPeranLama) {
@@ -807,11 +825,25 @@ export const verifikasiKrama = async (req, res) => {
       }
     }
 
-    // Setting multi-notifikasi
-    await Promise.all([
+    const judulNotifWarga = isPendingUpdateData ? "Perubahan Data Krama Bali Disetujui" : "Data Krama Bali Disetujui";
+    const deskripsiNotifWarga = isPendingUpdateData
+      ? `Usulan perubahan data krama bali atas nama ${kramaRefreshed.nama_lengkap} telah diverifikasi dan disetujui resmi oleh ${userRole}.`
+      : `Pengajuan pendaftaran krama bali baru atas nama ${kramaRefreshed.nama_lengkap} telah diverifikasi dan disetujui resmi oleh ${userRole}.`;
+
+    const judulLogSistem = isMutasiLintasDesa 
+      ? "Penerimaan Mutasi Krama Bali" 
+      : (isPendingUpdateData ? "Perubahan Data Krama Bali" : "Pendaftaran Krama Bali Baru");
+
+    const deskripsiLogSistem = isMutasiLintasDesa 
+      ? `Data mutasi desa adat asal krama bali atas nama ${kramaRefreshed.nama_lengkap} telah diverifikasi dan disetujui oleh Admin Desa Adat Tujuan.`
+      : (isPendingUpdateData 
+          ? `Usulan perubahan data krama bali atas nama ${kramaRefreshed.nama_lengkap} telah diverifikasi dan disetujui oleh ${userRole}.`
+          : `Pengajuan pendaftaran krama bali baru atas nama ${kramaRefreshed.nama_lengkap} telah diverifikasi dan disetujui oleh ${userRole}.`);
+
+    const notifikasiPromises = [
       kirimNotifikasiSistem(req, {
-        judul: "Data Krama Bali Disetujui",
-        deskripsi: `Pengajuan data krama bali atas nama ${kramaRefreshed.nama_lengkap} telah disetujui resmi oleh ${userRole}.`,
+        judul: judulNotifWarga,
+        deskripsi: deskripsiNotifWarga,
         kategori: "INFORMASI",
         tautan_fitur: "/krama-bali/my-data",
         desa_adat_id: null,
@@ -820,8 +852,8 @@ export const verifikasiKrama = async (req, res) => {
         user_id: kramaRefreshed.user_id
       }, t),
       kirimNotifikasiSistem(req, {
-        judul: "Penyetujuan Data Krama Bali",
-        deskripsi: `Pengajuan data krama bali atas nama ${kramaRefreshed.nama_lengkap} telah diverifikasi dan disetujui oleh ${userRole}.`,
+        judul: judulLogSistem,
+        deskripsi: deskripsiLogSistem,
         kategori: "LOG_SISTEM",
         tautan_fitur: "/krama-bali",
         desa_adat_id: kramaRefreshed.desa_adat_id,
@@ -829,8 +861,24 @@ export const verifikasiKrama = async (req, res) => {
         kontak_pesan_id: null,
         user_id: null
       }, t)
-    ]);
+    ];
 
+    if (isMutasiLintasDesa && idDesaAsalUntukNotif) {
+      notifikasiPromises.push(
+        kirimNotifikasiSistem(req, {
+          judul: "Mutasi Desa Adat Asal Krama Bali",
+          deskripsi: `Data krama bali atas nama ${kramaRefreshed.nama_lengkap} telah resmi dimutasi keluar menuju Desa Adat Tujuan setelah disetujui oleh otoritas desa adat.`,
+          kategori: "LOG_SISTEM",
+          tautan_fitur: "/krama-bali",
+          desa_adat_id: idDesaAsalUntukNotif,
+          sender_id: currentUserId,
+          kontak_pesan_id: null,
+          user_id: null
+        }, t)
+      );
+    }
+
+    await Promise.all(notifikasiPromises);
     await t.commit();
 
     const kramaTerbaru = await KramaBali.findByPk(id, {
@@ -858,14 +906,14 @@ export const updateKramaById = async (req, res) => {
 
   try {
     const { id } = req.params;
-
     const userRole = req.role;
     const userDesaId = req.desaAdatId;
     const currentUserId = req.userId;
 
     const payload = { ...req.body };
+    delete payload.nomor_pendaftaran;
 
-    // Membersihkan string kosong
+    // membersihkan string kosong
     if (payload.desa_adat_id === "") {
       payload.desa_adat_id = null;
     }
@@ -948,10 +996,9 @@ export const updateKramaById = async (req, res) => {
         status_sebelum_draft: krama.status_verifikasi,
         is_pending_update: true,
         data_perubahan: payload,
-        catatan_admin_desa: `Adanya usulan perubahan data krama bali oleh ${userRole}. Menunggu verifikasi dari Admin Desa.`
+        catatan_admin_desa: `Adanya usulan perubahan data krama bali oleh ${userRole}. Menunggu verifikasi dari Admin Desa Bersangkutan.`
       }, { transaction: t });
 
-      // Setting notifikasi
       await kirimNotifikasiSistem(req, {
         judul: "Antrean Perubahan Data Krama Bali",
         deskripsi: `Adanya perubahan data krama bali atas nama ${payload.nama_lengkap || krama.nama_lengkap} oleh ${userRole}. Menunggu verifikasi dari Admin Desa Bersangkutan.`,
@@ -1035,8 +1082,7 @@ export const updateKramaById = async (req, res) => {
     }
 
     if (payload.tanggal_lahir && krama.tipe_data === "Keturunan") {
-      const jamSekarang = new Date().toTimeString().split(' ')[0];
-      const tanggalLahirBaruDateTime = new Date(`${payload.tanggal_lahir} ${jamSekarang}`);
+      const tanggalLahirBaruDateTime = new Date(`${payload.tanggal_lahir} ${new Date().toTimeString().split(' ')[0]}`);
 
       // mengambil riwayat adat dengan kategori "LAHIR"
       const riwayatLahirExist = await RiwayatPeranAdat.findOne({
@@ -1069,11 +1115,10 @@ export const updateKramaById = async (req, res) => {
 
     const targetDesaNotif = payload.desa_adat_id !== undefined ? payload.desa_adat_id : krama.desa_adat_id;
 
-    // Setting notifikasi
     await Promise.all([
       kirimNotifikasiSistem(req, {
         judul: "Perubahan Data Krama Bali",
-        deskripsi: `Data krama bali atas nama ${payload.nama_lengkap || krama.nama_lengkap} telah diperbarui dan diverifikasi otomatis oleh sistem (Update by ${userRole}).`,
+        deskripsi: `Data krama bali atas nama ${payload.nama_lengkap || krama.nama_lengkap} telah diverifikasi dan diperbarui otomatis oleh sistem (Update by ${userRole}).`,
         kategori: "LOG_SISTEM",
         tautan_fitur: "/krama-bali",
         desa_adat_id: targetDesaNotif || userDesaId,
@@ -1081,7 +1126,6 @@ export const updateKramaById = async (req, res) => {
         kontak_pesan_id: null,
         user_id: null
       }, t),
-
       ...(krama.user_id ? [
         kirimNotifikasiSistem(req, {
           judul: "Perbaruan Data Krama Bali",
@@ -1123,7 +1167,6 @@ export const cancelUpdateKrama = async (req, res) => {
 
   try {
     const { id } = req.params;
-
     const userRole = req.role;
     const userId = req.userId;
     const userDesaId = req.desaAdatId;
@@ -1198,10 +1241,9 @@ export const cancelUpdateKrama = async (req, res) => {
       catatan_admin_desa: catatanBatal
     }, { transaction: t });
 
-    // Setting notifikasi
     await Promise.all([
       kirimNotifikasiSistem(req, {
-        judul: "Pembatalan Usulan Perubahan",
+        judul: "Pembatalan Usulan Perubahan Krama Bali",
         deskripsi: catatanBatal,
         kategori: "LOG_SISTEM",
         tautan_fitur: "/verifikasi-data/krama-bali",
@@ -1213,7 +1255,7 @@ export const cancelUpdateKrama = async (req, res) => {
 
       ...(!isOwner && krama.user_id ? [
         kirimNotifikasiSistem(req, {
-          judul: "Perubahan Dibatalkan Admin",
+          judul: "Perubahan Krama Bali Dibatalkan Admin",
           deskripsi: `Usulan perubahan data krama bali Anda atas nama ${krama.nama_lengkap} telah dibatalkan dari antrean oleh Admin Desa.`,
           kategori: "PERINGATAN",
           tautan_fitur: "/krama-bali/my-data",
@@ -1232,7 +1274,8 @@ export const cancelUpdateKrama = async (req, res) => {
     });
 
     return res.status(200).json({ 
-      message: `Berhasil membatalkan usulan perubahan data krama bali. Status dialihkan kembali menjadi: ${statusPulih}.` 
+      message: `Berhasil membatalkan usulan perubahan data krama bali. Status dialihkan kembali menjadi: ${statusPulih}.`,
+      data: kramaTerbaru
     });
   } catch (error) {
     if (t && !t.finished) {
@@ -1251,7 +1294,6 @@ export const deleteKramaById = async (req, res) => {
 
   try {
     const { id } = req.params;
-
     const userRole = req.role;
     const userId = req.userId;
     const userDesaId = req.desaAdatId;
@@ -1392,16 +1434,15 @@ export const deleteKramaById = async (req, res) => {
       }, t);
     }
 
-    // Setting notifikasi
     await kirimNotifikasiSistem(req, {
       judul: "Data Krama Bali Dihapus",
-      deskripsi: `Data krama bali atas nama ${krama.nama_lengkap} telah dihapus oleh ${userRole}.`,
+      deskripsi: `Data krama bali atas nama ${krama.nama_lengkap} (${krama.nomor_pendaftaran}) telah dihapus oleh ${userRole}.`,
       kategori: "LOG_SISTEM",
       tautan_fitur: "/krama-bali",
       desa_adat_id: krama.desa_adat_id || userDesaId,
       sender_id: userId,
       kontak_pesan_id: null,
-      user_id: null
+      user_id: null || krama.user_id
     }, t);
     
     await t.commit();

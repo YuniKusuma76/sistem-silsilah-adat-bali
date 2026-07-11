@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
   FaSearch, 
   FaArrowLeft, 
   FaInfoCircle,
-  FaSpinner
+  FaSpinner,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance';
 import Footer from '../../components/Footer/Footer';
@@ -32,10 +33,35 @@ const createSlug = (namaLengkap, tipeData, id) => {
   return `${safeName}-${safeType}-${encodedId}`;
 };
 
-const PengajuanPerkawinan = () => {
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const PengajuanPerkawinan = ({ user }) => {
   const [perkawinanList, setPerkawinanList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const notifDropdownRef = useRef(null);
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,14 +69,12 @@ const PengajuanPerkawinan = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   
-  // State alert notifikasi global
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
     message: '' 
   });
 
-  // Helper: Fungsi mengambil data perkawinan
   const fetchDataPerkawinan = async () => {
     setIsLoading(true);
     try {
@@ -61,7 +85,7 @@ const PengajuanPerkawinan = () => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: "Gagal memuat data perkawinan." 
+        message: "Gagal memuat data perkawinan adat." 
       });
     } finally {
       setIsLoading(false);
@@ -72,7 +96,52 @@ const PengajuanPerkawinan = () => {
     fetchDataPerkawinan();
   }, []);
 
-  // Effect: Alert diteruskan ke alert halaman lain
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
+
   useEffect(() => {
     if (location.state?.successMessage) {
       setAlert({ 
@@ -84,7 +153,6 @@ const PengajuanPerkawinan = () => {
     }
   }, [location]);
 
-  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -94,13 +162,11 @@ const PengajuanPerkawinan = () => {
     }
   }, [alert.show, alert.type]);
 
-  // Helper: Menangani input pencarian
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
     setCurrentPage(1);
   };
 
-  // Helper: Fungsi search filter krama
   const filteredKawin = useMemo(() => {
     if (!searchTerm.trim()) return perkawinanList;
     const term = searchTerm.toLowerCase();
@@ -119,12 +185,10 @@ const PengajuanPerkawinan = () => {
   const currentItems = filteredKawin.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredKawin.length / itemsPerPage);
 
-  // Effect: Setting current page aktif default 1
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Fungsi pergi ke next page
   const goToPage = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
@@ -171,7 +235,6 @@ const PengajuanPerkawinan = () => {
     });
   };
 
-  // Halper: Style badge status permohonan
   const getStatusClass = (status) => {
     switch (status) {
       case 'Disetujui': 
@@ -200,9 +263,83 @@ const PengajuanPerkawinan = () => {
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -263,14 +400,14 @@ const PengajuanPerkawinan = () => {
           )}
         </div>
       )}
-      {/* List Krama Bali */}
+      {/* List Perkawinan */}
       <div className={styles.contentArea}>
         <div className={styles.toolbar}>
           <div className={styles.searchWrapper}>
             <FaSearch className={styles.searchIcon} />
             <input 
               type="text" 
-              placeholder="Search..." 
+              placeholder="Cari nama suami, istri, atau jenis perkawinan..." 
               value={searchTerm}
               onChange={handleSearchChange}
               className={styles.searchInput}
@@ -367,8 +504,7 @@ const PengajuanPerkawinan = () => {
                                 message: 'Gagal memproses informasi detail. Data perkawinan tidak termuat dari server.'
                               });
                             }
-                          }}
-                        >
+                          }}>
                           <FaInfoCircle /> Detail
                         </button>
                       </td>

@@ -45,29 +45,18 @@ body {
   @apply ml-3 text-gray-400 hover:text-gray-900 focus:outline-none;
 }
 
-/* ================================================== */
-/* BELUM FIX */
-.app-loading {
-  @apply flex items-center justify-center h-screen bg-gray-50;
-}
-.app-spinner-loading {
-  @apply w-12 h-12 border-4 border-gray-200 border-t-[#3A2000] rounded-full animate-spin;
+.animate-slide-fade {
+  animation: slideFadeIn 0.4s ease-out forwards;
 }
 
-.app-text-loading {
-  @apply text-gray-600 font-medium animate-pulse;
+.animate-shrink {
+  animation: shrinkLine 3s linear forwards;
 }
 
-.app-content {
-  @apply flex w-full min-h-screen bg-gray-100 font-sans relative;
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
 }
 
-.alert-container {
-  @apply fixed top-6 right-6 z-50 flex flex-col max-w-sm w-full bg-white rounded-lg shadow-lg border-l-4 overflow-hidden animate-slide-fade;
-  z-index: 100;
-}
-
-/* Animasi */
 @keyframes slideFadeIn {
   from {
     opacity: 0;
@@ -99,17 +88,26 @@ body {
   }
 }
 
-/* Set Animasi */
-.animate-slide-fade {
-  animation: slideFadeIn 0.4s ease-out forwards;
+/* ================================================== */
+/* BELUM FIX */
+.app-loading {
+  @apply flex items-center justify-center h-screen bg-gray-50;
+}
+.app-spinner-loading {
+  @apply w-12 h-12 border-4 border-gray-200 border-t-[#3A2000] rounded-full animate-spin;
 }
 
-.animate-shrink {
-  animation: shrinkLine 3s linear forwards;
+.app-text-loading {
+  @apply text-gray-600 font-medium animate-pulse;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out forwards;
+.app-content {
+  @apply flex w-full min-h-screen bg-gray-100 font-sans relative;
+}
+
+.alert-container {
+  @apply fixed top-6 right-6 z-50 flex flex-col max-w-sm w-full bg-white rounded-lg shadow-lg border-l-4 overflow-hidden animate-slide-fade;
+  z-index: 100;
 }
 
 /* ================================================================================================================================================ */

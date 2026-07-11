@@ -62,6 +62,7 @@ const DataKramaEditKrama = ({ user }) => {
   
   // STATE KRAMA UTAMA: Form input data krama bali
   const [kramaData, setKramaData] = useState({
+    nomor_pendaftaran: "",
     nama_lengkap: "",
     nama_panggilan: "",
     jenis_kelamin: "",
@@ -140,6 +141,7 @@ const DataKramaEditKrama = ({ user }) => {
 
         if (resKrama) {
           setKramaData({
+            nomor_pendaftaran: resKrama.nomor_pendaftaran || "",
             nama_lengkap: resKrama.nama_lengkap || "",
             nama_panggilan: resKrama.nama_panggilan || "",
             jenis_kelamin: resKrama.jenis_kelamin || "",
@@ -343,6 +345,7 @@ const DataKramaEditKrama = ({ user }) => {
     try {
       setIsLoading(true);
       const payloadKrama = { ...kramaData };
+      delete payloadKrama.nomor_pendaftaran;
 
       if (payloadKrama.desa_adat_id === "") {
         payloadKrama.desa_adat_id = null;
@@ -540,6 +543,18 @@ const DataKramaEditKrama = ({ user }) => {
                 Data Diri Krama Bali
               </h3>
               <div className="space-y-5">
+                <div className="flex flex-col space-y-1">
+                  <label className={styles.labelInput}>
+                    Nomor Pendaftaran
+                  </label>
+                  <input 
+                    type="text"
+                    name="nomor_pendaftaran" 
+                    value={kramaData.nomor_pendaftaran || "-"} 
+                    className={styles.disableFieldReg} 
+                    disabled={true}
+                  />
+                </div>
                 {/* Tipe Data */}
                 <div className="flex flex-col space-y-1">
                   <label className={styles.labelInput}>
@@ -686,7 +701,6 @@ const DataKramaEditKrama = ({ user }) => {
                 {kramaData.is_bali ? (
                   <div className="space-y-4 animate-fade-in">
                     <div className={styles.isBaliDual}>
-                      {/* Search Select Desa Adat */}
                       <div className="flex flex-col space-y-1.5 relative">
                         <label className={styles.labelInput}>
                           Desa Adat Asal {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
@@ -710,7 +724,6 @@ const DataKramaEditKrama = ({ user }) => {
                           <div className={styles.termsIcon}>
                             <FaChevronDown size={12} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                           </div>
-                          {/* Dropdown Hasil Pencarian */}
                           {isDropdownOpen && (
                             <>
                               <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)}></div>

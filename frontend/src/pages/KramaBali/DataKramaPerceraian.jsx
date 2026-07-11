@@ -636,9 +636,43 @@ const DataKramaPerceraian = ({ user }) => {
         }
 
         let targetPasanganId = safeInt(m.pasangan_id);
-
         if (!targetPasanganId) {
           throw new Error("Data identitas pasangan tidak ditemukan.");
+        }
+
+        const stringTanggalKawinDb = safeDate(m.tanggal_perkawinan); 
+        const stringTanggalCeraiForm = safeDate(m.tanggal_cerai);
+        let tglCeraiFinal;
+
+        if (!stringTanggalCeraiForm || stringTanggalCeraiForm === stringTanggalKawinDb) {
+          tglCeraiFinal = new Date().toISOString();
+        } else {
+          tglCeraiFinal = stringTanggalCeraiForm;
+        }
+
+        let pihakMeninggalFinal = null;
+        if (m.status_perkawinan === "Cerai Mati") {
+          const pilihanForm = m.pihak_meninggal || "Pasangan";
+          const kramaUtamaLaki = kramaData?.jenis_kelamin === "Laki-laki";
+
+          if (m.jenis_perkawinan === "Pade Gelahang") {
+            pihakMeninggalFinal = kramaUtamaLaki 
+              ? (pilihanForm === "Pasangan" ? "Istri" : "Suami")
+              : (pilihanForm === "Pasangan" ? "Suami" : "Istri");
+          } else if (m.jenis_perkawinan === "Nyentana") {
+            pihakMeninggalFinal = kramaUtamaLaki
+              ? (pilihanForm === "Pasangan" ? "Purusa" : "Predana")
+              : (pilihanForm === "Pasangan" ? "Predana" : "Purusa");
+          } else {
+            pihakMeninggalFinal = kramaUtamaLaki
+              ? (pilihanForm === "Pasangan" ? "Predana" : "Purusa")
+              : (pilihanForm === "Pasangan" ? "Purusa" : "Predana");
+          }
+        }
+
+        let pilihanPredanaFinal = "Kembali ke Asal";
+        if (m.pilihan_predana === "Tetap di Tempat" || m.pilihan_predana === "Tetap") {
+          pilihanPredanaFinal = "Tetap";
         }
 
         const payloadPutBackend = {
@@ -646,13 +680,13 @@ const DataKramaPerceraian = ({ user }) => {
           suami_id: kramaData?.jenis_kelamin === "Laki-laki" ? mainId : targetPasanganId,
           istri_id: kramaData?.jenis_kelamin === "Laki-laki" ? targetPasanganId : mainId,
           jenis_perkawinan: m.jenis_perkawinan,
-          tanggal_event: safeDate(m.tanggal_cerai), 
+          tanggal_event: tglCeraiFinal,
           status_perkawinan: m.status_perkawinan,
-          pihak_meninggal: m.status_perkawinan === "Cerai Mati" ? (m.pihak_meninggal || "Pasangan") : null,
-          pilihan_predana: m.status_perkawinan === "Cerai Mati" ? (m.pilihan_predana || "Kembali ke Asal") : (m.pilihan_predana || "Kembali ke Asal"),
+          pihak_meninggal: pihakMeninggalFinal, 
+          pilihan_predana: pilihanPredanaFinal,
           catatan_update: m.catatan_update
         };
-
+        
         const resUpdate = await axiosInstance.put(`/perkawinan/cerai/${m.id_asli_db}`, payloadPutBackend);
         console.log(resUpdate.data);
       }
@@ -661,7 +695,6 @@ const DataKramaPerceraian = ({ user }) => {
         state: { successMessage: 'Data perceraian perkawinan adat berhasil disimpan!' },
         replace: true
       });
-
     } catch (error) {
       console.error(error);
       setAlert({ 
@@ -1226,13 +1259,31 @@ const DataKramaPerceraian = ({ user }) => {
                                             setOpenDropdownIndex(null);
                                             setSearchPasangan({ ...searchPasangan, [index]: k.nama_lengkap });
                                           }}>
-                                          <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
-                                          <p className="text-[10px] text-gray-500 uppercase italic">
-                                            {k.is_bali 
-                                              ? (desaList.find(d => String(d.id) === String(k.desa_adat_id))?.nama_desa_adat || "Asal Bali")
-                                              : (k.alamat_luar || "Luar Bali")
-                                            } • {k.nama_panggilan || k.tipe_data}
-                                          </p>
+                                          <div className="flex items-baseline gap-1.5">
+                                              <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
+                                              {k.nomor_pendaftaran && (
+                                                <span className="text-[10px] font-mono font-bold text-gray-600 bg-gray-100 px-1 rounded">
+                                                  [{k.nomor_pendaftaran}]
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className="text-[10px] text-gray-500 uppercase italic">
+                                              {(() => {
+                                                const desaAdat = k.desa_adat_id 
+                                                  ? desaList.find(d => String(d.id) === String(k.desa_adat_id))
+                                                  : null;
+                                                if (desaAdat) {
+                                                  return desaAdat.nama_desa_adat;
+                                                }
+                                                if (k.is_bali === true || k.is_bali === "true" || k.is_bali === 1) {
+                                                  return "Asal Bali";
+                                                }
+                                                if (k.tipe_data === "Leluhur") {
+                                                  return "Asal Bali (Leluhur)";
+                                                }
+                                                return k.alamat_luar || "Luar Bali";
+                                              })()} • {k.nama_panggilan || k.tipe_data || "Krama"}
+                                            </p>
                                         </div>
                                       ))
                                     ) : (
@@ -1244,48 +1295,67 @@ const DataKramaPerceraian = ({ user }) => {
                                 </>
                               )}
                             </div>
-                            {/* Preview Pasangan */}
-                            {pasanganTerpilih && !m.isPasanganBaru && (
-                              <div className={`${styles.preview} animate-fade-in`}>
-                                <div className={styles.previewTitle}>
-                                  <FaInfoCircle className="text-blue-600 mb-0.5" /> Preview Ringkas Data Diri Pasangan
+                            {/* Preview Pasangan Terpilih */}
+                            {pasanganTerpilih && !m.isPasanganBaru && (() => {
+                              const desaAdatPasangan = pasanganTerpilih.desa_adat_id
+                                ? desaList.find(d => String(d.id) === String(pasanganTerpilih.desa_adat_id))
+                                : null;
+
+                              return (
+                                <div className={`${styles.preview} animate-fade-in`}>
+                                  <div className={styles.previewTitle}>
+                                    <FaInfoCircle className="text-blue-600 mb-0.5" /> Preview Ringkas Data Diri Pasangan
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-700">
+                                    <div>
+                                      <span className={styles.previewLabel}>
+                                        Nama Lengkap
+                                      </span>
+                                      <span className="font-semibold text-gray-900">{pasanganTerpilih.nama_lengkap}</span>
+                                    </div>
+                                    <div>
+                                      <span className={styles.previewLabel}>
+                                        Status Hidup/Tipe Data
+                                      </span>
+                                      <span className={`font-semibold ${pasanganTerpilih.status_hidup === 'Meninggal' ? 'text-red-600' : 'text-green-600'}`}>
+                                        {pasanganTerpilih.status_hidup || "Hidup"}
+                                      </span>
+                                      <span className="text-gray-500 font-normal"> ({pasanganTerpilih.tipe_data})</span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className={styles.previewLabel}>
+                                        Jenis Kelamin
+                                      </span>
+                                      <span className="font-medium">{pasanganTerpilih.jenis_kelamin}</span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className={styles.previewLabel}>
+                                        Wilayah Adat Asal/Alamat Asal
+                                      </span>
+                                      <span className="font-medium">
+                                        {desaAdatPasangan ? (
+                                          <span className="text-blue-700 font-medium">
+                                            Desa Adat {desaAdatPasangan.nama_desa_adat}
+                                          </span>
+                                        ) : pasanganTerpilih.is_bali ? (
+                                          "Asal Bali"
+                                        ) : (
+                                          pasanganTerpilih.alamat_luar || "Luar Bali"
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className={styles.previewLabel}>
+                                        Nomor Pendaftaran Krama
+                                      </span>
+                                      <span className="font-mono font-bold text-xs">
+                                        {pasanganTerpilih.nomor_pendaftaran || "-"}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-700">
-                                  <div>
-                                    <span className={styles.previewLabel}>
-                                      Nama Lengkap
-                                    </span>
-                                    <span className="font-semibold text-gray-900">{pasanganTerpilih.nama_lengkap}</span>
-                                  </div>
-                                  <div>
-                                    <span className={styles.previewLabel}>
-                                      Status Hidup/Tipe Data
-                                    </span>
-                                    <span className={`font-semibold ${pasanganTerpilih.status_hidup === 'Meninggal' ? 'text-red-600' : 'text-green-600'}`}>
-                                      {pasanganTerpilih.status_hidup || "Hidup"}
-                                    </span>
-                                    <span className="text-gray-500 font-normal"> ({pasanganTerpilih.tipe_data})</span>
-                                  </div>
-                                  <div className="mt-1">
-                                    <span className={styles.previewLabel}>
-                                      Jenis Kelamin
-                                    </span>
-                                    <span className="font-medium">{pasanganTerpilih.jenis_kelamin}</span>
-                                  </div>
-                                  <div className="mt-1">
-                                    <span className={styles.previewLabel}>
-                                      Wilayah Adat Asal/Alamat Asal
-                                    </span>
-                                    <span className="font-medium">
-                                      {pasanganTerpilih.is_bali 
-                                        ? (desaList.find(d => String(d.id) === String(pasanganTerpilih.desa_adat_id))?.nama_desa_adat || "Asal Bali")
-                                        : (pasanganTerpilih.alamat_luar || "Luar Bali")
-                                      }
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                           </div>
                           {/* Data Detail jika Pasangan Baru */}
                           {m.isPasanganBaru && !m.isDataLamaTerunci && (

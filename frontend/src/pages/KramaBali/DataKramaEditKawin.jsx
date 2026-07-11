@@ -650,6 +650,7 @@ const DataKramaEditKawin = ({ user }) => {
         }
 
         let targetPasanganId = safeInt(m.pasangan_id);
+        let namaPasanganTerbaca = m.nama_pasangan || m.nama_lengkap || "";
 
         if (m.isPasanganBaru && m.dataPasanganBaru) {
           const payloadSpouse = { ...m.dataPasanganBaru };
@@ -682,6 +683,7 @@ const DataKramaEditKawin = ({ user }) => {
 
           const rawSpouseId = spouseRes.data?.data?.id || spouseRes.data?.id || spouseRes.data?.data?.krama?.id;
           targetPasanganId = safeInt(rawSpouseId);
+          namaPasanganTerbaca = m.dataPasanganBaru?.nama_lengkap || "";
         }
 
         if (!targetPasanganId) {
@@ -697,7 +699,10 @@ const DataKramaEditKawin = ({ user }) => {
           status_perkawinan: m.status_perkawinan, 
           pihak_meninggal: m.tipe_update === "PERCERAIAN" ? (m.pihak_meninggal || null) : null,
           pilihan_predana: m.tipe_update === "PERCERAIAN" ? (m.pilihan_predana || null) : null,
-          catatan_update: m.catatan_update || `Perubahan data utama perkawinan relasi purusa-predana silsilah keluarga.`
+          catatan_update: JSON.stringify({
+            keterangan: m.catatan_update || `Perubahan data utama perkawinan relasi purusa-predana.`,
+            nama_pasangan_baru: namaPasanganTerbaca
+          })
         };
 
         if (m.id_asli_db) {
@@ -1181,7 +1186,6 @@ const DataKramaEditKawin = ({ user }) => {
                                 value={m.status_perkawinan} 
                                 onChange={(e) => handlePerkawinanChange(index, "status_perkawinan", e.target.value)} 
                                 className={`${styles.inputPilihan} ${m.isDataLamaTerunci ? 'bg-gray-100 cursor-not-allowed text-gray-600' : ''}`}
-                                disabled={m.isDataLamaTerunci} 
                                 disabled={true}>
                                 <option value="Kawin">Kawin</option>
                                 <option value="Cerai Hidup">Cerai Hidup</option>

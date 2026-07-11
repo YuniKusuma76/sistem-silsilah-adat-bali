@@ -1,8 +1,10 @@
+import { Op } from "sequelize";
 import db from "../config/db.config.js";
 import {
   Perkawinan,
   KramaBali,
-  RiwayatPeranAdat
+  RiwayatPeranAdat,
+  Keluarga
 } from "../models/associations.js";
 import {
   buatKeluargaBali,
@@ -29,10 +31,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
   user_desa_id,
   target_sisi,
   nama_desa_operator
-}) => {
-  // Mulai transaksi database
-  const t = await db.transaction();
-
+}, t) => {
   try {
     // Validasi ketersediaan data perkawinan
     const perkawinan = await Perkawinan.findByPk(perkawinan_id, { 
@@ -52,12 +51,9 @@ export const eksekusiVerifikasiPerkawinan = async ({
 
     const existingCatatan = perkawinan.catatan_admin_desa || {};
     const infoTambahanDasar = !tanggal_perkawinan ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal perkawinan kosong)." : "";
-    
     const tanggalPerkawinanMurni = tanggal_perkawinan || new Date().toISOString().split('T')[0];
+    const finalTanggalPerkawinan = new Date(`${tanggalPerkawinanMurni} ${new Date().toTimeString().split(' ')[0]}`);
 
-    const jamSekarang = new Date().toTimeString().split(' ')[0];
-    const finalTanggalPerkawinan = new Date(`${tanggalPerkawinanMurni} ${jamSekarang}`);
-    
     // STATUS VERIFIKASI BERDASARKAN ROLE
     let newCatatanAdmin = { ...existingCatatan };
 
@@ -95,7 +91,6 @@ export const eksekusiVerifikasiPerkawinan = async ({
         catatan_admin_desa: newCatatanAdmin
       }, { transaction: t });
 
-      await t.commit();
       return { 
         type: "PENOLAKAN", 
         data: perkawinanDitolak 
@@ -121,7 +116,6 @@ export const eksekusiVerifikasiPerkawinan = async ({
         catatan_admin_desa: newCatatanAdmin
       }, { transaction: t });
 
-      await t.commit();
       return { 
         type: "PADE_GELAHANG_PARSIAL", 
         data: perkawinanParsial 
@@ -139,34 +133,99 @@ export const eksekusiVerifikasiPerkawinan = async ({
 
     // PROSES 1: Jalur Integrasi Perkawinan Leluhur
     if (suami.tipe_data === "Leluhur" || istri.tipe_data === "Leluhur") {
-      const keluargaLeluhur = await buatKeluargaLeluhur({ 
-        kepala_keluarga_id: suami_id 
-      }, t);
+      if (jenis_perkawinan !== "Pade Gelahang") {
+        const isNyentana = jenis_perkawinan === "Nyentana";
+        const kepalaId = isNyentana ? istri_id : suami_id;
+        const anggotaId = isNyentana ? suami_id : istri_id;
 
-      await Promise.all([
-        simpanRiwayatKeluarga({
+        const keluargaLeluhur = await buatKeluargaLeluhur({ 
+          kepala_keluarga_id: kepalaId 
+        }, t);
+
+        await Promise.all([
+          simpanRiwayatKeluarga({
+            krama_id: kepalaId,
+            keluarga_id: keluargaLeluhur.id,
+            perkawinan_id: perkawinan.id,
+            kedudukan: "Kepala Keluarga",
+            kategori_event: "KAWIN",
+            bobot_event: BOBOT_EVENT["KAWIN"],
+            dasar_keputusan: isNyentana 
+              ? "Kedudukan sebagai kepala keluarga diberikan karena krama ini berstatus Purusa Nyentana dalam sejarah silsilah keluarga leluhur."
+              : "Kedudukan sebagai kepala keluarga diberikan karena krama ini merupakan penerus garis keturunan (Purusa) untuk keluarga leluhurnya.",
+            event_date: finalTanggalPerkawinan,
+            allow_multiple: true
+          }, t),
+          simpanRiwayatKeluarga({
+            krama_id: anggotaId,
+            keluarga_id: keluargaLeluhur.id,
+            perkawinan_id: perkawinan.id,
+            kedudukan: "Anggota",
+            kategori_event: "KAWIN",
+            bobot_event: BOBOT_EVENT["KAWIN"],
+            dasar_keputusan: isNyentana
+              ? "Kedudukan sebagai anggota diberikan karena krama ini tercatat sebagai suami yang masuk ke dalam keluarga purusa istri (Nyentana)."
+              : "Kedudukan sebagai anggota diberikan karena krama ini tercatat sebagai istri (Predana) dalam catatan Trah Bali.",
+            event_date: finalTanggalPerkawinan,
+            allow_multiple: true
+          }, t)
+        ]);
+      }
+
+      if (jenis_perkawinan === "Pade Gelahang") {
+        const [keluargaSuami, keluargaIstri] = await Promise.all([
+          buatKeluargaLeluhur({ kepala_keluarga_id: suami_id }, t),
+          buatKeluargaLeluhur({ kepala_keluarga_id: istri_id }, t)
+        ]);
+
+        await simpanRiwayatKeluarga({
           krama_id: suami_id,
-          keluarga_id: keluargaLeluhur.id,
+          keluarga_id: keluargaSuami.id,
           perkawinan_id: perkawinan.id,
           kedudukan: "Kepala Keluarga",
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
-          dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan karena krama ini merupakan penerus garis keturunan untuk keluarganya.",
+          dasar_keputusan: "Kedudukan sebagai kepala keluarga leluhur diberikan kepada krama ini karena berstatus purusa di garis keturunan asalnya pada perkawinan Pade Gelahang.",
           event_date: finalTanggalPerkawinan,
           allow_multiple: true
-        }, t),
-        simpanRiwayatKeluarga({
+        }, t);
+
+        await simpanRiwayatKeluarga({
           krama_id: istri_id,
-          keluarga_id: keluargaLeluhur.id,
+          keluarga_id: keluargaSuami.id,
           perkawinan_id: perkawinan.id,
           kedudukan: "Anggota",
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
-          dasar_keputusan: "Kedudukan sebagai anggota diberikan karena krama ini tercatat sebagai istri dalam catatan Trah Bali.",
+          dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini sebagai pendamping predana di silsilah keluarga suaminya pada perkawinan Pade Gelahang.",
           event_date: finalTanggalPerkawinan,
           allow_multiple: true
-        }, t)
-      ]);
+        }, t);
+
+        await simpanRiwayatKeluarga({
+          krama_id: istri_id,
+          keluarga_id: keluargaIstri.id,
+          perkawinan_id: perkawinan.id,
+          kedudukan: "Kepala Keluarga",
+          kategori_event: "KAWIN",
+          bobot_event: BOBOT_EVENT["KAWIN"],
+          dasar_keputusan: "Kedudukan sebagai kepala keluarga leluhur diberikan kepada krama ini karena berstatus purusa di garis keturunan asalnya pada perkawinan Pade Gelahang.",
+          event_date: finalTanggalPerkawinan,
+          allow_multiple: true
+        }, t);
+
+        await simpanRiwayatKeluarga({
+          krama_id: suami_id,
+          keluarga_id: keluargaIstri.id,
+          perkawinan_id: perkawinan.id,
+          kedudukan: "Anggota",
+          kategori_event: "KAWIN",
+          bobot_event: BOBOT_EVENT["KAWIN"],
+          dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini sebagai pendamping predana di silsilah keluarga istrinya pada perkawinan Pade Gelahang.",
+          event_date: finalTanggalPerkawinan,
+          allow_multiple: true
+        }, t);
+      }
 
       const perkawinanLeluhur = await perkawinan.update({
         status_verifikasi: "Disetujui", 
@@ -175,7 +234,6 @@ export const eksekusiVerifikasiPerkawinan = async ({
         catatan_admin_desa: newCatatanAdmin
       }, { transaction: t });
 
-      await t.commit();
       return { 
         type: "PERKAWINAN_LELUHUR", 
         data: perkawinanLeluhur 
@@ -189,7 +247,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
       where: {
         suami_id,
         status_perkawinan: "Kawin",
-        id: { [db.Sequelize.Op.ne]: perkawinan_id }
+        id: { [Op.ne]: perkawinan_id }
       },
       transaction: t
     });
@@ -199,7 +257,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
       const perkawinanPertama = await Perkawinan.findOne({
         where: { 
           suami_id,
-          id: { [db.Sequelize.Op.ne]: perkawinan_id } 
+          id: { [Op.ne]: perkawinan_id } 
         },
         order: [["tanggal_perkawinan", "ASC"]],
         transaction: t
@@ -213,10 +271,6 @@ export const eksekusiVerifikasiPerkawinan = async ({
         },
         transaction: t
       });
-      
-      if (!statusPurusaPertama) {
-        throw new Error("Krama ini tidak dapat melakukan poligami karena tidak berstatus purusa pada perkawinan pertamanya.");
-      }
 
       isPoligami = true;
     }
@@ -239,6 +293,21 @@ export const eksekusiVerifikasiPerkawinan = async ({
         isPoligami: false 
       }, t)
     ]);
+
+    // menutup riwayat peran adat perkawinan pertama suami
+    if (isPoligami) {
+      await RiwayatPeranAdat.update(
+        { selesai_tanggal: finalTanggalPerkawinan },
+        {
+          where: {
+            krama_id: suami_id,
+            selesai_tanggal: null,
+            status_peran_adat: "Purusa"
+          },
+          transaction: t
+        }
+      );
+    }
 
     await Promise.all([
       simpanRiwayatPeranAdat({ 
@@ -272,26 +341,38 @@ export const eksekusiVerifikasiPerkawinan = async ({
         event_date: finalTanggalPerkawinan, t 
       });
 
-      if (!isPoligami) {
+      let keluargaTarget = null;
+
+      if (isPoligami) {
+        keluargaTarget = await Keluarga.findOne({
+          where: {
+            kepala_keluarga_id: suami_id,
+            status_keluarga: "Aktif"
+          },
+          transaction: t
+        });
+      } else {
         await tutupKeluargaAktif({ 
           kepala_keluarga_id: suami_id, 
           event_date: finalTanggalPerkawinan, t 
         });
+
+        const purusaId = peranSuami.status_peran_adat === "Purusa" ? suami_id : istri_id;
+
+        keluargaTarget = await buatKeluargaBali({
+          kepala_keluarga_id: purusaId,
+          jenis_keluarga: jenis_perkawinan
+        }, t);
       }
 
       // menentukan status peran adat purusa dan predana
       const purusa = peranSuami.status_peran_adat === "Purusa" ? suami : istri;
       const predana = purusa.id === suami.id ? istri : suami;
-      
-      const keluarga = await buatKeluargaBali({
-        kepala_keluarga_id: purusa.id,
-        jenis_keluarga: jenis_perkawinan,
-      }, t);
 
       await Promise.all([
         simpanRiwayatKeluarga({
           krama_id: purusa.id,
-          keluarga_id: keluarga.id,
+          keluarga_id: keluargaTarget.id,
           perkawinan_id: perkawinan.id,
           kedudukan: "Kepala Keluarga",
           kategori_event: "KAWIN",
@@ -304,12 +385,14 @@ export const eksekusiVerifikasiPerkawinan = async ({
         }, t),
         simpanRiwayatKeluarga({
           krama_id: predana.id,
-          keluarga_id: keluarga.id,
+          keluarga_id: keluargaTarget.id,
           perkawinan_id: perkawinan.id,
           kedudukan: "Anggota",
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
-          dasar_keputusan: "Kedudukan sebagai anggota diberikan karena krama ini berstatus predana dalam perkawinannya.",
+          dasar_keputusan: isPoligami
+            ? "Kedudukan sebagai anggota diberikan kepada istri berikutnya untuk masuk ke dalam keluarga purusa suami karena terlibat perkawinan poligami."
+            : "Kedudukan sebagai anggota diberikan karena krama ini berstatus predana dalam perkawinannya.",
           event_date: finalTanggalPerkawinan
         }, t)
       ]);
@@ -321,7 +404,6 @@ export const eksekusiVerifikasiPerkawinan = async ({
         catatan_admin_desa: newCatatanAdmin
       }, { transaction: t });
 
-      await t.commit();
       return { 
         type: "PERKAWINAN_AKTIF", 
         data: perkawinanUmum
@@ -352,7 +434,6 @@ export const eksekusiVerifikasiPerkawinan = async ({
       ]);
 
       await Promise.all([
-        // Menyimpan riwayat keluarga untuk keluarga pihak suami
         simpanRiwayatKeluarga({
           krama_id: suami_id,
           keluarga_id: keluargaSuami.id,
@@ -375,7 +456,6 @@ export const eksekusiVerifikasiPerkawinan = async ({
           event_date: finalTanggalPerkawinan,
           allow_multiple: true
         }, t),
-        // Menyimpan riwayat keluarga untuk keluarga pihak istri
         simpanRiwayatKeluarga({
           krama_id: istri_id,
           keluarga_id: keluargaIstri.id,
@@ -407,14 +487,12 @@ export const eksekusiVerifikasiPerkawinan = async ({
         catatan_admin_desa: newCatatanAdmin
       }, { transaction: t });
 
-      await t.commit();
       return { 
         type: "PERKAWINAN_PADE_GELAHANG", 
         data: perkawinanUnik 
       };
     }
   } catch (error) {
-    await t.rollback();
     throw error;
   }
 };

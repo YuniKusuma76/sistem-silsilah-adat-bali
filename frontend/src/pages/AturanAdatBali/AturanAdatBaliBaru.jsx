@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -13,9 +13,34 @@ import axiosInstance from '../../api/axiosInstance';
 import Footer from '../../components/Footer/Footer';
 import styles from './AturanAdatBaliBaru.module.css';
 
-const AturanAdatBaliBaru = () => {
+// Helper: Membuat format waktu
+const formatWaktuRelatif = (dateString) => {
+  const tanggalNotif = new Date(dateString);
+  const sekarang = new Date();
+  const selisihMiliDetik = sekarang - tanggalNotif;
+  
+  const selisihMenit = Math.floor(selisihMiliDetik / (1000 * 60));
+  const selisihJam = Math.floor(selisihMiliDetik / (1000 * 60 * 60));
+
+  if (selisihMenit < 1) return "Baru saja";
+  if (selisihMenit < 60) return `${selisihMenit} menit yang lalu`;
+  if (selisihJam < 24) return `${selisihJam} jam yang lalu`;
+  
+  return tanggalNotif.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const AturanAdatBaliBaru = ({ user }) => {
   const navigate = useNavigate();
+  const notifDropdownRef = useRef(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [jumlahNotif, setJumlahNotif] = useState(0);
+  const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
+  const [listNotifikasi, setListNotifikasi] = useState([]);
 
   const [formData, setFormData] = useState({
     nama_aturan: '',
@@ -31,14 +56,12 @@ const AturanAdatBaliBaru = () => {
     { key: 'isPoligami', value: '' }
   ]);
 
-  // State alert notifikasi global
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
     message: '' 
   });
   
-  // Helper: Menangani perubahan input form
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -46,7 +69,6 @@ const AturanAdatBaliBaru = () => {
     }));
   };
 
-  // Helper: Menangani perubahan input kriteria kondisi
   const handleKriteriaChange = (index, field, value) => {
     const updatedRows = [...kriteriaRows];
     updatedRows[index][field] = value;
@@ -64,37 +86,74 @@ const AturanAdatBaliBaru = () => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Minimal harus ada 1 kriteria kondisi.' 
+        message: 'Minimal harus ada 1 kriteria kondisi pada aturan Adat Bali.' 
       });
       return;
     }
     setKriteriaRows(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Effect: Auto-close alert
   useEffect(() => {
-    if (alert.show) {
-      const timer = setTimeout(() => setAlert(prev => ({ 
-        ...prev, 
-        show: false 
-      })), 3000);
+    const handleClickOutside = (event) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setIsDropdownNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
+  const fetchNotifikasiLengkap = async () => {
+    if (!user) return;
+    try {
+      const response = await axiosInstance.get('/notifikasi/personal');
+      setListNotifikasi(response.data.data || []);
+      const unread = response.data.data.filter(n => !n.is_read).length;
+      setJumlahNotif(unread);
+    } catch (error) {
+      console.error("Gagal mengambil list notifikasi masuk", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifikasiLengkap();
+    const interval = setInterval(fetchNotifikasiLengkap, 30000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleTandaiDibaca = async (notifId) => {
+    try {
+      await axiosInstance.patch(`/notifikasi/read/${notifId}`);
+      await fetchNotifikasiLengkap();
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.message || "Gagal membaca notifikasi yang masuk.";
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: errorMessage 
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (alert.show && alert.type !== 'loading') {
+      const timer = setTimeout(() => {
+        setAlert(prev => ({ ...prev, show: false }));
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [alert.show]);
+  }, [alert.show, alert.type]);
 
-  // SUBMIT DATA
+  // SUBMIT DATA:
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Validasi form
-    if (
-      !formData.nama_aturan.trim() || 
-      !formData.kategori || 
-      !formData.status_peran_adat || 
-      !formData.garis_keturunan || 
-      !formData.dasar_keputusan.trim()
-    ) {
+    if ( !formData.nama_aturan.trim() || !formData.kategori || !formData.status_peran_adat || !formData.garis_keturunan || !formData.dasar_keputusan.trim()) {
       setAlert({ 
         show: true, 
         type: 'error', 
@@ -120,7 +179,6 @@ const AturanAdatBaliBaru = () => {
       let finalValue = row.value.trim();
       if (finalValue.toLowerCase() === 'true') finalValue = true;
       if (finalValue.toLowerCase() === 'false') finalValue = false;
-
       kriteria_kondisi[row.key.trim()] = finalValue;
     }
 
@@ -132,16 +190,14 @@ const AturanAdatBaliBaru = () => {
     try {
       await axiosInstance.post('/aturan-adat', payload);
       navigate('/aturan-adat-bali', { 
-        state: { 
-          successMessage: 'Aturan Adat Bali baru berhasil disimpan!' 
-        } 
+        state: { successMessage: 'Aturan Adat Bali baru berhasil disimpan!' } 
       });
     } catch (error) {
       console.error(error);
       setAlert({
         show: true,
         type: 'error',
-        message: error.response?.data?.message || 'Gagal menyimpan aturan adat bali baru.'
+        message: error.response?.data?.message || 'Terjadi kesalahan pada sistem saat menyimpan aturan adat bali baru.'
       });
     } finally {
       setIsSubmitting(false);
@@ -154,16 +210,89 @@ const AturanAdatBaliBaru = () => {
       <nav className={styles.navbar}>
         <div className={styles.navLeft}>
           <h2 className={styles.navTitle}>
-            Menambahkan Aturan Adat Baru
+            Menambahkan Aturan Adat Bali Baru
           </h2>
           <p className={styles.navSubtitle}>
-            Lengkapi formulir dengan data aturan Adat Bali yang sah
+            Lengkapi formulir dengan data aturan Adat Bali yang valid dan sah
           </p>
         </div>
         <div className={styles.navRight}>
-          <div className={styles.notifWrapper}>
-            <MdNotificationsNone className={styles.notifIcon} />
-            <span className={styles.notifBadge}>3</span>
+          <div ref={notifDropdownRef} className="relative">
+            <div className={styles.notifWrapper} onClick={() => setIsDropdownNotifOpen(!isDropdownNotifOpen)}>
+              <MdNotificationsNone className={styles.notifIcon} />
+              {jumlahNotif > 0 && <span className={styles.notifBadge}>{jumlahNotif}</span>}
+            </div>
+            {/* DROPDOWN NOTIFIKASI */}
+            {isDropdownNotifOpen && (
+              <div className={styles.notifDropdownMenu}>
+                <div className={styles.notifDropdownHeader}>
+                  <h3 className={styles.notifDropdownHeaderTitle}>
+                    Pemberitahuan Sistem
+                  </h3>
+                  {jumlahNotif > 0 && (
+                    <span className={styles.notifDropdownHeaderCount}>
+                      {jumlahNotif} Baru
+                    </span>
+                  )}
+                </div>
+                <div className={styles.notifDropdownBody}>
+                  {!user ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Silakan login untuk melihat pemberitahuan.
+                    </div>
+                  ) : listNotifikasi.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 italic text-xs">
+                      Tidak ada pemberitahuan baru.
+                    </div>
+                  ) : (
+                    <div className={styles.notifListContainer}>
+                      {listNotifikasi.map((notif) => {
+                        const badgeStyles = {
+                          VERIFIKASI: styles.badgeVerifikasi,
+                          PERINGATAN: styles.badgePeringatan,
+                          KONTAK: styles.badgeKontak,
+                          LOG_SISTEM: styles.badgeLogSistem,
+                          INFORMASI: styles.badgeInformasi,
+                        };
+                        const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
+
+                        return (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => {
+                              if (!notif.is_read) handleTandaiDibaca(notif.id);
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
+                            }}
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
+                                  {notif.kategori}
+                                </span>
+                                <h4 className={notif.is_read ? styles.notifTitleRead : styles.notifTitleUnread}>
+                                  {notif.judul}
+                                </h4>
+                              </div>
+                              <p className={styles.notifDeskripsi}>
+                                {notif.deskripsi}
+                              </p>
+                              <span className={styles.notifTime}>
+                                {formatWaktuRelatif(notif.createdAt)}
+                              </span>
+                            </div>
+                            {!notif.is_read && (
+                              <div className="flex items-start">
+                                <span className={styles.dotUnreadIndicator} title="Belum dibaca" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <div className={styles.navDivider}></div>
           <div className={styles.userSection}>
@@ -175,35 +304,55 @@ const AturanAdatBaliBaru = () => {
       </nav>
       {/* Alert Section */}
       {alert.show && (
-        <div className={`alert-section 
-          ${alert.type === 'success' ? 'border-green-500' : 'border-red-500'}`}>
+        <div className={`alert-section
+          ${alert.type === 'success' ? 'border-green-500 bg-green-50' 
+            : alert.type === 'error' ? 'border-red-500 bg-red-50'
+            : alert.type === 'warning' ? 'border-amber-500 bg-amber-50' 
+            : 'border-blue-500 bg-blue-50'}`
+          }>
           <div className="flex items-start p-4">
-            <div className="flex-shrink-0 mr-3 mt-2 text-2xl">
-              {alert.type === 'success' ? '✅' : '⚠️'}
+            {/* Icon */}
+            <div className="flex-shrink-0 mr-3 text-2xl">
+              {alert.type === 'success' && '✅'}
+              {alert.type === 'error' && '❌'}
+              {alert.type === 'warning' && '⚠️'}
+              {alert.type === 'loading' && '⏳'}
             </div>
+            {/* Content */}
             <div className="flex-1">
-              <h4 className={`font-bold text-sm ${alert.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-                {alert.type === 'success' ? 'Berhasil!' : 'Terjadi Kesalahan.'}
+              <h4 className={`font-bold text-sm 
+                ${alert.type === 'success' ? 'text-green-800' 
+                  : alert.type === 'error' ? 'text-red-800' 
+                  : alert.type === 'warning' ? 'text-amber-800'
+                  : 'text-blue-800'}`
+                }>
+                {alert.type === 'success' ? 'Berhasil!' 
+                  : alert.type === 'error' ? 'Terjadi Kesalahan!' 
+                  : alert.type === 'warning' ? 'Perhatian Adat!'
+                  : 'Mohon Tunggu...'
+                }
               </h4>
               <p className="text-sm text-gray-600 mt-1">
                 {alert.message}
               </p>
             </div>
+            {/* Close Button */}
             <button onClick={() => setAlert(prev => ({ ...prev, show: false }))} className="alert-button">
-              &times;
+              <span className="text-2xl leading-none">&times;</span>
             </button>
           </div>
-          {(alert.type === 'success' || alert.type === 'error') && (
+          {/* Progress Bar Line */}
+          {(alert.type === 'success' || alert.type === 'error' || alert.type === 'warning') && (
             <div className="h-1.5 w-full bg-gray-200">
-              <div className={`h-full animate-shrink ${alert.type === 'success' 
-                ? 'bg-green-500' 
-                : 'bg-red-500'}`}>
-              </div>
+              <div className={`h-full animate-shrink ${
+                alert.type === 'success' ? 'bg-green-500' : 
+                alert.type === 'error' ? 'bg-red-500' : 'bg-amber-500'
+                }`
+              }></div>
             </div>
           )}
         </div>
       )}
-      {/* Form Content Area */}
       <form onSubmit={handleSubmit} className={styles.contentArea}>
         <div className={styles.formGrid}>
           <div className={styles.leftColumn}>
@@ -239,8 +388,7 @@ const AturanAdatBaliBaru = () => {
                       name="kategori"
                       value={formData.kategori}
                       onChange={handleInputChange}
-                      required
-                    >
+                      required>
                       <option value="">- Pilih -</option>
                       <option value="LAHIR">LAHIR</option>
                       <option value="KAWIN">KAWIN</option>
@@ -257,8 +405,7 @@ const AturanAdatBaliBaru = () => {
                       name="status_peran_adat"
                       value={formData.status_peran_adat}
                       onChange={handleInputChange}
-                      required
-                    >
+                      required>
                       <option value="">- Pilih -</option>
                       <option value="Tidak Memiliki Status Peran Adat">Tidak Memiliki Status Peran Adat</option>
                       <option value="Purusa">Purusa</option>
@@ -276,8 +423,7 @@ const AturanAdatBaliBaru = () => {
                     name="garis_keturunan"
                     value={formData.garis_keturunan}
                     onChange={handleInputChange}
-                    required
-                  >
+                    required>
                     <option value="">- Pilih -</option>
                     <option value="Tidak Memiliki Garis Keturunan">Tidak Memiliki Garis Keturunan</option>
                     <option value="Purusa">Purusa</option>
@@ -298,7 +444,7 @@ const AturanAdatBaliBaru = () => {
                     value={formData.dasar_keputusan}
                     onChange={handleInputChange}
                     required
-                  ></textarea>
+                  />
                 </div>
               </div>
             </div>
@@ -345,14 +491,12 @@ const AturanAdatBaliBaru = () => {
                         type="button" 
                         onClick={() => removeKriteriaRow(index)}
                         className={styles.btnDeleteRow}
-                        title="Hapus Parameter"
-                      >
+                        title="Hapus Parameter">
                         <FaTrash size={12} />
                       </button>
                     </div>
                   ))}
                 </div>
-
               </div>
             </div>
           </div>

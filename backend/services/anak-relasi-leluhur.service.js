@@ -35,21 +35,22 @@ export const integrasiRelasiLeluhur = async ({
   const t = passedTransaction || await db.transaction();
 
   try {
-    const jamSekarang = new Date().toTimeString().split(' ')[0];
-
+    const tanggalHariIniDateOnly = new Date().toISOString().split('T')[0];
+    const fallbackTimestampISO = `${tanggalHariIniDateOnly}T00:00:00.000Z`;
 
     let tglAngkatDateOnly = null;
     let tglAngkatTimestamp = null;
 
+    // STANDARDISASI TANGGAL KRONOLOGIS LELUHUR
     if (status_hubungan === "Anak Angkat") {
       const targetTanggal = tanggal_pengangkatan || anak?.tanggal_lahir;
       if (targetTanggal) {
         const stringDateOnly = targetTanggal.includes('T') ? targetTanggal.split('T')[0] : targetTanggal.split(' ')[0];
         tglAngkatDateOnly = stringDateOnly;
-        tglAngkatTimestamp = new Date(`${stringDateOnly} ${jamSekarang}`).toISOString();
+        tglAngkatTimestamp = `${stringDateOnly}T00:00:00.000Z`;
       } else {
-        tglAngkatDateOnly = new Date().toISOString().split('T')[0];
-        tglAngkatTimestamp = new Date().toISOString();
+        tglAngkatDateOnly = tanggalHariIniDateOnly;
+        tglAngkatTimestamp = fallbackTimestampISO;
       }
     }
 
@@ -57,7 +58,7 @@ export const integrasiRelasiLeluhur = async ({
 
     if (anak?.tanggal_lahir) {
       const cleanDate = anak.tanggal_lahir.includes('T') ? anak.tanggal_lahir.split('T')[0] : anak.tanggal_lahir.split(' ')[0];
-      jangkarTanggalAnakTimestamp = new Date(`${cleanDate} ${jamSekarang}`).toISOString();
+      jangkarTanggalAnakTimestamp = `${cleanDate}T00:00:00.000Z`;
     }
 
     const relasi = await RelasiKrama.create({
@@ -103,8 +104,8 @@ export const integrasiRelasiLeluhur = async ({
 
     // LOGIKA PEMBENTUKAN KELUARGA LELUHUR
     let keluargaId = null;
-    const kepalaKeluargaId = ayah_id || ibu_id;
 
+    const kepalaKeluargaId = ayah_id || ibu_id;
     const kategoriEventFinal = status_hubungan === "Anak Angkat" ? "PENGANGKATAN" : "LAHIR";
     const bobotEventFinal = BOBOT_EVENT[kategoriEventFinal];
 
@@ -125,13 +126,31 @@ export const integrasiRelasiLeluhur = async ({
           kepala_keluarga_id: kepalaKeluargaId
         }, t);
 
+        const tglLahirKepala = ayah?.tanggal_lahir || ibu?.tanggal_lahir;
+        const cleanTglKepala = tglLahirKepala 
+          ? `${tglLahirKepala.includes('T') ? tglLahirKepala.split('T')[0] : tglLahirKepala.split(' ')[0]}T00:00:00.000Z`
+          : fallbackTimestampISO;
+
+        const objekWaktuKepala = new Date(cleanTglKepala);
+
+        await RiwayatKeluarga.update(
+          { akhir_masuk: objekWaktuKepala },
+          {
+            where: {
+              krama_id: kepalaKeluargaId,
+              akhir_masuk: null
+            },
+            transaction: t
+          }
+        );
+
         await simpanRiwayatKeluarga({
           krama_id: kepalaKeluargaId,
           keluarga_id: keluargaLeluhur.id,
           perkawinan_id: perkawinan_id || null,
           kedudukan: "Kepala Keluarga",
           dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan karena krama ini merupakan kepala di dalam silsilah keluarga leluhur.",
-          event_date: null,
+          event_date: objekWaktuKepala,
           kategori_event: "LAHIR",
           bobot_event: BOBOT_EVENT["LAHIR"],
           allow_multiple: true
@@ -156,15 +175,30 @@ export const integrasiRelasiLeluhur = async ({
           ? tglAngkatTimestamp 
           : jangkarTanggalAnakTimestamp;
         
-        const infoTambahanDasar = (!finalEventDateTimestamp ? " (Tanggal event menggunakan default sistem karena riwayat kosong)." : "");
+        const infoTambahanDasar = (!finalEventDateTimestamp ? " (Tanggal riwayat menggunakan default sistem karena tanggal pengangkatan kosong)." : "");
+
+        const objekWaktuJangkar = finalEventDateTimestamp 
+          ? new Date(finalEventDateTimestamp) 
+          : new Date(fallbackTimestampISO);
+
+        await RiwayatKeluarga.update(
+          { akhir_masuk: objekWaktuJangkar },
+          {
+            where: {
+              krama_id: anak_id,
+              akhir_masuk: null
+            },
+            transaction: t
+          }
+        );
 
         await simpanRiwayatKeluarga({
           krama_id: anak_id,
           keluarga_id: keluargaId,
           perkawinan_id: perkawinan_id || null,
           kedudukan: "Anggota",
-          dasar_keputusan: `Kedudukan sebagai anggota diberikan karena krama ini merupakan keturunan (${status_hubungan}) di dalam silsilah keluarga leluhur.` + infoTambahanDasar,
-          event_date: finalEventDateTimestamp || new Date().toISOString(),
+          dasar_keputusan: "Kedudukan sebagai anggota diberikan karena krama ini merupakan keturunan di dalam silsilah keluarga leluhur." + infoTambahanDasar,
+          event_date: objekWaktuJangkar,
           kategori_event: kategoriEventFinal,
           bobot_event: bobotEventFinal,
           allow_multiple: true 

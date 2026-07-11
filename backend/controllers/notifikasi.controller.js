@@ -32,17 +32,28 @@ export const getNotifikasiSaya = async (req, res) => {
     if (userRole === "Super Admin") {
       filterCondition = {
         [Op.or]: [
-          { sender_id: { [Op.ne]: currentUserId } },
-          { sender_id: null }
+          { user_id: currentUserId },
+          { 
+            user_id: null,
+            [Op.or]: [
+              { sender_id: { [Op.ne]: currentUserId } },
+              { sender_id: null }
+            ]
+          }
         ]
       };
     } else if (userRole === "Admin Desa") {
       filterCondition = { 
-        desa_adat_id: userDesaId,
         [Op.or]: [
-          { sender_id: { [Op.ne]: currentUserId } },
-          { sender_id: null }
-        ] 
+          { user_id: currentUserId },
+          { 
+            desa_adat_id: userDesaId, 
+            [Op.or]: [
+              { sender_id: { [Op.ne]: currentUserId } },
+              { sender_id: null }
+            ] 
+          }
+        ]
       };
     } else if (["Krama", "Pakar", "Viewer"].includes(userRole)) {
       filterCondition = {

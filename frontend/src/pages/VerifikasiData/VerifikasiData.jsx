@@ -41,7 +41,7 @@ const VerifikasiData = ({ user }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  // State stats data verifikasi
+  // STATE START VERIFIKASI DATA:
   const [stats, setStats] = useState({
     role: { 
       total: 0, 
@@ -75,7 +75,6 @@ const VerifikasiData = ({ user }) => {
     },
   });
   
-  // State alert notifikasi global
   const [alert, setAlert] = useState({ 
     show: false, 
     type: '', 
@@ -155,13 +154,12 @@ const VerifikasiData = ({ user }) => {
     }
   };
 
-  // Helper: Mengambil data dan menjumlahkan stats
   const fetchStats = async () => {
     try {
       setLoading(true);
       const updatedStats = { ...stats };
 
-      // Mengumpulkan semua kategori dan mengeksekusi secara bersamaan
+      // mengumpulkan semua kategori dan mengeksekusi secara bersamaan
       const activeKeys = Object.keys(categories).filter(key => categories[key].show);
       const promises = activeKeys.map(key => axiosInstance.get(categories[key].endpoint));
       const responses = await Promise.all(promises);
@@ -211,7 +209,7 @@ const VerifikasiData = ({ user }) => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Gagal memuat beberapa data statistik verifikasi.' 
+        message: error.response?.data?.message || "Terjadi kesalahan ketika memuat data statistik. Periksa kembali koneksi Anda." 
       });
     } finally {
       setLoading(false);
@@ -223,7 +221,6 @@ const VerifikasiData = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Effect: Menutup dropdown ketika klik di luar area input
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
@@ -234,7 +231,7 @@ const VerifikasiData = ({ user }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Helper: Mengambil list notifikasi yang masuk
+  // HELPER NOTIFIKASI: Mengambil list notifikasi yang masuk
   const fetchNotifikasiLengkap = async () => {
     if (!user) return;
     try {
@@ -255,7 +252,6 @@ const VerifikasiData = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Helper: Menandai notifikasi telah dibaca
   const handleTandaiDibaca = async (notifId) => {
     try {
       await axiosInstance.patch(`/notifikasi/read/${notifId}`);
@@ -271,7 +267,6 @@ const VerifikasiData = ({ user }) => {
     }
   };
 
-  // Effect: Auto-Close Notifikasi Alert
   useEffect(() => {
     if (alert.show && alert.type !== 'loading') {
       const timer = setTimeout(() => {
@@ -281,7 +276,6 @@ const VerifikasiData = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
-  // Helper: Navigasi path ke halaman masing-masing
   const handleNavigate = (path) => {
     console.log(`Navigasi ke halaman: ${path}`);
     navigate(path);

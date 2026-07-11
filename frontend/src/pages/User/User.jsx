@@ -118,7 +118,10 @@ const User = ({ user }) => {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const [showDropdown, setShowDropdown] = useState(false);
-  const [daftarDesaAdat, setDaftarDesaAdat] = useState([]);
+  const [daftarDesa, setDaftarDesa] = useState([]);
+  const [daftarKecamatan, setDaftarKecamatan] = useState([]);
+  const [daftarKabupaten, setDaftarKabupaten] = useState([]);
+  const [daftarProvinsi, setDaftarProvinsi] = useState([]);
 
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
@@ -174,11 +177,24 @@ const User = ({ user }) => {
   useEffect(() => {
     const fetchDesaAdat = async () => {
       try {
-        const response = await axiosInstance.get(`/desa-adat`);
-        const data = response.data?.data || response.data || [];
-        setDaftarDesaAdat(data);
+        const [resDesa, resKec, resKab, resProv] = await Promise.all([
+          axiosInstance.get('/desa-adat'),
+          axiosInstance.get('/kecamatan'),
+          axiosInstance.get('/kabupaten'),
+          axiosInstance.get('/provinsi'),
+        ]);
+
+        const dataDesaAdat = resDesa.data?.data || resDesa.data || [];
+        const dataKecamatan = resKec.data?.data || resKec.data || [];
+        const dataKabupaten = resKab.data?.data || resKab.data || [];
+        const dataProvinsi = resProv.data?.data || resProv.data || [];
+
+        setDaftarDesa(dataDesaAdat);
+        setDaftarKecamatan(dataKecamatan);
+        setDaftarKabupaten(dataKabupaten);
+        setDaftarProvinsi(dataProvinsi);
       } catch (error) {
-        console.error("Gagal memuat data desa adat:", error);
+        console.error("Gagal memuat data wilayah adat:", error);
       }
     };
     fetchDesaAdat();
@@ -246,10 +262,27 @@ const User = ({ user }) => {
     }
   }, [showAddModal, modal.show]);
 
-  const desaFiltered = searchDesa.trim() === "" ? daftarDesaAdat : daftarDesaAdat.filter((desa) => {
+  // Helper: filter data desa adat berdasarkan input form
+  const desaFiltered = searchDesa.trim() === "" ? daftarDesa : daftarDesa.filter((desa) => {
     const namaDesa = (desa.nama_desa_adat || desa.nama_desa || desa.nama || '').toLowerCase();
     return namaDesa.includes(searchDesa.toLowerCase());
   });
+
+  // HELPER WILAYAH ADAT: Mengambil data lengkap hierarki wilayah adat
+  const getWilayahLengkap = (desaId) => {
+    const desa = daftarDesa.find(d => String(d.id) === String(desaId));
+    if (!desa) return null;
+
+    const kec = daftarKecamatan.find(k => String(k.id) === String(desa.kecamatan_id));
+    const kab = daftarKabupaten.find(kb => String(kb.id) === String(kec?.kabupaten_id));
+    const prov = daftarProvinsi.find(p => String(p.id) === String(kab?.provinsi_id));
+
+    return {
+      kecamatan: kec ? kec.nama_kecamatan : '-',
+      kabupaten: kab ? kab.nama_kabupaten : '-',
+      provinsi: prov ? prov.nama_provinsi : '-'
+    };
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -523,8 +556,10 @@ const User = ({ user }) => {
 
   const getStatusClass = (status) => {
     switch (status) {
-      case 'Aktif': return styles.badgeSuccess;
-      case 'Non-Aktif': return styles.badgeDanger;
+      case 'Aktif': 
+        return styles.badgeSuccess;
+      case 'Non-Aktif': 
+        return styles.badgeDanger;
       default: return styles.badgeAmber;
     }
   };
@@ -586,10 +621,9 @@ const User = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -634,7 +668,7 @@ const User = ({ user }) => {
         onClose={() => setModal({ show: false, id: null })}
         onConfirm={handleDeleteUser}
         isProcessing={isDeleting}
-        title="Konfirmasi Nonaktifkan Akun"
+        title="Konfirmasi Nonaktifkan Akun Pengguna"
         message="Apakah Anda yakin ingin menonaktifkan akun pengguna ini? Akun yang dinonaktifkan tidak akan dapat masuk ke dalam sistem."
       />
       {/* Alert Section */}
@@ -688,8 +722,8 @@ const User = ({ user }) => {
           )}
         </div>
       )}
-      {/* Statistik User */}
       <div className={styles.contentArea}>
+        {/* Statistik */}
         <div className={styles.statsCardWrapper}>
           <div className={styles.statsHeader}>
             <FaInfoCircle className="text-amber-800 text-base" />
@@ -843,7 +877,7 @@ const User = ({ user }) => {
           </div>
         </div>
       </div>
-      {/* MODAL EDIT PROFILE */}
+      {/* MODAL ADD AKUN */}
       {showAddModal && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
@@ -931,11 +965,20 @@ const User = ({ user }) => {
                     {showDropdown && (
                       <div className={styles.dropdownPanel}>
                         {desaFiltered.length > 0 ? (
-                          desaFiltered.map((desa) => (
-                            <button key={desa.id} type="button" onClick={() => handleSelectDesa(desa)} className={styles.dropdownInput}>
-                              {desa.nama_desa_adat || desa.nama_desa || desa.nama}
-                            </button>
-                          ))
+                          desaFiltered.map((desa) => {
+                            const wilayah = getWilayahLengkap(desa.id);
+
+                            return (
+                              <button key={desa.id} type="button" onClick={() => handleSelectDesa(desa)} className={styles.dropdownInput}>
+                                <p className="text-xs font-bold text-gray-800">
+                                  {desa.nama_desa_adat || desa.nama_desa || desa.nama}
+                                </p>
+                                <p className="text-[9px] text-gray-500 uppercase">
+                                  {wilayah?.kecamatan || '-'} • {wilayah?.kabupaten || '-'}
+                                </p>
+                              </button>
+                            );
+                          })
                         ) : (
                           <div className="p-4 text-center text-xs text-gray-400">
                             {searchDesa.length > 0 ? "Desa adat tidak ditemukan" : "Memuat data..."}
@@ -1006,8 +1049,7 @@ const User = ({ user }) => {
                   type="button" 
                   className={styles.eyePassword} 
                   disabled={isSubmitting} 
-                  onClick={() => setShowPassword(!showPassword)}
-                >
+                  onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
                 </button>
               </div>
@@ -1029,8 +1071,7 @@ const User = ({ user }) => {
                   type="button" 
                   className={styles.eyePassword} 
                   disabled={isSubmitting} 
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
                   {showConfirmPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
                 </button>
               </div>

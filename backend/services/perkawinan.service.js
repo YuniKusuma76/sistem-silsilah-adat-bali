@@ -23,6 +23,7 @@ const BOBOT_EVENT = {
 };
 
 export const buatPerkawinanBali = async ({
+  nomor_pendaftaran,
   suami_id,
   istri_id,
   status_perkawinan,
@@ -62,9 +63,8 @@ export const buatPerkawinanBali = async ({
       throw new Error("Posisi Istri harus berjenis kelamin Perempuan!");
     }
 
-    const jamSekarang = new Date().toTimeString().split(' ')[0];
     const finalTanggalPerkawinan = tanggal_perkawinan 
-      ? new Date(`${tanggal_perkawinan} ${jamSekarang}`)
+      ? new Date(`${tanggal_perkawinan} ${new Date().toTimeString().split(' ')[0]}`)
       : new Date();
 
     // TIDAK BOLEH ADA PERKAWINAN POLIANDRI
@@ -236,6 +236,7 @@ export const buatPerkawinanBali = async ({
     }
 
     const perkawinan = await Perkawinan.create({
+      nomor_pendaftaran,
       suami_id,
       istri_id,
       status_perkawinan: statusPerkawinanValid,
@@ -249,9 +250,6 @@ export const buatPerkawinanBali = async ({
     }, { transaction: t });
 
     if (statusVerifikasi !== "Disetujui") {
-      if (!isExternalTransaction) {
-        await t.commit();
-      }
       return { perkawinan };
     }
 
@@ -260,6 +258,29 @@ export const buatPerkawinanBali = async ({
     // ==================================================
     await tutupKeluargaAngkat({ krama_id: suami_id, t });
     await tutupKeluargaAngkat({ krama_id: istri_id, t });
+
+    await Promise.all([
+      RiwayatPeranAdat.update(
+        { selesai_tanggal: finalTanggalPerkawinan },
+        {
+          where: {
+            krama_id: suami_id,
+            selesai_tanggal: null
+          },
+          transaction: t
+        }
+      ),
+      RiwayatPeranAdat.update(
+        { selesai_tanggal: finalTanggalPerkawinan },
+        {
+          where: {
+            krama_id: istri_id,
+            selesai_tanggal: null
+          },
+          transaction: t
+        }
+      )
+    ]);
 
     const rolesMapping = await Promise.all([
       mappingAturanAdatBali("KAWIN", { 
@@ -487,7 +508,7 @@ export const buatPerkawinanBali = async ({
       };
     }
   } catch (error) {
-    if (!isExternalTransaction) {
+    if (!isExternalTransaction && t && !t.finished) {
       await t.rollback();
     }
     throw error;

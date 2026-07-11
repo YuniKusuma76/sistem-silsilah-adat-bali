@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HiOutlineOfficeBuilding } from 'react-icons/hi';
 import { 
   MdNotificationsNone,
@@ -54,6 +55,7 @@ const WilayahAdatBali = ({ user }) => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const navigate = useNavigate();
 
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
@@ -444,12 +446,16 @@ const WilayahAdatBali = ({ user }) => {
   const renderActionButtons = (id, type) => (
     <td className="text-center">
       <div className="flex justify-center gap-2">
-        <button className={styles.btnEdit} onClick={() => handleEdit(id, type)}>
-          <FaEdit size={12} /> Edit
-        </button>
-        <button className={styles.btnDelete} onClick={() => handleDelete(id, type)}>
-          <FaTrash size={11} /> Hapus
-        </button>
+        {user.role === "Super Admin" && (
+          <>
+            <button className={styles.btnEdit} onClick={() => handleEdit(id, type)}>
+              <FaEdit size={12} /> Edit
+            </button>
+            <button className={styles.btnDelete} onClick={() => handleDelete(id, type)}>
+              <FaTrash size={11} /> Hapus
+            </button>
+          </>
+        )}
       </div>
     </td>
   );
@@ -658,10 +664,9 @@ const WilayahAdatBali = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -789,10 +794,12 @@ const WilayahAdatBali = ({ user }) => {
               className={styles.searchInput}
             />
           </div>
-          <button className={styles.btnAddData} onClick={openAddModal}>
-            <FaPlus size={12} /> 
-            <span>Tambah {activeTab === 'desa' ? 'Desa Adat' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
-          </button>
+          {user.role === "Super Admin" && (
+            <button className={styles.btnAddData} onClick={openAddModal}>
+              <FaPlus size={12} /> 
+              <span>Tambah {activeTab === 'desa' ? 'Desa Adat' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
+            </button>
+          )}
         </div>
         {/* List Wilayah Bali */}
         <div className={styles.tableWrapper}>

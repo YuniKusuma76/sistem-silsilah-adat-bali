@@ -11,7 +11,6 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { validateUserPayload } from "../utils/validators.js";
 
-// Validasi Input Valid
 const VALID_ROLES = [
   "Super Admin", 
   "Pakar", 
@@ -25,7 +24,6 @@ const VALID_STATUS = [
   "Non-Aktif"
 ];
 
-// Data Desa Adat Include
 const DESA_ADAT_INCLUDE = [
   {
     model: Kecamatan,
@@ -54,7 +52,7 @@ export const Register = async (req, res) => {
     desa_adat_id
   } = req.body;
 
-  // Helper validasi format input
+  // Validasi format input
   const errorMessage = validateUserPayload({ 
     full_name, 
     email, 
@@ -68,7 +66,6 @@ export const Register = async (req, res) => {
     });
   }
 
-  // Validasi wilayah desa adat
   if (!desa_adat_id) {
     return res.status(400).json({
       message: "Wilayah desa adat wajib diisi!"
@@ -76,7 +73,6 @@ export const Register = async (req, res) => {
   }
 
   try {
-    // Validasi duplikasi email
     const userExists = await User.findOne({
       where: { email }
     });
@@ -198,9 +194,7 @@ export const Login = async (req, res) => {
 
     await User.update({ 
       refresh_token: refreshToken 
-    }, { 
-      where: { id: user.id } 
-    });
+    }, { where: { id: user.id } });
 
     const cookieOptions = {
       httpOnly: true,
@@ -220,7 +214,7 @@ export const Login = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Login berhasil!",
       accessToken,
       user: {
@@ -233,7 +227,7 @@ export const Login = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
   }
@@ -272,9 +266,7 @@ export const Logout = async (req, res) => {
     // Menghapus refresh token di database
     await User.update({ 
       refresh_token: null 
-    }, { 
-      where: { id: user.id }
-    });
+    }, { where: { id: user.id } });
 
     // Hapus Kedua Cookie di Browser dengan opsi yang tepat
     res.clearCookie('accessToken', cookieOptions);
@@ -287,7 +279,7 @@ export const Logout = async (req, res) => {
     res.clearCookie('accessToken', cookieOptions); 
     res.clearCookie('refreshToken', cookieOptions);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Terjadi kesalahan saat logout.",
       error: error.message
     });
@@ -298,7 +290,6 @@ export const getAllUsers = async (req, res) => {
   try {
     let dataUser = [];
 
-    // Filter data berdasarkan role operator
     if (req.role === "Super Admin") {
       dataUser = await User.findAll({
         attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
@@ -344,7 +335,6 @@ export const getUsers = async (req, res) => {
   try {
     let dataUser = [];
 
-    // Filter data berdasarkan role operator
     if (req.role === "Super Admin") {
       dataUser = await User.findAll({
         where: {
@@ -494,7 +484,7 @@ export const createUser = async (req, res) => {
     desa_adat_id       
   } = req.body;
 
-  // Helper validasi format input
+  // Validasi form input
   const errorMessage = validateUserPayload({ 
     full_name, 
     email, 
@@ -567,7 +557,6 @@ export const createUser = async (req, res) => {
   }
 
   try {
-    // Validasi duplikasi email
     const userExists = await User.findOne({
       where: { email }
     });
@@ -692,7 +681,6 @@ export const updateUser = async (req, res) => {
       }
     }
 
-    // Logika mengedit data
     const updateData = {};
 
     if (full_name) {
@@ -712,13 +700,12 @@ export const updateUser = async (req, res) => {
     // Logika mengedit password
     if (newPassword && newPassword !== "") {
       if (isEditProfile) {
-        // Validasi password lama
         if (!oldPassword) {
           return res.status(400).json({ 
             message: "Password lama wajib diisi!" 
           });
         }
-        // Validasi kecocokan password lama
+
         const match = await bcrypt.compare(oldPassword, user.password);
         if (!match) {
           return res.status(400).json({ 
@@ -726,24 +713,24 @@ export const updateUser = async (req, res) => {
           });
         }
       }
-      // Validasi password dan konfirmasi password
+
       if (newPassword !== confirmPassword) {
         return res.status(400).json({
           message: "Password baru dan konfirmasi password tidak cocok!"
         });
       }
-      // Validasi panjang karakter password
+
       if (newPassword.length < 6) {
         return res.status(400).json({
           message: "Password baru minimal 6 karakter!"
         });
       }
+      
       // Enkripsi password baru
       const salt = await bcrypt.genSalt();
       updateData.password = await bcrypt.hash(newPassword, salt);
     }
 
-    // Logika mengedit e-mail
     if (email && email !== user.email) {
       // Validasi format e-mail
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -752,15 +739,18 @@ export const updateUser = async (req, res) => {
           message: "Format e-mail tidak valid!"
         });
       }
+
       // Validasi email terdaftar
       const emailExists = await User.findOne({
         where: { email }
       });
+
       if (emailExists) {
         return res.status(400).json({
           message: "E-mail yang Anda gunakan sudah terdaftar oleh akun lain."
         });
       }
+
       updateData.email = email;
     }
 
@@ -864,7 +854,6 @@ export const deleteUser = async (req, res) => {
       });
     }
 
-    // Validasi hak akses Super Admin
     if (user.role === "Super Admin") {
       const activeSuperAdminCount = await User.count({
         where: {
@@ -879,6 +868,7 @@ export const deleteUser = async (req, res) => {
         });
       }
     }
+    
     // Validasi hak akses Super Admin
     if (req.role === "Admin Desa") {
       const isDeleteProfile = req.userId === user.id;

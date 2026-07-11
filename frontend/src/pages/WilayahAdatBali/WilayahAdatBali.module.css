@@ -63,15 +63,19 @@
 }
 
 .searchWrapper {
-  @apply relative w-full max-w-md;
+  @apply relative flex items-center flex-1;
 }
 
 .searchIcon {
-  @apply absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm;
+  @apply absolute left-3 text-slate-400 text-sm pointer-events-none;
 }
 
 .searchInput {
-  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all focus:outline-none focus:border-[#3A2000] focus:ring-2 focus:ring-[#3A2000]/10;
+  @apply w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg outline-none bg-slate-50 transition-all duration-200;
+}
+
+.searchInput:focus {
+  @apply border-amber-700 bg-white ring-1 ring-amber-700/20;
 }
 
 .tableWrapper {
@@ -91,19 +95,15 @@
 }
 
 .table td {
-  @apply py-4 px-6 border-b border-gray-100 text-sm align-middle text-gray-600;
+  @apply py-5 px-6 border-b border-gray-100 text-sm align-middle;
 }
 
 .table tr:last-child td {
   @apply border-b-0;
 }
 
-.table tr {
-  @apply hover:bg-gray-50/50 transition-colors duration-150;
-}
-
 .btnAddData {
-  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-sm shadow-green-900/10;
+  @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-lg text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-sm shadow-green-900/10;
 }
 
 .btnEdit {
@@ -131,11 +131,11 @@
 }
 
 .modalContent {
-  @apply bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl border-t-4 border-amber-500 transform transition-all;
+  @apply bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl border-t-4 border-amber-500 transform transition-all;
 }
 
 .modalContainer {
-  @apply bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border-t-4 border-red-700;
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all border-t-4 border-red-700;
 }
 
 .elipsis {
@@ -181,22 +181,6 @@
 
 .activePage {
   @apply bg-[#3A2000] !border-[#3A2000] text-white shadow-sm;
-}
-
-.loadContainer {
-  @apply flex justify-center items-center gap-2 text-gray-400 text-sm font-medium;
-}
-
-.loadSpinner {
-  @apply rounded-full h-4 w-4 border-2 border-gray-200 border-b-[#3A2000];
-}
-
-.infoDataContent {
-  @apply flex flex-col items-center justify-center py-6;
-}
-
-.infoDataIcon {
-  @apply text-gray-300 text-3xl mb-2;
 }
 
 .notifDropdownMenu {

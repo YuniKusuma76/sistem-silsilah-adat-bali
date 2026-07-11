@@ -728,7 +728,16 @@ const DataKramaTambahKawin = ({ user }) => {
         if (apakahCerai && marriageId) {
           try {
             const jenisMutasiFinal = apakahCeraiMati ? "Cerai Mati" : "Cerai Hidup";
-            const tglCeraiFinal = safeDate(m.tanggal_cerai) || safeDate(m.tanggal_perkawinan) || safeDate(tanggalKawinEfektif);
+            const stringTanggalKawinForm = safeDate(m.tanggal_perkawinan) || tanggalKawinEfektif;
+            const stringTanggalCeraiForm = safeDate(m.tanggal_cerai);
+            
+            let tglCeraiFinal;
+
+            if (!stringTanggalCeraiForm || stringTanggalCeraiForm === stringTanggalKawinForm) {
+              tglCeraiFinal = new Date().toISOString();
+            } else {
+              tglCeraiFinal = stringTanggalCeraiForm;
+            }
 
             let pihakMeninggalFinal = null;
 
@@ -1247,7 +1256,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                 disabled={m.isDataLamaTerunci} 
                                 required>
                                 <option value="Kawin">Kawin</option>
-                                <option value="Cerai">Cerai Hidup</option>
+                                <option value="Cerai Hidup">Cerai Hidup</option>
                                 <option value="Cerai Mati">Cerai Mati</option>
                               </select>
                               <div className={styles.selectIcon}>
@@ -1353,12 +1362,30 @@ const DataKramaTambahKawin = ({ user }) => {
                                               setOpenDropdownIndex(null);
                                               setSearchPasangan({ ...searchPasangan, [index]: k.nama_lengkap });
                                             }}>
-                                            <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
+                                            <div className="flex items-baseline gap-1.5">
+                                              <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
+                                              {k.nomor_pendaftaran && (
+                                                <span className="text-[10px] font-mono font-bold text-gray-600 bg-gray-100 px-1 rounded">
+                                                  [{k.nomor_pendaftaran}]
+                                                </span>
+                                              )}
+                                            </div>
                                             <p className="text-[10px] text-gray-500 uppercase italic">
-                                              {k.is_bali 
-                                                ? (desaList.find(d => String(d.id) === String(k.desa_adat_id))?.nama_desa_adat || "Asal Bali")
-                                                : (k.alamat_luar || "Luar Bali")
-                                              } • {k.nama_panggilan || k.tipe_data}
+                                              {(() => {
+                                                const desaAdat = k.desa_adat_id 
+                                                  ? desaList.find(d => String(d.id) === String(k.desa_adat_id))
+                                                  : null;
+                                                if (desaAdat) {
+                                                  return desaAdat.nama_desa_adat;
+                                                }
+                                                if (k.is_bali === true || k.is_bali === "true" || k.is_bali === 1) {
+                                                  return "Asal Bali";
+                                                }
+                                                if (k.tipe_data === "Leluhur") {
+                                                  return "Asal Bali (Leluhur)";
+                                                }
+                                                return k.alamat_luar || "Luar Bali";
+                                              })()} • {k.nama_panggilan || k.tipe_data || "Krama"}
                                             </p>
                                           </div>
                                         ))
@@ -1372,7 +1399,68 @@ const DataKramaTambahKawin = ({ user }) => {
                                 )}
                               </div>
                             </div>
-                            {/* Data Detail jika Pasangan Baru */}
+                            {/* Preview Pasangan Terpilih */}
+                            {pasanganTerpilih && !m.isPasanganBaru && (() => {
+                              const desaAdatPasangan = pasanganTerpilih.desa_adat_id
+                                ? desaList.find(d => String(d.id) === String(pasanganTerpilih.desa_adat_id))
+                                : null;
+
+                              return (
+                                <div className={`${styles.preview} animate-fade-in`}>
+                                  <div className={styles.previewTitle}>
+                                    <FaInfoCircle className="text-blue-600 mb-0.5" /> Preview Ringkas Data Diri Pasangan
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-700">
+                                    <div>
+                                      <span className={styles.previewLabel}>
+                                        Nama Lengkap
+                                      </span>
+                                      <span className="font-semibold text-gray-900">{pasanganTerpilih.nama_lengkap}</span>
+                                    </div>
+                                    <div>
+                                      <span className={styles.previewLabel}>
+                                        Status Hidup/Tipe Data
+                                      </span>
+                                      <span className={`font-semibold ${pasanganTerpilih.status_hidup === 'Meninggal' ? 'text-red-600' : 'text-green-600'}`}>
+                                        {pasanganTerpilih.status_hidup || "Hidup"}
+                                      </span>
+                                      <span className="text-gray-500 font-normal"> ({pasanganTerpilih.tipe_data})</span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className={styles.previewLabel}>
+                                        Jenis Kelamin
+                                      </span>
+                                      <span className="font-medium">{pasanganTerpilih.jenis_kelamin}</span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className={styles.previewLabel}>
+                                        Wilayah Adat Asal/Alamat Asal
+                                      </span>
+                                      <span className="font-medium">
+                                        {desaAdatPasangan ? (
+                                          <span className="text-blue-700 font-medium">
+                                            Desa Adat {desaAdatPasangan.nama_desa_adat}
+                                          </span>
+                                        ) : pasanganTerpilih.is_bali ? (
+                                          "Asal Bali"
+                                        ) : (
+                                          pasanganTerpilih.alamat_luar || "Luar Bali"
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className={styles.previewLabel}>
+                                        Nomor Pendaftaran Krama
+                                      </span>
+                                      <span className="font-mono font-bold text-xs">
+                                        {pasanganTerpilih.nomor_pendaftaran || "-"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {/* Input Pasangan Baru */}
                             {m.isPasanganBaru && !m.isDataLamaTerunci && (
                               <div className={`${styles.cardPasanganBaru} animate-fade-in shadow-inner`}>
                                 <h4 className={styles.titleCardPasangan}>
@@ -1471,7 +1559,6 @@ const DataKramaTambahKawin = ({ user }) => {
                                       </div>
                                     </div>
                                   </div>
-                                  {/* IS BALI Pasangan Baru */}
                                   <div className={styles.checkbox}>
                                     <div className="flex items-center gap-3">
                                       <input 
@@ -1616,7 +1703,7 @@ const DataKramaTambahKawin = ({ user }) => {
                               </div>
                             )}
                             {/* KOLOM DETAIL PERCERAIAN */}
-                            {(m.status_perkawinan === "Cerai" || m.status_perkawinan === "Cerai Mati") && (
+                            {(m.status_perkawinan === "Cerai Hidup" || m.status_perkawinan === "Cerai Mati") && (
                               <div className={styles.inputContent}>
                                 <h5 className="text-xs font-bold text-rose-800 uppercase tracking-wider items-center flex flex-1">
                                   <FaExclamationTriangle className="text-amber-500 mr-1 mb-0.5" /> Rincian Pencatatan Mutasi Perceraian Adat
@@ -1687,7 +1774,6 @@ const DataKramaTambahKawin = ({ user }) => {
                                 )}
                               </div>
                             )}
-                            
                           </div>
                         )}
                       </div>

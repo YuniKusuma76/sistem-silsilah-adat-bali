@@ -3,7 +3,7 @@
 }
 
 .modalContainer {
-  @apply bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all border-t-4 border-red-700;
+  @apply bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all border-t-4 border-red-700;
 }
 
 .elipsisRed {

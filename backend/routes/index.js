@@ -15,6 +15,7 @@ import RiwayatKeluargaRoute from './riwayat-keluarga.route.js';
 import RiwayatPeranAdatRoute from './riwayat-peran.route.js';
 import NotifikasiRoute from './notifikasi.route.js';
 import KontakPesanRoute from "./kontak-pesan.route.js";
+import KomentarAturanRoute from "./komentar-aturan.route.js";
 
 import SilsilahRoute from './silsilah.route.js';
 
@@ -36,6 +37,7 @@ routes.use('/riwayat-keluarga', RiwayatKeluargaRoute);
 routes.use('/riwayat-peran-adat', RiwayatPeranAdatRoute);
 routes.use('/notifikasi', NotifikasiRoute);
 routes.use('/pesan-laporan', KontakPesanRoute);
+routes.use('/aturan-adat-bali', KomentarAturanRoute);
 
 routes.use('/silsilah', SilsilahRoute);
 

@@ -5,7 +5,8 @@ import {
   createRelasiKrama,
   verifikasiRelasiKrama,
   updateRelasiKramaById,
-  cancelUpdateRelasi,
+  verifikasiUpdateRelasiKrama,
+  cancelUpdateRelasiKrama,
   deleteRelasiKramaById
 } from '../controllers/relasi.controller.js';
 import { 
@@ -15,10 +16,16 @@ import {
 
 const router = express.Router();
 
+// 1. Route Kolektif & Pendaftaran (Tanpa ID di depan)
 router.get('/', verifyToken, getAllRelasiKrama);
 router.post('/', verifyToken, createRelasiKrama);
-router.patch('/verifikasi/:id', verifyToken, superAdminOrAdminDesa, verifikasiRelasiKrama);
-router.patch('/cancel-update/:id', verifyToken, cancelUpdateRelasi);
+
+// 2. Route Spesifik / Fitur Khusus (Prefix Jelas)
+router.patch('/create/verifikasi/:id', verifyToken, superAdminOrAdminDesa, verifikasiRelasiKrama);
+router.patch('/update/verifikasi/:id', verifyToken, superAdminOrAdminDesa, verifikasiUpdateRelasiKrama);
+router.patch('/cancel-update/:id', verifyToken, cancelUpdateRelasiKrama);
+
+// 3. Route CRUD Dinamis Murni (Wajib ditaruh paling bawah)
 router.get('/:id', verifyToken, getRelasiKramaById);
 router.put('/:id', verifyToken, updateRelasiKramaById);
 router.delete('/:id', verifyToken, deleteRelasiKramaById);

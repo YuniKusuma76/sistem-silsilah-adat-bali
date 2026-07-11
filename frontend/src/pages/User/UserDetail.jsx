@@ -118,7 +118,7 @@ const UserDetail = () => {
     message: '' 
   });
 
-  // Helper: Mengekstrak ID asli dari slug
+  // Helper: enkripsi slug url menjadi id asli
   const extractIdFromSlug = (slugString) => {
     if (!slugString) return null;
     if (!isNaN(slugString)) return slugString; 
@@ -157,11 +157,11 @@ const UserDetail = () => {
       const resData = response.data?.data || response.data?.user || response.data;
       setUser(resData);
     } catch (error) {
-      console.error("Gagal mengambil data detail user:", error);
+      console.error(error);
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || "Gagal memuat detail data pengguna." 
+        message: error.response?.data?.message || "Terjadi kesalahan pada sistem saat memuat detail data pengguna." 
       });
     } finally {
       setLoading(false);
@@ -259,7 +259,7 @@ const UserDetail = () => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || 'Gagal memperbarui data user' 
+        message: error.response?.data?.message || 'Terjadi kesalahan pada sistem saat memperbarui data user' 
       });
     } finally {
       setIsSubmitting(false);
@@ -302,7 +302,7 @@ const UserDetail = () => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || 'Gagal memperbarui password. Pastikan password lama benar.' 
+        message: error.response?.data?.message || 'Terjadi kesalahan pada sistem saat memperbarui password. Pastikan password lama benar.' 
       });
     } finally {
       setIsSubmitting(false);
@@ -329,11 +329,11 @@ const UserDetail = () => {
       setShowStatusModal(false);
       fetchUserDetail();
     } catch (error) {
-      console.error("Gagal mengubah status akun:", error);
+      console.error(error);
       setAlert({
         show: true,
         type: 'error',
-        message: error.response?.data?.message || `Gagal memproses status akun pengguna.`
+        message: error.response?.data?.message || `Terjadi kesalahan pada sistem saat memproses status akun pengguna.`
       });
     } finally {
       setIsProcessingStatus(false);
@@ -417,10 +417,9 @@ const UserDetail = () => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -525,7 +524,7 @@ const UserDetail = () => {
                     {user.full_name}
                   </h3>
                   <p className="text-sm text-gray-500 font-medium mt-1">
-                    @{user.display_name || 'Username'}
+                    #{user.display_name || 'Username'}
                   </p>
                   <div className="mt-3">
                     <span 

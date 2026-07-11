@@ -66,6 +66,10 @@
   @apply w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all placeholder:text-gray-400;
 }
 
+.disableFieldReg {
+  @apply w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all placeholder:text-gray-400 font-mono font-bold tracking-wider bg-gray-100 cursor-not-allowed;
+}
+
 .dualInput {
   @apply grid grid-cols-1 md:grid-cols-2 gap-6;
 }
@@ -384,4 +388,16 @@
 
 .noteConf {
   @apply text-[10px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 p-2.5 rounded mt-3 italic text-left;
+}
+
+.cardPreviewPasangan {
+  @apply bg-blue-50/60 border border-blue-200 rounded p-3 shadow-sm flex flex-col space-y-2;
+}
+
+.titlePreview {
+  @apply flex items-center justify-between border-b border-blue-100 pb-1.5;
+}
+
+.previewLabelPasangan {
+  @apply text-[11px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1;
 }
