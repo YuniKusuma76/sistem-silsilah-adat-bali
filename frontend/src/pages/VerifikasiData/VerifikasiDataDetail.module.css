@@ -138,8 +138,20 @@
   @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-6;
 }
 
+.previewFoto {
+  @apply bg-white h-80 rounded-2xl shadow-sm border border-gray-100 p-6;
+}
+
 .riwayatTitle {
   @apply text-xs font-bold text-gray-500 uppercase tracking-wider mb-5 flex items-center gap-2;
+}
+
+.previewTitle {
+  @apply text-xs font-bold text-gray-500 uppercase tracking-wider mb-5 flex items-center gap-2;
+}
+
+.ratioFoto {
+  @apply w-56 h-56 md:w-56 md:h-56 object-cover shadow-md transition-transform hover:scale-105;
 }
 
 .jalurRiwayat {

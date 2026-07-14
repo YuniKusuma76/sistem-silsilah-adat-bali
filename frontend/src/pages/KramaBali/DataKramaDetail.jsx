@@ -31,7 +31,8 @@ import {
   FaHourglassHalf,
   FaPlusCircle,
   FaEye,
-  FaIdCardAlt 
+  FaIdCardAlt,
+  FaCamera
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -851,6 +852,17 @@ const DataKramaDetail = ({ user }) => {
     navigate(targetRoute);
   };
 
+  // Helper: Menampilkan foto krama
+  const DEFAULT_AVATAR_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/default-avatar.jpg";
+  const SUPABASE_STORAGE_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/";
+
+  const renderFotoProfile = () => {
+    if (krama.foto_profile) {
+      return `${SUPABASE_STORAGE_URL}${krama.foto_profile}`;
+    }
+    return DEFAULT_AVATAR_URL;
+  };  
+
   // Helper: menangani filter data master
   const processedData = useMemo(() => {
     if (!krama) return null;
@@ -1000,6 +1012,37 @@ const DataKramaDetail = ({ user }) => {
             <span className={styles.newValue} title={nilaiBaru}>
               {nilaiBaru ?? '-'}
             </span>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderFotoChangeRow = () => {
+    if (!data_perubahan || !data_perubahan.foto_profile || data_perubahan.foto_profile === krama.foto_profile) {
+      return null;
+    }
+
+    const fotoLamaUrl = krama.foto_profile 
+      ? `${SUPABASE_STORAGE_URL}${krama.foto_profile}` 
+      : DEFAULT_AVATAR_URL;
+      
+    const fotoBaruUrl = data_perubahan.foto_profile 
+      ? `${SUPABASE_STORAGE_URL}${data_perubahan.foto_profile}` 
+      : DEFAULT_AVATAR_URL;
+
+    return (
+      <tr className="hover:bg-gray-50 transition-colors">
+        <td className={styles.labelChange}>
+          Foto Profil
+        </td>
+        <td className="p-3 border-r border-gray-100">
+          <img src={fotoLamaUrl} alt="Foto Lama" className="w-40 h-40 rounded-lg object-cover border" />
+        </td>
+        <td className="p-3">
+          <div className="flex items-center gap-2">
+            <FaArrowRight className={styles.arrows} />
+            <img src={fotoBaruUrl} alt="Foto Baru" className="w-40 h-40 rounded-lg object-cover border-2 border-amber-500" />
           </div>
         </td>
       </tr>
@@ -1779,6 +1822,23 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
           </div>
           {/* KOLOM KANAN */}
           <div className="space-y-6">
+            {/* Foto Profile */}
+            <div className={styles.previewFoto}>
+              <h3 className={styles.previewTitle}>
+                <FaCamera size={16} className="mb-0.5" /> Foto Profile
+              </h3>
+              <div className="flex flex-col items-center space-y-2 pb-2">
+                <img 
+                  src={renderFotoProfile()} 
+                  alt={`Foto ${krama.nama_lengkap}`} 
+                  className={styles.ratioFoto}
+                  onError={(e) => {
+                    e.target.onerror = null; 
+                    e.target.src = DEFAULT_AVATAR_URL;
+                  }}
+                />
+              </div>
+            </div>
             {/* Riwayat Peran Adat */}
             <ModernCard title="Riwayat Peran Adat" icon={<MdHistory className="text-white" />}>
               <div className={styles.riwayatAdatSection}>
@@ -1866,8 +1926,8 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
       {/* MODAL DETAIL VERIFIKASI DATA KRAMA BALI */}
       {isOpenModalKrama && krama && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
-            <div className={styles.headerModal}>
+          <div className={`${styles.modalContent} max-h-[90vh] flex flex-col overflow-hidden`}>
+            <div className={`${styles.headerModal} flex-shrink-0`}>
               <h3>
                 <FaUserCog size={21} className="text-amber-700 mr-2" /> 
                 <span>Status & Pengelolaan Krama Bali</span>
@@ -1876,92 +1936,95 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                 <FaTimes size={15} className={styles.iconClose} />
               </button>
             </div>
-            <div className="space-y-2 text-[11px]">
-              <div className={styles.cardVerification}>
-                <div className="text-center">
-                  <span className={styles.labelColumn}>
-                    Status Verifikasi
-                  </span>
-                  <span className={`${styles.badge} ${
-                    status_verifikasi === 'Disetujui' ? 'bg-green-100 text-green-700' :
-                    status_verifikasi === 'Ditolak' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
-                    {status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
-                    {status_verifikasi === 'Draft' && <FaHourglassHalf size={10} />}
-                    {krama.status_verifikasi || 'Draft'}
-                  </span>
-                </div>
-                <div className="text-center">
-                  <span className={styles.labelColumn}>
-                    Status Sinkronisasi
-                  </span>
-                  {is_pending_update || status_verifikasi === "Draft" ? (
-                    <span className={styles.badgePending}>
-                      <FaExclamationTriangle size={11} className="mb-0.5" /> 
-                      <span>Menunggu Verifikasi</span>
+            <div className="flex-1 overflow-y-auto space-y-4">
+              <div className="space-y-2 text-[11px]">
+                <div className={styles.cardVerification}>
+                  <div className="text-center">
+                    <span className={styles.labelColumn}>
+                      Status Verifikasi
                     </span>
-                  ) : status_verifikasi === "Ditolak" ? (
-                    <span className={styles.badgeRejected}>
-                      <FaTimes size={11} /> 
-                      <span>Pengajuan Ditolak</span>
+                    <span className={`${styles.badge} ${
+                      status_verifikasi === 'Disetujui' ? 'bg-green-100 text-green-700' :
+                      status_verifikasi === 'Ditolak' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
+                      {status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
+                      {status_verifikasi === 'Draft' && <FaHourglassHalf size={10} />}
+                      {krama.status_verifikasi || 'Draft'}
                     </span>
-                  ) : (
-                    <span className={styles.badgeSuccess}>
-                      <FaCheck size={11} /> 
-                      <span>Data Aktif & Sinkron</span>
+                  </div>
+                  <div className="text-center">
+                    <span className={styles.labelColumn}>
+                      Status Sinkronisasi
                     </span>
+                    {is_pending_update || status_verifikasi === "Draft" ? (
+                      <span className={styles.badgePending}>
+                        <FaExclamationTriangle size={11} className="mb-0.5" /> 
+                        <span>Menunggu Verifikasi</span>
+                      </span>
+                    ) : status_verifikasi === "Ditolak" ? (
+                      <span className={styles.badgeRejected}>
+                        <FaTimes size={11} /> 
+                        <span>Pengajuan Ditolak</span>
+                      </span>
+                    ) : (
+                      <span className={styles.badgeSuccess}>
+                        <FaCheck size={11} /> 
+                        <span>Data Aktif & Sinkron</span>
+                      </span>
+                    )}
+                  </div>
+                  {catatan_admin_desa && (
+                    <div className={styles.noteColumn}>
+                      <span className={styles.labelColumn}>
+                        Catatan Validasi Admin Desa
+                      </span>
+                      <p className="italic text-black p-1">
+                        {catatan_admin_desa}
+                      </p>
+                    </div>
                   )}
                 </div>
-                {catatan_admin_desa && (
-                  <div className={styles.noteColumn}>
-                    <span className={styles.labelColumn}>
-                      Catatan Validasi Admin Desa
-                    </span>
-                    <p className="italic text-black p-1">
-                      {catatan_admin_desa}
-                    </p>
+                {/* DATA PERUBAHAN */}
+                {is_pending_update && data_perubahan && (
+                  <div className={styles.cardAreaChange}>
+                    <h4 className={styles.cardTitle}>
+                      <FaExclamationTriangle className={styles.cardIcon} /> 
+                      Draft Usulan Perubahan Data Krama Bali Anda
+                    </h4>
+                    <div className={styles.cardTable}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr className={styles.tableHeader}>
+                            <th className="p-3 w-1/4">Kategori</th>
+                            <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
+                            <th className="p-3 w-3/8">Usulan Perubahan</th>
+                          </tr>
+                        </thead>
+                        <tbody className={styles.tableBody}>
+                          {renderFotoChangeRow()}
+                          {renderPerubahanRow("Nama Lengkap", nama_lengkap, "nama_lengkap")}
+                          {renderPerubahanRow("Nama Panggilan", nama_panggilan, "nama_panggilan")}
+                          {renderPerubahanRow("Jenis Kelamin", jenis_kelamin, "jenis_kelamin")}
+                          {renderPerubahanRow("Tanggal Lahir", tanggal_lahir, "tanggal_lahir", "date")}
+                          {renderPerubahanRow("Status Hidup", status_hidup, "status_hidup")}
+                          {renderPerubahanRow("Asal Wilayah", is_bali, "is_bali", "boolean")}
+                          {renderPerubahanRow("Desa Adat", krama.desa_adat_id, "desa_adat_id", "desa_adat")}
+                          {renderPerubahanRow("Tempat Asal Khusus", tempat_asal_khusus, "tempat_asal_khusus")}
+                          {renderPerubahanRow("Alamat Luar", alamat_luar, "alamat_luar")}
+                          {renderPerubahanRow("Tipe Data", tipe_data, "tipe_data")}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className={styles.noteBtnGroup}>
+                      <span >💡</span>
+                      <p className="italic font-medium">
+                        Fitur modifikasi dan penghapusan data dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan di atas. Anda dapat membatalkan usulan ini jika ingin mengunci kembali data aktif.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
-              {/* DATA PERUBAHAN */}
-              {is_pending_update && data_perubahan && (
-                <div className={styles.cardAreaChange}>
-                  <h4 className={styles.cardTitle}>
-                    <FaExclamationTriangle className={styles.cardIcon} /> 
-                    Draft Usulan Perubahan Data Krama Bali Anda
-                  </h4>
-                  <div className={styles.cardTable}>
-                    <table className={styles.table}>
-                      <thead>
-                        <tr className={styles.tableHeader}>
-                          <th className="p-3 w-1/4">Kategori</th>
-                          <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
-                          <th className="p-3 w-3/8">Usulan Perubahan</th>
-                        </tr>
-                      </thead>
-                      <tbody className={styles.tableBody}>
-                        {renderPerubahanRow("Nama Lengkap", nama_lengkap, "nama_lengkap")}
-                        {renderPerubahanRow("Nama Panggilan", nama_panggilan, "nama_panggilan")}
-                        {renderPerubahanRow("Jenis Kelamin", jenis_kelamin, "jenis_kelamin")}
-                        {renderPerubahanRow("Tanggal Lahir", tanggal_lahir, "tanggal_lahir", "date")}
-                        {renderPerubahanRow("Status Hidup", status_hidup, "status_hidup")}
-                        {renderPerubahanRow("Asal Wilayah", is_bali, "is_bali", "boolean")}
-                        {renderPerubahanRow("Desa Adat", krama.desa_adat_id, "desa_adat_id", "desa_adat")}
-                        {renderPerubahanRow("Tempat Asal Khusus", tempat_asal_khusus, "tempat_asal_khusus")}
-                        {renderPerubahanRow("Alamat Luar", alamat_luar, "alamat_luar")}
-                        {renderPerubahanRow("Tipe Data", tipe_data, "tipe_data")}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className={styles.noteBtnGroup}>
-                    <span >💡</span>
-                    <p className="italic font-medium">
-                      Fitur modifikasi dan penghapusan data dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan di atas. Anda dapat membatalkan usulan ini jika ingin mengunci kembali data aktif.
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
             {/* Button Action */}
             <div className="mt-6 flex gap-2 justify-end pt-3">

@@ -17,6 +17,7 @@ import {
 import { mappingAturanAdatBali } from "../services/decision-tree.service.js";
 import { simpanRiwayatPeranAdat } from "../services/riwayat-peran-adat.service.js";
 import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
+import { supabase } from "../config/supabase.config.js";
 
 const VALID_JENIS_KELAMIN = [
   "Laki-laki", 
@@ -415,7 +416,8 @@ export const getKramaById = async (req, res) => {
 };
 
 export const createKrama = async (req, res) => {
-  // Deklarasi t diluar agar catch bisa diakses
+  const file = req.file;
+  let filePath = null;
   let t;
 
   try {
@@ -436,6 +438,17 @@ export const createKrama = async (req, res) => {
       tipe_data,
     } = req.body;
 
+    let final_is_bali = is_bali;
+    if (typeof is_bali === "string") {
+      final_is_bali = is_bali === "true";
+    } else if (is_bali === undefined || is_bali === null) {
+      final_is_bali = true; // Default fallback
+    }
+
+    // 2. Mengubah string ID dari FormData menjadi integer/null yang bersih
+    const final_desa_adat_id_input = desa_adat_id && desa_adat_id !== "" ? Number(desa_adat_id) : null;
+    const final_alamat_luar_input = alamat_luar && alamat_luar !== "" ? alamat_luar.trim() : null;
+
     if (!nama_lengkap) {
       throw { 
         status: 400, 
@@ -452,10 +465,6 @@ export const createKrama = async (req, res) => {
 
     const finalGenerateNomor = generateNoRegistrasi();
 
-    // Mulai transaksi database
-    t = await db.transaction();
-
-    let final_is_bali = is_bali ?? true;
     let final_desa_adat_id = null;
     let final_alamat_luar = null;
 
@@ -476,27 +485,27 @@ export const createKrama = async (req, res) => {
 
       // Validasi input wilayah asal
       if (final_is_bali === true) {
-        if (!desa_adat_id) {
+        if (!final_desa_adat_id_input) {
           throw { 
             status: 400, 
             message: "Krama bali wajib memilih desa adat asal!" 
           };
         }
-        final_desa_adat_id = desa_adat_id;
+        final_desa_adat_id = final_desa_adat_id_input;
       } else {
-        if (!alamat_luar) {
+        if (!final_alamat_luar_input) {
           throw { 
             status: 400, 
             message: "Krama luar bali wajib mengisi alamat asal!" 
           };
         }
-        final_alamat_luar = alamat_luar;
+        final_alamat_luar = final_alamat_luar_input;
       }
     } else {
-      if (final_is_bali === true && desa_adat_id) {
-        final_desa_adat_id = desa_adat_id;
-      } else if (final_is_bali === false && alamat_luar) {
-        final_alamat_luar = alamat_luar;
+      if (final_is_bali === true && final_desa_adat_id_input) {
+        final_desa_adat_id = final_desa_adat_id_input;
+      } else if (final_is_bali === false && final_alamat_luar_input) {
+        final_alamat_luar = final_alamat_luar_input;
       }
     }
 
@@ -513,6 +522,31 @@ export const createKrama = async (req, res) => {
       catatanAdminDesa = `Data krama bali diverifikasi otomatis oleh sistem (Input by ${userRole}).`;
     }
 
+    // Proses Upload File ke Bucket Privat Supabase
+    if (file) {
+      const fileExt = file.originalname.split('.').pop();
+      const fileName = `${Date.now()}_krama_${finalGenerateNomor}.${fileExt}`;
+
+      filePath = `foto-profile-krama/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('photo-krama')
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw { 
+          status: 500, 
+          message: `Gagal mengunggah foto profil krama ke Cloud Storage: ${uploadError.message}` 
+        };
+      }
+    }
+
+    // Mulai transaksi database
+    t = await db.transaction();
+
     const kramaBaru = await KramaBali.create({
       nomor_pendaftaran: finalGenerateNomor,
       nama_lengkap,
@@ -525,6 +559,7 @@ export const createKrama = async (req, res) => {
       tempat_asal_khusus,
       alamat_luar: final_alamat_luar,
       tipe_data,
+      foto_profile: filePath,
       user_id: currentUserId,
       status_verifikasi: statusVerifAwal,
       catatan_admin_desa: catatanAdminDesa,
@@ -549,7 +584,7 @@ export const createKrama = async (req, res) => {
         krama_id: kramaBaru.id,
         status_peran_adat: keputusan.status_peran_adat,
         garis_keturunan: keputusan.garis_keturunan,
-        dasar_keputusan: keputusan.dasar_keputusan + (!tanggal_lahir ? " (Tanggal lahir menggunakan tanggal input sistem)." : ""), 
+        dasar_keputusan: keputusan.dasar_keputusan + (!tanggal_lahir ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal lahir kosong)." : ""), 
         kategori_event: "LAHIR",
         bobot_event: BOBOT_EVENT["LAHIR"],
         event_date: tglMulai
@@ -589,8 +624,15 @@ export const createKrama = async (req, res) => {
       data: kramaBaru
     });
   } catch (error) {
-    if (t && !t.finished) {
-      await t.rollback();
+    if (t) {
+      try {
+        await t.rollback();
+      } catch (rollbackError) {
+        console.error("Transaksi database sudah ditutup:", rollbackError.message);
+      }
+    }
+    if (filePath) {
+      await supabase.storage.from('photo-krama').remove([filePath]);
     }
     const statusCode = error.status || 500;
     return res.status(statusCode).json({
@@ -600,7 +642,7 @@ export const createKrama = async (req, res) => {
 };
 
 export const verifikasiKrama = async (req, res) => {
-  // Deklarasi t diluar agar catch bisa diakses
+  let fileFotoDihapusPascaCommit = null;
   let t;
 
   try {
@@ -700,6 +742,10 @@ export const verifikasiKrama = async (req, res) => {
         ? krama.status_sebelum_draft 
         : "Ditolak";
 
+      if (isPendingUpdateData && krama.data_perubahan?.foto_profile) {
+        fileFotoDihapusPascaCommit = krama.data_perubahan.foto_profile;
+      }
+
       await krama.update({
         status_verifikasi: statusKembali,
         catatan_admin_desa: isPendingUpdateData ? `[PERUBAHAN DITOLAK]: ${catatan_admin_desa.trim()}.` : `[DITOLAK]: ${catatan_admin_desa.trim()}.`,
@@ -724,6 +770,12 @@ export const verifikasiKrama = async (req, res) => {
       }, t);
 
       await t.commit();
+
+      if (fileFotoDihapusPascaCommit) {
+        supabase.storage.from('photo-krama').remove([fileFotoDihapusPascaCommit]).catch(err => {
+          console.error("Gagal menghapus file usulan foto yang ditolak:", err.message);
+        });
+      }
 
       const kramaTerbaru = await KramaBali.findByPk(id, { 
         include: KRAMA_INCLUDE
@@ -758,6 +810,10 @@ export const verifikasiKrama = async (req, res) => {
         ...dataBaru 
       };
 
+      if (dataBaru.foto_profile && krama.foto_profile) {
+        fileFotoDihapusPascaCommit = krama.foto_profile;
+      }
+
       // Sinkronisasi kronologis jika ada perubahan tanggal lahir
       if (dataBaru.tanggal_lahir && krama.tipe_data === "Keturunan") {
         const tanggalBaruDateTime = new Date(`${dataBaru.tanggal_lahir} ${new Date().toTimeString().split(' ')[0]}`);
@@ -768,7 +824,6 @@ export const verifikasiKrama = async (req, res) => {
           }, { transaction: t });
         }
 
-        // mengambil riwayat keluarga krama bali target
         const riwayatKeluargaExist = await RiwayatKeluarga.findOne({
           where: { 
             krama_id: id, 
@@ -808,7 +863,7 @@ export const verifikasiKrama = async (req, res) => {
           await riwayatPeranLama.update({
             status_peran_adat: keputusan.status_peran_adat,
             garis_keturunan: keputusan.garis_keturunan,
-            dasar_keputusan: keputusan.dasar_keputusan + " (Riwayat peran adat diperbarui sesuai usulan perubahan data).",
+            dasar_keputusan: keputusan.dasar_keputusan + (!tanggalLahirAktif ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal lahir kosong)." : ""),
             mulai_tanggal: tglMulai
           }, { transaction: t });
         } else {
@@ -816,7 +871,7 @@ export const verifikasiKrama = async (req, res) => {
             krama_id: kramaRefreshed.id,
             status_peran_adat: keputusan.status_peran_adat,
             garis_keturunan: keputusan.garis_keturunan,
-            dasar_keputusan: keputusan.dasar_keputusan + " (Riwayat peran adat telah disahkan sesuai kelengkapan data).",
+            dasar_keputusan: keputusan.dasar_keputusan + (!tanggalLahirAktif ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal lahir kosong)." : ""),
             kategori_event: "LAHIR",
             bobot_event: BOBOT_EVENT["LAHIR"],
             event_date: tglMulai
@@ -881,6 +936,12 @@ export const verifikasiKrama = async (req, res) => {
     await Promise.all(notifikasiPromises);
     await t.commit();
 
+    if (fileFotoDihapusPascaCommit) {
+      supabase.storage.from('photo-krama').remove([fileFotoDihapusPascaCommit]).catch(err => {
+        console.error("Gagal membersihkan berkas foto lama pasca persetujuan usulan:", err.message);
+      });
+    }
+
     const kramaTerbaru = await KramaBali.findByPk(id, {
       include: KRAMA_INCLUDE
     });
@@ -890,8 +951,12 @@ export const verifikasiKrama = async (req, res) => {
       data: kramaTerbaru
     });
   } catch (error) {
-    if (t && !t.finished) {
-      await t.rollback();
+    if (t) {
+      try {
+        await t.rollback();
+      } catch (rollbackError) {
+        console.error("Transaksi database sudah ditutup:", rollbackError.message);
+      }
     }
     const statusCode = error.status || 500;
     return res.status(statusCode).json({
@@ -901,7 +966,9 @@ export const verifikasiKrama = async (req, res) => {
 };
 
 export const updateKramaById = async (req, res) => {
-  // Deklarasi t diluar agar catch bisa diakses
+  const file = req.file;
+  let fileFotoBaruPath = null;
+  let fileFotoLamaYangAkanDihapus = null;
   let t;
 
   try {
@@ -911,7 +978,9 @@ export const updateKramaById = async (req, res) => {
     const currentUserId = req.userId;
 
     const payload = { ...req.body };
+    
     delete payload.nomor_pendaftaran;
+    delete payload.foto_profile;
 
     // membersihkan string kosong
     if (payload.desa_adat_id === "") {
@@ -927,6 +996,37 @@ export const updateKramaById = async (req, res) => {
       payload.status_hidup = null;
     }
 
+    const kramaCek = await KramaBali.findByPk(id);
+
+    if (!kramaCek) {
+      throw { 
+        status: 404, 
+        message: "Data krama bali tidak ditemukan." 
+      };
+    }
+
+    // Proses Upload File ke Bucket Privat Supabase
+    if (file) {
+      const fileExt = file.originalname.split('.').pop();
+      const fileName = `${Date.now()}_krama_${kramaCek.nomor_pendaftaran}.${fileExt}`;
+
+      fileFotoBaruPath = `foto-profile-krama/${fileName}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('photo-krama')
+        .upload(fileFotoBaruPath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false
+        });
+
+      if (uploadError) {
+        throw { 
+          status: 500, 
+          message: `Gagal mengunggah foto profil baru: ${uploadError.message}` 
+        };
+      }
+    }
+
     // Mulai transaksi database
     t = await db.transaction();
     
@@ -935,15 +1035,8 @@ export const updateKramaById = async (req, res) => {
       lock: t.LOCK.UPDATE
     });
 
-    if (!krama) {
-      throw { 
-        status: 404, 
-        message: "Data krama bali tidak ditemukan." 
-      };
-    }
-
     // VALIDASI HAK AKSES RUANG LINGKUP DATA
-    if (userRole !== "Super Admin" && req.userId !== krama.user_id) {
+    if (userRole !== "Super Admin" && currentUserId !== krama.user_id) {
       if (userRole === "Admin Desa") {
         if (parseInt(krama.desa_adat_id) !== parseInt(userDesaId)) {
           throw { 
@@ -992,6 +1085,10 @@ export const updateKramaById = async (req, res) => {
     const isAuthedToApprove = isSuperAdmin || isAdminDesaLokal;
 
     if (!isAuthedToApprove) {
+      if (fileFotoBaruPath) {
+        payload.foto_profile = fileFotoBaruPath;
+      }
+
       await krama.update({
         status_sebelum_draft: krama.status_verifikasi,
         is_pending_update: true,
@@ -1029,6 +1126,13 @@ export const updateKramaById = async (req, res) => {
       };
     }
 
+    if (fileFotoBaruPath) {
+      payload.foto_profile = fileFotoBaruPath;
+      if (krama.foto_profile) {
+        fileFotoLamaYangAkanDihapus = krama.foto_profile;
+      }
+    }
+
     await krama.update({
       ...payload,
       is_pending_update: false,
@@ -1043,7 +1147,6 @@ export const updateKramaById = async (req, res) => {
     const tanggalLahirAktif = payload.tanggal_lahir || krama.tanggal_lahir;
 
     if (krama.tipe_data === "Keturunan" && jenisKelaminAktif && jenisKelaminAktif !== "Tidak Diketahui") {
-      // mengambil riwayat adat dengan kategori "LAHIR"
       const riwayatLahirExist = await RiwayatPeranAdat.findOne({
         where: { 
           krama_id: id, 
@@ -1065,7 +1168,7 @@ export const updateKramaById = async (req, res) => {
         await riwayatLahirExist.update({
           status_peran_adat: keputusan.status_peran_adat,
           garis_keturunan: keputusan.garis_keturunan,
-          dasar_keputusan: keputusan.dasar_keputusan + " (riwayat status peran adat telah diperbarui).",
+          dasar_keputusan: keputusan.dasar_keputusan + (!tanggalLahirAktif ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal lahir kosong)." : ""),
           mulai_tanggal: tglMulai
         }, { transaction: t });
       } else {
@@ -1073,7 +1176,7 @@ export const updateKramaById = async (req, res) => {
           krama_id: id,
           status_peran_adat: keputusan.status_peran_adat,
           garis_keturunan: keputusan.garis_keturunan,
-          dasar_keputusan: keputusan.dasar_keputusan + " (Riwayat status peran adat diinisialisasi melalui kelengkapan data).",
+          dasar_keputusan: keputusan.dasar_keputusan + (!tanggalLahirAktif ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal lahir kosong)." : ""),
           kategori_event: "LAHIR",
           bobot_event: BOBOT_EVENT["LAHIR"],
           event_date: tglMulai
@@ -1084,7 +1187,6 @@ export const updateKramaById = async (req, res) => {
     if (payload.tanggal_lahir && krama.tipe_data === "Keturunan") {
       const tanggalLahirBaruDateTime = new Date(`${payload.tanggal_lahir} ${new Date().toTimeString().split(' ')[0]}`);
 
-      // mengambil riwayat adat dengan kategori "LAHIR"
       const riwayatLahirExist = await RiwayatPeranAdat.findOne({
         where: { 
           krama_id: id, 
@@ -1092,13 +1194,13 @@ export const updateKramaById = async (req, res) => {
         },
         transaction: t
       });
+
       if (riwayatLahirExist) {
         await riwayatLahirExist.update({ 
           mulai_tanggal: tanggalLahirBaruDateTime 
         }, { transaction: t });
       }
 
-      // mengambil riwayat keluarga dengan kategori "LAHIR"
       const hubunganKeluargaKandung = await RiwayatKeluarga.findOne({
         where: { 
           krama_id: id,
@@ -1106,6 +1208,7 @@ export const updateKramaById = async (req, res) => {
         },
         transaction: t
       });
+
       if (hubunganKeluargaKandung) {
         await hubunganKeluargaKandung.update({ 
           awal_masuk: tanggalLahirBaruDateTime 
@@ -1141,6 +1244,12 @@ export const updateKramaById = async (req, res) => {
     ]);
 
     await t.commit();
+
+    if (fileFotoLamaYangAkanDihapus) {
+      supabase.storage.from('photo-krama').remove([fileFotoLamaYangAkanDihapus]).catch(err => {
+        console.error("Gagal menghapus berkas foto lama di cloud storage:", err.message);
+      });
+    }
     
     const updateKramaAdmin = await KramaBali.findByPk(id, {
       include: KRAMA_INCLUDE
@@ -1151,8 +1260,15 @@ export const updateKramaById = async (req, res) => {
       data: updateKramaAdmin
     });
   } catch (error) {
-    if (t && !t.finished) {
-      await t.rollback();
+    if (t) {
+      try {
+        await t.rollback();
+      } catch (rollbackError) {
+        console.error("Transaksi database sudah ditutup:", rollbackError.message);
+      }
+    }
+    if (fileFotoBaruPath) {
+      await supabase.storage.from('photo-krama').remove([fileFotoBaruPath]);
     }
     const statusCode = error.status || 500;
     return res.status(statusCode).json({
@@ -1162,7 +1278,7 @@ export const updateKramaById = async (req, res) => {
 };
 
 export const cancelUpdateKrama = async (req, res) => {
-  // Deklarasi t diluar agar catch bisa diakses
+  let fileFotoUsulanDihapusPascaCommit = null;
   let t;
 
   try {
@@ -1218,6 +1334,10 @@ export const cancelUpdateKrama = async (req, res) => {
       }
     }
 
+    if (krama.data_perubahan?.foto_profile) {
+      fileFotoUsulanDihapusPascaCommit = krama.data_perubahan.foto_profile;
+    }
+
     // DETERMINASI REKONSILIASI STATUS & LOGGING CATATAN
     const statusPulih = krama.status_sebelum_draft || "Draft";
     let catatanBatal = "";
@@ -1269,6 +1389,12 @@ export const cancelUpdateKrama = async (req, res) => {
 
     await t.commit();
 
+    if (fileFotoUsulanDihapusPascaCommit) {
+      supabase.storage.from('photo-krama').remove([fileFotoUsulanDihapusPascaCommit]).catch(err => {
+        console.error("Gagal menghapus file usulan foto yang dibatalkan:", err.message);
+      });
+    }
+
     const kramaTerbaru = await KramaBali.findByPk(id, {
       include: KRAMA_INCLUDE
     });
@@ -1278,8 +1404,12 @@ export const cancelUpdateKrama = async (req, res) => {
       data: kramaTerbaru
     });
   } catch (error) {
-    if (t && !t.finished) {
-      await t.rollback();
+    if (t) {
+      try {
+        await t.rollback();
+      } catch (rollbackError) {
+        console.error("Transaksi database sudah ditutup:", rollbackError.message);
+      }
     }
     const statusCode = error.status || 500;
     return res.status(statusCode).json({ 
@@ -1289,7 +1419,8 @@ export const cancelUpdateKrama = async (req, res) => {
 };
 
 export const deleteKramaById = async (req, res) => {
-  // Deklarasi t diluar agar catch bisa diakses
+  let fileFotoAktifDihapusPascaCommit = null;
+  let fileFotoUsulanDihapusPascaCommit = null;
   let t;
 
   try {
@@ -1402,6 +1533,14 @@ export const deleteKramaById = async (req, res) => {
       };
     }
 
+    if (krama.foto_profile) {
+      fileFotoAktifDihapusPascaCommit = krama.foto_profile;
+    }
+
+    if (krama.data_perubahan?.foto_profile) {
+      fileFotoUsulanDihapusPascaCommit = krama.data_perubahan.foto_profile;
+    }
+
     const idAyahLama = relasiSilsilahAnak?.ayah_id || null;
     const idIbuLama = relasiSilsilahAnak?.ibu_id || null;
 
@@ -1425,7 +1564,6 @@ export const deleteKramaById = async (req, res) => {
       transaction: t 
     });
 
-    // Kalibrasi urutan lahir saudara lain
     if (idAyahLama || idIbuLama) {
       await hitungUrutanLahir({
         mode: "CAMPUR",
@@ -1442,17 +1580,37 @@ export const deleteKramaById = async (req, res) => {
       desa_adat_id: krama.desa_adat_id || userDesaId,
       sender_id: userId,
       kontak_pesan_id: null,
-      user_id: null || krama.user_id
+      user_id: krama.user_id || null
     }, t);
     
     await t.commit();
+
+    const listFileFotoDihapus = [];
+
+    if (fileFotoAktifDihapusPascaCommit) {
+      listFileFotoDihapus.push(fileFotoAktifDihapusPascaCommit);
+    }
+
+    if (fileFotoUsulanDihapusPascaCommit) {
+      listFileFotoDihapus.push(fileFotoUsulanDihapusPascaCommit);
+    }
+
+    if (listFileFotoDihapus.length > 0) {
+      supabase.storage.from('photo-krama').remove(listFileFotoDihapus).catch(err => {
+        console.error("Gagal membersihkan aset media krama yang dihapus permanen:", err.message);
+      });
+    }
 
     return res.status(200).json({
       message: "Data krama bali beserta riwayat struktural terkait berhasil dihapus dari sistem secara resmi!"
     });
   } catch (error) {
-    if (t && !t.finished) {
-      await t.rollback();
+    if (t) {
+      try {
+        await t.rollback();
+      } catch (rollbackError) {
+        console.error("Transaksi database sudah ditutup:", rollbackError.message);
+      }
     }
     const statusCode = error.status || 500;
     return res.status(statusCode).json({

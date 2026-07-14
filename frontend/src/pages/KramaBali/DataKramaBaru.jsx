@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import Cropper from 'react-easy-crop';
 import { useNavigate } from 'react-router-dom';
 import { MdNotificationsNone } from 'react-icons/md';
 import { 
@@ -9,7 +10,8 @@ import {
   FaTrash, 
   FaInfoCircle, 
   FaEraser, 
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaCamera
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -49,6 +51,7 @@ const formatWaktuRelatif = (dateString) => {
 const DataKramaBaru = ({ user }) => {
   const navigate = useNavigate();
   const notifDropdownRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -64,6 +67,15 @@ const DataKramaBaru = ({ user }) => {
   const [kramaList, setKramaList] = useState([]);
   const [searchDesaUtama, setSearchDesaUtama] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // STATE CROP FOTO:
+  const [selectedFoto, setSelectedFoto] = useState(null);
+  const [previewFoto, setPreviewFoto] = useState(null);
+  const [imageSrc, setImageSrc] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   
   // STATE PERKAWINAN:
   const [perkawinanListOptions, setPerkawinanListOptions] = useState([]);
@@ -458,6 +470,77 @@ const DataKramaBaru = ({ user }) => {
       tanggal_lahir: targetValue === "Leluhur" ? "" : prev.tanggal_lahir,
       status_hidup: targetValue === "Leluhur" ? "Tidak Diketahui" : "Hidup",
     }));
+  };
+
+  const handleFotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setAlert({
+          show: true,
+          type: "error",
+          message: "Ukuran foto profil terlalu besar! Maksimal ukuran file adalah 2MB."
+        });
+        return;
+      }
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        setImageSrc(reader.result);
+        setIsCropModalOpen(true);
+      });
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const getCroppedImg = async (imageSrc, pixelCrop) => {
+    const image = new Image();
+    image.src = imageSrc;
+    await new Promise((resolve) => (image.onload = resolve));
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      pixelCrop.width,
+      pixelCrop.height
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const file = new File([blob], "profile_krama_1x1.png", { type: "image/png" });
+        resolve({ file, url: URL.createObjectURL(blob) });
+      }, "image/png");
+    });
+  };
+
+  const handleCropComplete = async () => {
+    try {
+      const { file, url } = await getCroppedImg(imageSrc, croppedAreaPixels);
+      setSelectedFoto(file);
+      setPreviewFoto(url);
+      setIsCropModalOpen(false);
+    } catch (e) {
+      console.error("Gagal melakukan cropping gambar:", e);
+    }
+  };
+
+  const handleHapusFoto = () => {
+    setSelectedFoto(null);
+    setPreviewFoto(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; 
+    }
   };
 
   // HELPER PERKAWINAN: Menangani perubahan data input perkawinan
@@ -934,7 +1017,24 @@ const DataKramaBaru = ({ user }) => {
         }
       }
 
-      const mainRes = await axiosInstance.post("/krama-bali", payloadKrama);
+      const formData = new FormData();
+
+      Object.keys(payloadKrama).forEach((key) => {
+        if (payloadKrama[key] === null) {
+          formData.append(key, "");
+        } else {
+          formData.append(key, payloadKrama[key]);
+        }
+      });
+
+      if (selectedFoto) {
+        formData.append("photo-krama", selectedFoto);
+      }
+
+      const mainRes = await axiosInstance.post("/krama-bali", formData, {
+        headers: { "Content-Type": "multipart/form-data"}
+      });
+
       const mainId = mainRes.data.data.id;
 
       // ====================================================================
@@ -1502,6 +1602,40 @@ const DataKramaBaru = ({ user }) => {
                     className={styles.inputText}
                     placeholder="Contoh: Sudarsana" 
                   />
+                </div>
+                <div className="flex flex-col space-y-1">
+                  <label className={styles.labelInput}>
+                    Foto Profile
+                  </label>
+                  <div className={styles.inputFoto}>
+                    {previewFoto ? (
+                      <div className="relative group w-52 h-52">
+                        <img src={previewFoto} alt="Preview 1:1" className={styles.previewFoto} />
+                        <button type="button" onClick={handleHapusFoto} className={styles.trashFoto} title="Hapus Foto">
+                          <FaTrash />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={styles.emptyFoto}>
+                        <FaCamera size={20} />
+                        <span className="text-[10px] font-medium">
+                          No Photo
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex flex-col space-y-1">
+                      <input 
+                        ref={fileInputRef} 
+                        type="file" 
+                        accept="image/jpeg, image/jpg, image/png"
+                        onChange={handleFotoChange}
+                        className={styles.chooseFoto}
+                      />
+                      <p className="text-[10px] text-gray-400 font-medium">
+                        * Format gambar: .jpg, .jpeg, .png (maksimal 2MB)
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 <div className={styles.dualInput}>
                   {/* Jenis Kelamin */}
@@ -3966,6 +4100,49 @@ const DataKramaBaru = ({ user }) => {
                   <FaTimes size={15} /> {isLoading ? 'Memproses...' : 'Ya, Batalkan'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Crop Foto */}
+      {isCropModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.ratioCrop}>
+            <h4 className="text-sm font-bold text-amber-900 mb-3 uppercase">
+              Crop Foto Profile
+            </h4>
+            <div className="relative flex-1 bg-gray-900 overflow-hidden mb-5">
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_, croppedPixels) => setCroppedAreaPixels(croppedPixels)}
+              />
+            </div>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-[10px] font-semibold text-gray-500">
+                ZOOM:
+              </span>
+              <input 
+                type="range" 
+                min={1} 
+                max={3} 
+                step={0.1} 
+                value={zoom} 
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full accent-amber-700"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setIsCropModalOpen(false)} className={styles.btnCancel}>
+                Batal
+              </button>
+              <button type="button" onClick={handleCropComplete} className={styles.btnCrop}>
+                Potong & Terapkan
+              </button>
             </div>
           </div>
         </div>

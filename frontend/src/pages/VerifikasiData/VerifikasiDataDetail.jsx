@@ -31,7 +31,8 @@ import {
   FaHourglassHalf,
   FaPlusCircle,
   FaEye,
-  FaIdCardAlt
+  FaIdCardAlt,
+  FaCamera 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -187,6 +188,12 @@ const VerifikasiDataDetail = ({ user }) => {
 
       // Menggunakan userDesaId yang sudah di-ekstrak di atas
       if (userDesaId && kramaDesaId && userDesaId === kramaDesaId) return true;
+
+      if (krama.is_pending_update && krama.data_perubahan?.desa_adat_id) {
+        const desaUsulanId = String(krama.data_perubahan.desa_adat_id);
+        // Jika desa usulan sama dengan desa admin yang login, beri akses verifikasi
+        if (userDesaId === desaUsulanId) return true;
+      }
 
       if (modalRelasiData) {
         const relasiDesaId = modalRelasiData.desa_adat_id || modalRelasiData.desaAdatId || modalRelasiData.desa_id;
@@ -684,6 +691,17 @@ const VerifikasiDataDetail = ({ user }) => {
     }
   }, [isOpenModalKawin]);
 
+  // Helper: Menampilkan foto krama
+  const DEFAULT_AVATAR_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/default-avatar.jpg";
+  const SUPABASE_STORAGE_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/";
+
+  const renderFotoProfile = () => {
+    if (krama.foto_profile) {
+      return `${SUPABASE_STORAGE_URL}${krama.foto_profile}`;
+    }
+    return DEFAULT_AVATAR_URL;
+  };  
+
   // Helper: menangani filter data master
   // Helper: menangani filter data master (TERPILIH & DIPERBAIKI SINKRONISASI ID)
   const processedData = useMemo(() => {
@@ -846,6 +864,37 @@ const VerifikasiDataDetail = ({ user }) => {
             <span className={styles.newValue} title={nilaiBaru}>
               {nilaiBaru ?? '-'}
             </span>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderFotoChangeRow = () => {
+    if (!data_perubahan || !data_perubahan.foto_profile || data_perubahan.foto_profile === krama.foto_profile) {
+      return null;
+    }
+
+    const fotoLamaUrl = krama.foto_profile 
+      ? `${SUPABASE_STORAGE_URL}${krama.foto_profile}` 
+      : DEFAULT_AVATAR_URL;
+      
+    const fotoBaruUrl = data_perubahan.foto_profile 
+      ? `${SUPABASE_STORAGE_URL}${data_perubahan.foto_profile}` 
+      : DEFAULT_AVATAR_URL;
+
+    return (
+      <tr className="hover:bg-gray-50 transition-colors">
+        <td className={styles.labelChange}>
+          Foto Profil
+        </td>
+        <td className="p-3 border-r border-gray-100">
+          <img src={fotoLamaUrl} alt="Foto Lama" className="w-40 h-40 rounded-lg object-cover border" />
+        </td>
+        <td className="p-3">
+          <div className="flex items-center gap-2">
+            <FaArrowRight className={styles.arrows} />
+            <img src={fotoBaruUrl} alt="Foto Baru" className="w-40 h-40 rounded-lg object-cover border-2 border-amber-500" />
           </div>
         </td>
       </tr>
@@ -1284,6 +1333,7 @@ const VerifikasiDataDetail = ({ user }) => {
                           </tr>
                         </thead>
                         <tbody className={styles.tableBody}>
+                          {renderFotoChangeRow()}
                           {renderPerubahanRow("Nama Lengkap", nama_lengkap, "nama_lengkap")}
                           {renderPerubahanRow("Nama Panggilan", nama_panggilan, "nama_panggilan")}
                           {renderPerubahanRow("Jenis Kelamin", jenis_kelamin, "jenis_kelamin")}
@@ -1905,6 +1955,23 @@ let hasChanges = false;
           </div>
           {/* KOLOM KANAN */}
           <div className="space-y-6">
+            {/* Foto Profile */}
+            <div className={styles.previewFoto}>
+              <h3 className={styles.previewTitle}>
+                <FaCamera size={16} className="mb-0.5" /> Foto Profile
+              </h3>
+              <div className="flex flex-col items-center space-y-2 pb-2">
+                <img 
+                  src={renderFotoProfile()} 
+                  alt={`Foto ${krama.nama_lengkap}`} 
+                  className={styles.ratioFoto}
+                  onError={(e) => {
+                    e.target.onerror = null; 
+                    e.target.src = DEFAULT_AVATAR_URL;
+                  }}
+                />
+              </div>
+            </div>
             {/* Riwayat Peran Adat */}
             <ModernCard title="Riwayat Peran Adat" icon={<MdHistory className="text-white" />}>
               <div className={styles.riwayatAdatSection}>

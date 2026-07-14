@@ -66,6 +66,30 @@
   @apply w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all placeholder:text-gray-400;
 }
 
+.inputFoto {
+  @apply flex items-center gap-4 p-4 rounded-xl border border-gray-300;
+}
+
+.previewFoto {
+  @apply w-52 h-52 object-cover border-2 border-amber-600 shadow-sm;
+}
+
+.trashFoto {
+  @apply absolute -top-1 -right-1 bg-red-600 text-white p-1 rounded text-[9px] hover:bg-red-700 shadow shadow-black/20;
+}
+
+.chooseFoto {
+  @apply text-xs text-gray-800 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border file:border-amber-300 file:text-xs file:font-semibold file:bg-amber-100 file:text-amber-900 hover:file:bg-amber-200 cursor-pointer;
+}
+
+.emptyFoto {
+  @apply w-52 h-52 bg-gray-200 border border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 gap-0.5;
+}
+
+.ratioCrop {
+  @apply bg-white p-5 rounded-2xl w-full max-w-lg relative flex flex-col h-[576px] shadow-2xl;
+}
+
 .disableFieldReg {
   @apply w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all placeholder:text-gray-400 font-mono font-bold tracking-wider bg-gray-100 cursor-not-allowed;
 }
@@ -268,6 +292,10 @@
 
 .btnCancel {
   @apply px-6 py-2.5 rounded-xl border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-800 text-xs font-bold transition-all duration-200 active:scale-95;
+}
+
+.btnCrop {
+  @apply inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl text-xs font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-100;
 }
 
 .btnDelete {

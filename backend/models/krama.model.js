@@ -57,6 +57,10 @@ const KramaBali = db.define("tb_krama_bali", {
     type: DataTypes.STRING,
     allowNull: false
   },
+  foto_profile: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: false
