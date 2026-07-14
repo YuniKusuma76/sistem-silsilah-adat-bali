@@ -42,10 +42,6 @@ const PermohonanRole = db.define("tb_permohonan_role", {
     type: DataTypes.INTEGER,
     allowNull: true
   },
-  tanggal_pengajuan: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
-  },
   tanggal_verifikasi: {
     type: DataTypes.DATE,
     allowNull: true

@@ -136,8 +136,10 @@ const createSlug = (namaLengkap, tipeData, id) => {
 const DataKramaDetail = ({ user }) => {
   const { id: slugParam } = useParams();
   const notifDropdownRef = useRef(null);
+
   const [keluargaMap, setKeluargaMap] = useState({});
   const [masterDesaMap, setMasterDesaMap] = useState({});
+  const [kramaCacheMap, setKramaCacheMap] = useState({});
   
   const [krama, setKrama] = useState(null);
   const [relasiList, setRelasiList] = useState([]);
@@ -424,6 +426,50 @@ const DataKramaDetail = ({ user }) => {
       });
     }
   };
+
+  useEffect(() => {
+    const resolusiNamaKrama = async () => {
+      let data_perubahan_kawin = modalKawinData?.data_perubahan;
+      if (data_perubahan_kawin && data_perubahan_kawin.data_perubahan) {
+        data_perubahan_kawin = data_perubahan_kawin.data_perubahan;
+      }
+      if (!data_perubahan_kawin) return;
+
+      // Ambil target ID baru dari payload UPDATE_PERKAWINAN atau PERCERAIAN
+      const targetPayload = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin.PERCERAIAN || data_perubahan_kawin;
+      const idSuamiBaru = targetPayload.suami_id;
+      const idIstriBaru = targetPayload.istri_id;
+
+      const idsToFetch = [];
+      if (idSuamiBaru && !kramaCacheMap[idSuamiBaru]) idsToFetch.push(idSuamiBaru);
+      if (idIstriBaru && !kramaCacheMap[idIstriBaru]) idsToFetch.push(idIstriBaru);
+
+      // Jalankan fetch jika ada ID baru yang belum terdaftar di cache map
+      if (idsToFetch.length > 0) {
+        try {
+          const newCache = { ...kramaCacheMap };
+          await Promise.all(
+            idsToFetch.map(async (id) => {
+              if (!id || isNaN(Number(id))) return;
+              try {
+                const res = await axiosInstance.get(`/krama-bali/${id}`);
+                if (res.data?.data?.nama_lengkap) {
+                  newCache[id] = res.data.data.nama_lengkap;
+                }
+              } catch (err) {
+                console.error(`Gagal mengambil resolusi nama krama ID ${id}:`, err);
+              }
+            })
+          );
+          setKramaCacheMap(newCache);
+        } catch (error) {
+          console.error("Gagal memproses batch resolusi nama krama:", error);
+        }
+      }
+    };
+
+    resolusiNamaKrama();
+  }, [modalKawinData, kramaCacheMap]);
 
   // Helper: membatalkan perubahan data krama bali
   const handleCancelUpdateKrama = async () => {
@@ -1042,13 +1088,13 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
   }
 
   // ============================================================
-  // LOGIKA TRANSLASI NAMA PURUSA / PRADANA (ANTI ID ANGKA LAMA)
+  // LOGIKA TRANSLASI NAMA PURUSA / PRADANA (MENGGUNAKAN API CACHE)
   // ============================================================
   if (namaField === 'suami_id' || namaField === 'istri_id') {
     const relasiKey = namaField === 'suami_id' ? 'suami' : 'istri';
     const kramaLama = modalKawinData?.[relasiKey];
 
-    // Tampilkan Nama Lengkap Krama Lama jika objek relasinya tersedia dari Eager Loading
+    // 1. Tentukan Nilai Tampilan Lama (Data Aktif)
     if (kramaLama?.nama_lengkap) {
       const isLamaDraft = kramaLama?.status_verifikasi === 'Draft';
       nilaiLamaDiformat = `${kramaLama.nama_lengkap}${isLamaDraft ? ' [DRAFT]' : ''}`;
@@ -1056,26 +1102,30 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
       nilaiLamaDiformat = `Krama ID: ${nilaiLama}`;
     }
 
-    // Terjemahkan Nilai Baru jika terjadi pergantian Krama Pasangan
+    // 2. Tentukan Nilai Tampilan Baru (Data Usulan)
     if (String(nilaiBaru) === String(kramaLama?.id || nilaiLama)) {
       nilaiBaruDiformat = nilaiLamaDiformat;
     } else {
-      // Kasus data berubah ekstrem (pilih krama baru): Bongkar titipan nama baru di catatan_update
-      let namaDariCatatan = "";
-      try {
-        const targetSearchObj = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin;
-        const parsedCatatan = JSON.parse(targetSearchObj?.catatan_update || modalKawinData?.catatan_update);
-        namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
-      } catch (e) { e
-        namaDariCatatan = "";
-      }
-
-      if (namaDariCatatan) {
-        nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
-      } else if (data_perubahan_kawin?.[relasiKey]?.nama_lengkap) {
-        nilaiBaruDiformat = `${data_perubahan_kawin[relasiKey].nama_lengkap} [DRAFT]`;
+      // Cek apakah nama lengkap ID baru sudah berhasil diunduh ke cache
+      if (kramaCacheMap[nilaiBaru]) {
+        nilaiBaruDiformat = `${kramaCacheMap[nilaiBaru]} [DRAFT]`;
       } else {
-        nilaiBaruDiformat = `Krama ID: ${nilaiBaru} [DRAFT]`;
+        // Fallback cadangan: bongkar dari string json catatan_update jika ada
+        let namaDariCatatan = "";
+        try {
+          const targetSearchObj = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin;
+          const parsedCatatan = JSON.parse(targetSearchObj?.catatan_update || modalKawinData?.catatan_update);
+          namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
+        } catch (e) {
+          console.log(e);
+          namaDariCatatan = "";
+        }
+
+        if (namaDariCatatan) {
+          nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
+        } else {
+          nilaiBaruDiformat = `Memuat Nama (ID: ${nilaiBaru})... [DRAFT]`;
+        }
       }
     }
   }
@@ -1102,7 +1152,6 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
             {nilaiBaruDiformat?.includes('[DRAFT]') ? (
               <>
                 {nilaiBaruDiformat.replace(' [DRAFT]', '')} 
-                <span className={styles.labelDraftChange}>DRAFT</span>
               </>
             ) : (
               nilaiBaruDiformat ?? '-'
@@ -1199,10 +1248,9 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -1643,7 +1691,9 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                         const namaPasanganLama = String(pLama.suami_id) === String(krama.id)
                           ? pLama.istri?.nama_lengkap || "Istri" 
                           : pLama.suami?.nama_lengkap || "Suami";
+
                         const isCeraiMati = pLama.status_perkawinan?.toLowerCase().includes('mati');
+
                         const noRegPasanganLama = String(pLama.suami_id) === String(krama.id)
                           ? (pLama.istri?.nomor_pendaftaran || pLama.nomor_pendaftaran_istri || "-")
                           : (pLama.suami?.nomor_pendaftaran || pLama.nomor_pendaftaran_suami || "-");
@@ -2114,7 +2164,6 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
               </button>
             </div>
               <div className="flex-1 overflow-y-auto p-1 pr-2 space-y-4">
-              {/* Kondisi 1: Belum ada data perkawinan */}
               {!modalKawinData ? (
                 <>
                   <div className="p-8 text-center space-y-4">
@@ -2138,7 +2187,6 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                   </div>
                 </>
               ) : (
-                /* Kondisi 2: Adanya data perkawinan */
                 <>
                   <div className="space-y-2 text-[11px]">
                     <div className={styles.cardVerification}>
@@ -2167,10 +2215,15 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                             <FaExclamationTriangle size={11} className="mb-0.5" /> 
                             <span>Menunggu Verifikasi</span>
                           </span>
+                        ) : modalKawinData.status_verifikasi === "Ditolak" ? (
+                          <span className={styles.badgeRejected}>
+                            <FaTimes size={11} /> 
+                            <span>Pengajuan Ditolak</span>
+                          </span>
                         ) : (
                           <span className={styles.badgeSuccess}>
-                            <FaCheck size={11} />
-                            <span>Data Aktif & Sinkron</span> 
+                            <FaCheck size={11} /> 
+                            <span>Data Aktif & Sinkron</span>
                           </span>
                         )}
                       </div>

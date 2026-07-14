@@ -6,14 +6,15 @@ import {
   FaTrash, 
   FaInfoCircle, 
   FaPlus, 
-  FaExclamationTriangle
+  FaExclamationTriangle,
+  FaTimes
 } from 'react-icons/fa'; 
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
 import styles from './PengajuanRolePersonal.module.css';
 
 // Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing, variant = 'delete' }) => {
   if (!isOpen) return null;
   return (
     <div className={styles.modalOverlay}>
@@ -37,7 +38,10 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProce
               Kembali
             </button>
             <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Batalkan'}
+              {variant === 'delete' ? <FaTrash size={12} /> : <FaTimes size={12} />} 
+              <span className="ml-1">
+                {isProcessing ? 'Memproses...' : variant === 'delete' ? 'Ya, Hapus' : 'Ya, Batalkan'}
+              </span>
             </button>
           </div>
         </div>
@@ -105,7 +109,8 @@ const PengajuanRolePersonal = ({ user }) => {
 
   const [modal, setModal] = useState({ 
     show: false, 
-    id: null 
+    id: null,
+    action: '' 
   });
 
   const fetchWilayahDanDesa = async () => {
@@ -199,25 +204,36 @@ const PengajuanRolePersonal = ({ user }) => {
     }
   };
 
-  const handleConfirmBatalkan = async () => {
-    if (!modal.id) return;
+  const handleExecuteModalAction = async () => {
+    if (!modal.id || !modal.action) return;
     setIsSubmitting(true);
     try {
-      await axiosInstance.put(`/permohonan-role/cancel/${modal.id}`);
-      setAlert({ 
-        show: true, type: 'success', 
-        message: 'Permohonan perubahan role berhasil dibatalkan.' 
-      });
+      if (modal.action === 'cancel') {
+        await axiosInstance.put(`/permohonan-role/cancel/${modal.id}`);
+        setAlert({ 
+          show: true, 
+          type: 'success', 
+          message: 'Permohonan perubahan role berhasil dibatalkan.' 
+        });
+      } else if (modal.action === 'delete') {
+        await axiosInstance.delete(`/permohonan-role/${modal.id}`);
+        setAlert({ 
+          show: true, 
+          type: 'success', 
+          message: 'Riwayat permohonan perubahan role dan dokumen pendukung berhasil dihapus secara permanen.' 
+        });
+      }
       fetchData(); 
       setModal({ 
         show: false, 
-        id: null 
+        id: null, 
+        action: '' 
       });
     } catch (error) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || "Gagal membatalkan permohonan perubahan role." 
+        message: error.response?.data?.message || `Terjadi kesalahan pada sistem saat memproses riwayat permohonan role.` 
       });
     } finally {
       setIsSubmitting(false);
@@ -395,10 +411,9 @@ const PengajuanRolePersonal = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -440,11 +455,16 @@ const PengajuanRolePersonal = ({ user }) => {
       {/* Modal Konfirmasi */}
       <ConfirmationModal 
         isOpen={modal.show}
-        onClose={() => setModal({ show: false, id: null })}
-        onConfirm={handleConfirmBatalkan}
+        onClose={() => setModal({ show: false, id: null, action: '' })}
+        onConfirm={handleExecuteModalAction}
         isProcessing={isSubmitting}
-        title="Batalkan Permohonan?"
-        message="Permohonan perubahan role yang dibatalkan bersifat permanen dan tidak akan diproses oleh Admin Validator."
+        variant={modal.action}
+        title={modal.action === 'delete' ? "Hapus Riwayat Permohonan?" : "Batalkan Permohonan?"}
+        message={
+          modal.action === 'delete' 
+            ? "Apakah Anda yakin ingin menghapus riwayat ini? Data permohonan perubahan role dan dokumen pendukung akan dihapus secara permanen."
+            : "Permohonan perubahan role yang dibatalkan bersifat permanen dan tidak akan diproses oleh Admin Validator."
+        }
       />
       {/* Alert Section */}
       {alert.show && (
@@ -562,7 +582,7 @@ const PengajuanRolePersonal = ({ user }) => {
                         {indexOfFirstItem + index + 1}
                       </td>
                       <td className="text-center">
-                        {new Date(item.tanggal_pengajuan).toLocaleDateString('id-ID', { 
+                        {new Date(item.createdAt).toLocaleDateString('id-ID', { 
                           day: 'numeric', month: 'long', year: 'numeric' 
                         })}
                       </td>
@@ -591,14 +611,19 @@ const PengajuanRolePersonal = ({ user }) => {
                           <button 
                             className={styles.btnDetail} 
                             onClick={() => {
-                              const slug = createSlug(item.role_yang_diminta, item.tanggal_pengajuan, item.id);
+                              const slug = createSlug(item.role_yang_diminta, item.createdAt, item.id);
                               navigate(`/pengajuan-role/my-data/detail/${slug}`);
                             }}>
                             <FaInfoCircle /> Detail
                           </button>
                           {item.status_permohonan === 'Menunggu' && (
-                            <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: item.id })}>
-                              <FaTrash size={11} /> Batal
+                            <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: item.id, action: 'cancel' })}>
+                              <FaTimes size={11} /> Batalkan
+                            </button>
+                          )}
+                          {(item.status_permohonan === 'Dibatalkan' || item.status_permohonan === 'Ditolak') && (
+                            <button className={styles.btnDelete} onClick={() => setModal({ show: true, id: item.id, action: 'delete' })}>
+                              <FaTrash size={11} /> Hapus
                             </button>
                           )}
                         </div>

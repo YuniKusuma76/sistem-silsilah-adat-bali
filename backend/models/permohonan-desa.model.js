@@ -55,10 +55,6 @@ const PermohonanDesa = db.define("tb_permohonan_desa_adat", {
     type: DataTypes.INTEGER,
     allowNull: true
   },
-  tanggal_pengajuan: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
-  },
   tanggal_validasi: {
     type: DataTypes.DATE,
     allowNull: true

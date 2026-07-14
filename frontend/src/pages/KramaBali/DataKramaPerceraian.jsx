@@ -644,10 +644,24 @@ const DataKramaPerceraian = ({ user }) => {
         const stringTanggalCeraiForm = safeDate(m.tanggal_cerai);
         let tglCeraiFinal;
 
-        if (!stringTanggalCeraiForm || stringTanggalCeraiForm === stringTanggalKawinDb) {
-          tglCeraiFinal = new Date().toISOString();
+        if (!stringTanggalCeraiForm) {
+          // Jika kosong, gunakan tanggal hari ini dengan format YYYY-MM-DD (WITA/Lokal)
+          const hariIni = new Date();
+          const offset = hariIni.getTimezoneOffset();
+          const localDate = new Date(hariIni.getTime() - (offset * 60 * 1000));
+          tglCeraiFinal = localDate.toISOString().split('T')[0];
         } else {
           tglCeraiFinal = stringTanggalCeraiForm;
+        }
+
+        if (stringTanggalKawinDb && new Date(tglCeraiFinal) < new Date(stringTanggalKawinDb)) {
+          setAlert({
+            show: true,
+            type: 'error',
+            message: `Tanggal perceraian tidak boleh lebih lampau dari tanggal perkawinan (${stringTanggalKawinDb})!`
+          });
+          setIsLoading(false);
+          return;
         }
 
         let pihakMeninggalFinal = null;

@@ -67,6 +67,8 @@ export const eksekusiVerifikasiPerceraian = async ({
         is_pending_update: false,
         status_sebelum_draft: null,
         data_perubahan: null,
+        is_approved_desa_suami: false,
+        is_approved_desa_istri: false,
         catatan_admin_desa: newCatatanAdmin
       }, { transaction: t });
 
@@ -81,9 +83,8 @@ export const eksekusiVerifikasiPerceraian = async ({
     const existingChanges = perkawinan.data_perubahan || {};
     const drafCerai = existingChanges.PERCERAIAN;
 
-    // inisialisasi atau mengambil flag persetujuan dari objek draft JSONB
-    let approvedSuami = drafCerai.is_approved_desa_suami || false;
-    let approvedIstri = drafCerai.is_approved_desa_istri || false;
+    let approvedSuami = perkawinan.is_approved_desa_suami || false;
+    let approvedIstri = perkawinan.is_approved_desa_istri || false;
 
     if (target_sisi === "suami" || target_sisi === "super_admin") {
       approvedSuami = true;

@@ -34,11 +34,11 @@ const formatWaktuRelatif = (dateString) => {
 
 const VerifikasiData = ({ user }) => {
   const notifDropdownRef = useRef(null);
+  const navigate = useNavigate();
+
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
-  
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
   // STATE START VERIFIKASI DATA:
@@ -347,10 +347,9 @@ const VerifikasiData = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>

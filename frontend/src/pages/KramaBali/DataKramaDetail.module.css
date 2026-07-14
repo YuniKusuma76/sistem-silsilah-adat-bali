@@ -227,7 +227,7 @@
 }
 
 .modalContent {
-  @apply bg-white w-full max-w-2xl rounded-3xl p-8 shadow-2xl animate-fade-in border-t-4 border-amber-700;
+  @apply bg-white w-full max-w-3xl rounded-3xl p-8 shadow-2xl animate-fade-in border-t-4 border-amber-700;
 }
 
 .headerModal {

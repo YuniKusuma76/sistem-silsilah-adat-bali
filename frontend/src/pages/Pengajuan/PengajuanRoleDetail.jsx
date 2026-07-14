@@ -24,7 +24,7 @@ import Footer from '../../components/Footer/Footer.jsx';
 import styles from './PengajuanRoleDetail.module.css';
 
 // Helper: Modal konfirmasi
-const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing }) => {
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProcessing, variant = 'delete' }) => {
   if (!isOpen) return null;
   return (
     <div className={styles.modalOverlay}>
@@ -44,7 +44,10 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, isProce
               Kembali
             </button>
             <button onClick={onConfirm} disabled={isProcessing} className={styles.btnDelete}>
-              <FaTrash size={12} /> {isProcessing ? 'Memproses...' : 'Ya, Batalkan'}
+              {variant === 'delete' ? <FaTrash size={12} /> : <FaTimes size={12} />} 
+              <span className="ml-1">
+                {isProcessing ? 'Memproses...' : variant === 'delete' ? 'Ya, Hapus' : 'Ya, Batalkan'}
+              </span>
             </button>
           </div>
         </div>
@@ -82,7 +85,7 @@ const PengajuanRoleDetail = ({ user }) => {
 
   const [data, setData] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadMode, setDownloadMode] = useState(null);
   const [alamatLengkapDesa, setAlamatLengkapDesa] = useState('-');
 
   // STATE WILAYAH ADAT:
@@ -121,7 +124,8 @@ const PengajuanRoleDetail = ({ user }) => {
 
   const [modal, setModal] = useState({ 
     show: false, 
-    id: null 
+    id: null,
+    action: '' 
   });
 
   useEffect(() => {
@@ -264,22 +268,35 @@ const PengajuanRoleDetail = ({ user }) => {
     if (!modal.id) return;
     setIsSubmitting(true);
     try {
-      await axiosInstance.put(`/permohonan-role/cancel/${modal.id}`);
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: 'Permohonan perubahan role berhasil dibatalkan.' 
-      });
-      setModal({ 
-        show: false, 
-        id: null 
-      });
-      refreshDetailData(); 
+      if (modal.action === 'cancel') {
+        await axiosInstance.put(`/permohonan-role/cancel/${modal.id}`);
+        setAlert({ 
+          show: true, 
+          type: 'success', 
+          message: 'Permohonan perubahan role berhasil dibatalkan.' 
+        });
+        setModal({ 
+          show: false, 
+          id: null, 
+          action: '' 
+        });
+        refreshDetailData();
+      } else if (modal.action === 'delete') {
+        await axiosInstance.delete(`/permohonan-role/${modal.id}`);
+        setModal({ 
+          show: false, 
+          id: null, 
+          action: '' 
+        });
+        navigate('/pengajuan-role/my-data', {
+          state: { successMessage: 'Riwayat permohonan perubahan role berhasil dihapus secara permanen.' }
+        });
+      }
     } catch (error) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: error.response?.data?.message || "Gagal membatalkan permohonan perubahan role." 
+        message: error.response?.data?.message || `Terjadi kesalahan saat memproses permohonan role.` 
       });
     } finally {
       setIsSubmitting(false);
@@ -324,53 +341,50 @@ const PengajuanRoleDetail = ({ user }) => {
   // Helper: Menampilkan preview dokumen pendukung
   useEffect(() => {
     let isMounted = true;
-    let localUrl = null;
 
     if (data?.dokumen_pendukung && data.dokumen_pendukung.match(/\.(jpeg|jpg|png)$/i)) {
-      const fetchImage = async () => {
+      const fetchImageSignedUrl = async () => {
         try {
-          const response = await axiosInstance.get(`/permohonan-role/document/${actualId}`, {
-            responseType: 'blob' 
-          });
-          if (isMounted) {
-            localUrl = URL.createObjectURL(response.data);
-            setImagePreviewUrl(localUrl);
+          const response = await axiosInstance.get(`/permohonan-role/document/${actualId}`);
+          if (isMounted && response.data?.url) {
+            setImagePreviewUrl(response.data.url);
           }
         } catch (error) { 
           console.error("Terjadi kesalahan pada sistem saat memuat preview dokumen:", error); 
         }
       };
-      fetchImage();
+      fetchImageSignedUrl();
     }
+
     return () => {
       isMounted = false;
-      if (localUrl) {
-        URL.revokeObjectURL(localUrl);
-      }
     };
   }, [data?.dokumen_pendukung, actualId]);
 
   // Helper: Mengunduh atau melihat dokumen pendukung
   const downloadOrViewFile = async (mode) => {
     if (!data?.dokumen_pendukung) return;
-    setIsDownloading(true);
+    setDownloadMode(mode);
     try {
-      const response = await axiosInstance.get(`/permohonan-role/document/${actualId}`, {
-        responseType: 'blob' 
-      });
+      const response = await axiosInstance.get(`/permohonan-role/document/${actualId}`);
+      const signedUrl = response.data?.url;
 
-      const file = new Blob([response.data], { 
-        type: response.headers['content-type'] 
-      });
-      const fileURL = URL.createObjectURL(file);
+      if (!signedUrl) {
+        throw new Error("Tautan dokumen pendukung gagal didapatkan.");
+      }
 
       if (mode === 'view') {
-        window.open(fileURL, '_blank');
-        setTimeout(() => URL.revokeObjectURL(fileURL), 1000);
+        window.open(signedUrl, '_blank');
       } else {
+        const blobResponse = await fetch(signedUrl);
+        const blobData = await blobResponse.blob();
+        const fileURL = URL.createObjectURL(blobData);
+        
         const link = document.createElement('a');
         link.href = fileURL;
-        link.setAttribute('download', data.dokumen_pendukung);
+        const cleanFileName = data.dokumen_pendukung.split('_').slice(1).join('_') || 'dokumen-pendukung';
+        link.setAttribute('download', cleanFileName);
+        
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -381,10 +395,10 @@ const PengajuanRoleDetail = ({ user }) => {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: "Gagal memproses file dokumen pendukung." 
+        message: "Gagal memproses file dokumen pendukung dari Cloud Storage." 
       });
     } finally {
-      setIsDownloading(false);
+      setDownloadMode(null);
     }
   };
 
@@ -498,10 +512,9 @@ const PengajuanRoleDetail = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -543,11 +556,16 @@ const PengajuanRoleDetail = ({ user }) => {
       {/* Modal Konfirmasi */}
       <ConfirmationModal 
         isOpen={modal.show}
-        onClose={() => setModal({ show: false, id: null })}
+        onClose={() => setModal({ show: false, id: null, action: '' })}
         onConfirm={handleConfirmBatalkan}
         isProcessing={isSubmitting}
-        title="Batalkan Permohonan?"
-        message="Permohonan perubahan role yang dibatalkan bersifat permanen dan tidak akan diproses oleh Admin Validator."
+        variant={modal.action}
+        title={modal.action === 'delete' ? "Hapus Riwayat Permohonan?" : "Batalkan Permohonan?"}
+        message={
+          modal.action === 'delete' 
+            ? "Apakah Anda yakin ingin menghapus riwayat ini? Data permohonan dan dokumen pendukung akan dihapus secara permanen."
+            : "Permohonan perubahan role yang dibatalkan bersifat permanen dan tidak akan diproses oleh Admin Validator."
+        }
       />
       {/* Alert Section */}
       {alert.show && (
@@ -642,9 +660,9 @@ const PengajuanRoleDetail = ({ user }) => {
                   <p className={styles.contentColumn}>
                     <FaCalendarAlt className="text-amber-700 mr-1" /> 
                     <span>
-                      {`${new Date(data.tanggal_pengajuan).toLocaleDateString('id-ID', { 
+                      {`${new Date(data.createdAt).toLocaleDateString('id-ID', { 
                         dateStyle: 'full' 
-                      })} • ${new Date(data.tanggal_pengajuan).toLocaleTimeString('id-ID', { 
+                      })} • ${new Date(data.createdAt).toLocaleTimeString('id-ID', { 
                         hour: '2-digit', minute: '2-digit' 
                       }).replace('.', ':')} WITA`}
                     </span>
@@ -712,11 +730,19 @@ const PengajuanRoleDetail = ({ user }) => {
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => downloadOrViewFile('view')} disabled={isDownloading} className={styles.btnLihatFile}>
-                      {isDownloading ? <FaSpinner className="animate-spin" /> : <FaEye />} <span>Buka</span>
+                    <button 
+                      onClick={() => downloadOrViewFile('view')} 
+                      disabled={downloadMode !== null} 
+                      className={styles.btnLihatFile}>
+                      {downloadMode === 'view' ? <FaSpinner className="animate-spin" /> : <FaEye />} 
+                      <span className="ml-1">Buka</span>
                     </button>
-                    <button onClick={() => downloadOrViewFile('download')} disabled={isDownloading} className={styles.btnUnduhFile}>
-                      <FaDownload /> <span>Unduh</span>
+                    <button 
+                      onClick={() => downloadOrViewFile('download')} 
+                      disabled={downloadMode !== null} 
+                      className={styles.btnUnduhFile}>
+                      {downloadMode === 'download' ? <FaSpinner className="animate-spin" /> : <FaDownload />} 
+                      <span className="ml-1">Unduh</span>
                     </button>
                   </div>
                 </div>
@@ -734,8 +760,17 @@ const PengajuanRoleDetail = ({ user }) => {
                 </button>
               )}
               {!isSuperAdmin && data.status_permohonan === 'Menunggu' && (
-                <button onClick={() => setModal({ show: true, id: actualId })} className={styles.btnHapusRed}>
-                  <FaTrash /> Batalkan Permohonan
+                <button 
+                  onClick={() => setModal({ show: true, id: actualId, action: 'cancel' })} 
+                  className={styles.btnHapusRed}>
+                  <FaTimes /> Batalkan Permohonan
+                </button>
+              )}
+              {!isSuperAdmin && (data.status_permohonan === 'Dibatalkan' || data.status_permohonan === 'Ditolak') && (
+                <button 
+                  onClick={() => setModal({ show: true, id: actualId, action: 'delete' })} 
+                  className={styles.btnHapusRed}>
+                  <FaTrash /> Hapus Permohonan
                 </button>
               )}
               <button 

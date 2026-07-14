@@ -1,6 +1,5 @@
 import axios from "axios";
 
-// Get Url Backend
 const API_URL = import.meta.env.VITE_API_URL;
 
 // Fungsi agar cookie dikirim otomatis

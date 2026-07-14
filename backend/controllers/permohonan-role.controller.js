@@ -1,6 +1,4 @@
 import db from "../config/db.config.js";
-import fs from "fs";
-import path from "path";
 import { Op } from "sequelize";
 import { 
   PermohonanRole,
@@ -11,15 +9,7 @@ import {
   Provinsi
 } from "../models/associations.js";
 import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
-
-// Halper: Menghapus file upload jika verifikasi gagal
-const hapusFileUploaded = (filename) => {
-  if (!filename) return;
-  const filePath = path.join("public/uploads/dokumen", filename);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
-};
+import { supabase } from "../config/supabase.config.js";
 
 const VALID_ROLES_PENGAJUAN = [
   "Admin Desa", 
@@ -71,8 +61,8 @@ const PERMOHONAN_ROLE_INCLUDE = [
 ];
 
 export const ajukanPermohonan = async (req, res) => {
-  // mengambil nama file dari multer di middleware
-  const dokumen_pendukung = req.file ? req.file.filename : null;
+  const file = req.file;
+  let filePath = null;
 
   try {
     if (req.role === "Super Admin") {
@@ -87,7 +77,7 @@ export const ajukanPermohonan = async (req, res) => {
       desa_adat_id_tujuan 
     } = req.body;
 
-    if (!role_yang_diminta || !alasan_permohonan || !dokumen_pendukung) {
+    if (!role_yang_diminta || !alasan_permohonan || !file) {
       return res.status(400).json({ 
         message: "Kolom role yang diminta, alasan permohonan, dan dokumen pendukung wajib diisi!" 
       });
@@ -121,7 +111,6 @@ export const ajukanPermohonan = async (req, res) => {
       }
     }
 
-    // Validasi permohonan ganda
     const existingPermohonan = await PermohonanRole.findOne({
       where: { 
         user_id: req.userId, 
@@ -135,11 +124,28 @@ export const ajukanPermohonan = async (req, res) => {
       });
     }
 
+    // Proses Upload File ke Bucket Privat Supabase
+    const fileExt = file.originalname.split('.').pop();
+    const fileName = `${Date.now()}-permohonan.${fileExt}`; 
+
+    filePath = `permohonan-role/${fileName}`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('dokumen-pendukung')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false
+      });
+
+    if (uploadError) {
+      throw new Error(`Gagal mengunggah berkas ke Cloud Storage: ${uploadError.message}`);
+    }
+
     const permohonan = await PermohonanRole.create({
       user_id: req.userId,
       role_yang_diminta,
       alasan_permohonan,
-      dokumen_pendukung,
+      dokumen_pendukung: filePath,
       desa_adat_id_tujuan: role_yang_diminta === "Admin Desa" ? desa_adat_id_tujuan : null,
       status_permohonan: "Menunggu"
     });
@@ -159,15 +165,13 @@ export const ajukanPermohonan = async (req, res) => {
       message: "Berkas permohonan pergantian role berhasil diajukan!",
       data: permohonan
     });
-
   } catch (error) {
+    if (filePath) {
+      await supabase.storage.from('dokumen-pendukung').remove([filePath]);
+    }
     return res.status(500).json({ 
       message: error.message 
     });
-  } finally {
-    if (res.statusCode !== 201) {
-      hapusFileUploaded(dokumen_pendukung);
-    }
   }
 };
 
@@ -186,7 +190,6 @@ export const verifikasiPermohonan = async (req, res) => {
       });
     }
 
-    // Validasi input catatan super admin
     if (status_permohonan === "Ditolak" && (!catatan_super_admin || catatan_super_admin.trim() === "")) {
       await t.rollback();
       return res.status(400).json({ 
@@ -212,19 +215,18 @@ export const verifikasiPermohonan = async (req, res) => {
       });
     }
 
-    // Menentukan catatan admin secara adaptif jika dikosongkan saat menyetujui
     const catatanFinal = status_permohonan === "Disetujui" 
       ? (catatan_super_admin || "Permohonan pergantian role diverifikasi dan disetujui oleh Super Admin.")
       : catatan_super_admin;
 
-    // Logika sinkronisasi otomatis ke database
+    // Logika Sinkronisasi Otomatis ke Tabel User
     if (status_permohonan === "Disetujui") {
       const payloadUpdateUser = {
         role: berkasPermohonan.role_yang_diminta
       };
 
       if (berkasPermohonan.role_yang_diminta === "Admin Desa") {
-        payloadUpdateUser.desa_adat_id = berkasPermohonan.desa_adat_id_tujuan
+        payloadUpdateUser.desa_adat_id = berkasPermohonan.desa_adat_id_tujuan;
       } else if (berkasPermohonan.role_yang_diminta === "Pakar") {
         payloadUpdateUser.desa_adat_id = null;
       }
@@ -246,6 +248,7 @@ export const verifikasiPermohonan = async (req, res) => {
     });
 
     await t.commit();
+
     await kirimNotifikasiSistem(req, {
       judul: "Keputusan Permohonan Perubahan Role",
       deskripsi: `Pengajuan permohonan perubahan role menjadi ${berkasPermohonan.role_yang_diminta} telah diverifikasi dengan status: ${status_permohonan.toUpperCase()}.`,
@@ -261,7 +264,7 @@ export const verifikasiPermohonan = async (req, res) => {
       message: `Berkas permohonan berhasil diverifikasi dengan keputusan: ${status_permohonan}.` 
     });
   } catch (error) {
-    if (!t.finished) {
+    if (t && !t.finished) {
       await t.rollback();
     }
     return res.status(500).json({ 
@@ -308,36 +311,79 @@ export const batalkanPermohonan = async (req, res) => {
 
     await t.commit();
 
-    Promise.all([
-      kirimNotifikasiSistem(req, {
-        judul: "Pembatalan Permohonan Perubahan Role",
-        deskripsi: `Pengajuan permohonan perubahan role menjadi ${permohonan.role_yang_diminta} telah dibatalkan oleh Pihak Pemohon.`,
-        kategori: "LOG_SISTEM",
-        tautan_fitur: "/verifikasi-data/pengajuan-role",
-        desa_adat_id: null, 
-        sender_id: req.userId,
-        kontak_pesan_id: null,
-        user_id: null 
-      }),
-      kirimNotifikasiSistem(req, {
-        judul: "Permohonan Perubahan Role Dibatalkan",
-        deskripsi: `Permohonan perubahan role Anda menjadi ${permohonan.role_yang_diminta} telah Anda batalkan dan ditarik dari antrean verifikasi.`,
-        kategori: "PERINGATAN",
-        tautan_fitur: "/pengajuan-role/my-data",
-        desa_adat_id: null, 
-        sender_id: req.userId,
-        kontak_pesan_id: null,
-        user_id: permohonan.user_id 
-      })
-    ]).catch(err => {
-      console.error("Gagal mengirim notifikasi saat pembatalan permohonan role:", err);
+    await kirimNotifikasiSistem(req, {
+      judul: "Pembatalan Permohonan Perubahan Role",
+      deskripsi: `Pengajuan permohonan perubahan role menjadi ${permohonan.role_yang_diminta} telah dibatalkan oleh Pihak Pemohon.`,
+      kategori: "LOG_SISTEM",
+      tautan_fitur: "/verifikasi-data/pengajuan-role",
+      desa_adat_id: null, 
+      sender_id: req.userId,
+      kontak_pesan_id: null,
+      user_id: null 
     });
 
     return res.status(200).json({ 
       message: "Berkas permohonan berhasil dibatalkan." 
     });
   } catch (error) {
-    if (!t.finished) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    return res.status(500).json({ 
+      message: error.message 
+    });
+  }
+};
+
+export const hapusRiwayatPermohonan = async (req, res) => {
+  // Memulai transaksi database
+  const t = await db.transaction();
+
+  try {
+    const permohonan = await PermohonanRole.findOne({
+      where: { 
+        id: req.params.id,
+        user_id: req.userId
+      },
+      transaction: t
+    });
+
+    if (!permohonan) {
+      await t.rollback();
+      return res.status(404).json({ 
+        message: "Riwayat permohonan tidak ditemukan." 
+      });
+    }
+
+    const ALLOWED_STATUS_TO_DELETE = ["Ditolak", "Dibatalkan"];
+    if (!ALLOWED_STATUS_TO_DELETE.includes(permohonan.status_permohonan)) {
+      await t.rollback();
+      return res.status(400).json({ 
+        message: "Proses menghapus data dihentikan! Hanya riwayat permohonan yang ditolak atau dibatalkan yang dapat dihapus." 
+      });
+    }
+
+    const filePathHapus = permohonan.dokumen_pendukung;
+
+    await PermohonanRole.destroy({
+      where: { id: permohonan.id },
+      transaction: t
+    });
+
+    await t.commit();
+
+    if (filePathHapus) {
+      const { error: storageError } = await supabase.storage.from('dokumen-pendukung').remove([filePathHapus]);
+      if (storageError) {
+        console.error(`Gagal menghapus berkas di Supabase Storage: ${storageError.message}`);
+      }
+    }
+
+    return res.status(200).json({ 
+      message: "Riwayat permohonan dan dokumen pendukungnya berhasil dihapus secara permanen." 
+    });
+  } catch (error) {
+    if (t && !t.finished) {
       await t.rollback();
     }
     return res.status(500).json({ 
@@ -357,7 +403,6 @@ export const getDokumenPendukung = async (req, res) => {
       });
     }
 
-    // Hak akses dokumen pendukung berdasarkan operator
     if (berkasPermohonan.user_id !== req.userId && req.role !== "Super Admin") {
       return res.status(403).json({ 
         message: "Otoritas mengakses data ditolak!" 
@@ -370,31 +415,23 @@ export const getDokumenPendukung = async (req, res) => {
       });
     }
 
-    // Debug download dokumen pendukung
-    const rootDir = process.cwd(); 
-    const filePath = path.join(rootDir, "public/uploads/dokumen", berkasPermohonan.dokumen_pendukung);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ 
-        message: "Berkas fisik dokumen tidak ditemukan." 
-      });
+    // Generate Signed URL dari Supabase Storage (Bucket Private)
+    const expiresInSeconds = 120; 
+
+    const { data, error: storageError } = await supabase.storage
+      .from('dokumen-pendukung')
+      .createSignedUrl(berkasPermohonan.dokumen_pendukung, expiresInSeconds);
+
+    if (storageError || !data) {
+      throw new Error(`Gagal membuat akses tautan cloud storage: ${storageError?.message || "Data kosong"}`);
     }
 
-    const ext = path.extname(filePath).toLowerCase();
-    
-    // Set header konten sesuai ekstensi
-    if (ext === '.pdf') {
-      res.setHeader('Content-Type', 'application/pdf');
-    } else if (ext === '.jpg' || ext === '.jpeg') {
-      res.setHeader('Content-Type', 'image/jpeg');
-    } else if (ext === '.png') {
-      res.setHeader('Content-Type', 'image/png');
-    }
-
-    res.sendFile(filePath);
-
+    return res.status(200).json({
+      message: "Tautan akses dokumen berhasil digenerate!",
+      url: data.signedUrl
+    });
   } catch (error) {
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: error.message 
     });
   }
@@ -407,7 +444,7 @@ export const getAllPermohonan = async (req, res) => {
         status_permohonan: "Menunggu" 
       },
       include: PERMOHONAN_ROLE_INCLUDE,
-      order: [["tanggal_pengajuan", "DESC"]]
+      order: [["createdAt", "DESC"]]
     });
 
     return res.status(200).json({ 
@@ -432,7 +469,7 @@ export const getPermohonanSaya = async (req, res) => {
         as: "desa_tujuan",
         include: DESA_ADAT_INCLUDE
       }],
-      order: [["tanggal_pengajuan", "DESC"]]
+      order: [["createdAt", "DESC"]]
     });
 
     return res.status(200).json({ 
@@ -462,8 +499,8 @@ export const getDetailPermohonan = async (req, res) => {
 
     if (!permohonan) {
       return res.status(404).json({ 
-      message: "Berkas permohonan tidak ditemukan." 
-    });
+        message: "Berkas permohonan tidak ditemukan." 
+      });
     }
 
     return res.status(200).json({ 

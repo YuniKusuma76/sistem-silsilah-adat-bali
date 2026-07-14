@@ -201,20 +201,42 @@ const PengajuanDesaBaru = ({ user }) => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > 2 * 1024 * 1024) {
         setAlert({ 
           show: true, 
           type: 'error',
-          message: 'Ukuran file maksimal 5MB!' 
+          message: 'Ukuran file terlalu besar! Maksimal ukuran file dokumen pendukung adalah 2MB.' 
         });
+        e.target.value = null; 
         return;
       }
+
+      const allowedExtensions = /(\.jpg|\.jpeg|\.png|\.pdf)$/i;
+      
+      if (!allowedExtensions.exec(file.name)) {
+        setAlert({
+          show: true,
+          type: 'error',
+          message: 'Format file tidak valid! Format file wajib .jpeg/.jpg/.png/.pdf'
+        });
+        e.target.value = null;
+        return;
+      }
+
       setFormDataPengajuan(prev => ({
         ...prev,
         fileDokumen: file,
         previewFileName: file.name
       }));
     }
+  };
+
+  const handleHapusFile = () => {
+    setFormDataPengajuan(prev => ({
+      ...prev,
+      fileDokumen: null,
+      previewFileName: ''
+    }));
   };
 
   // HELPER VALIDASI:
@@ -239,7 +261,7 @@ const PengajuanDesaBaru = ({ user }) => {
     return true;
   };
 
-  // SUBMIT DATA PERMOHONAN
+  // SUBMIT DATA PERMOHONAN:
   const handleSubmit = async (e, isConfirmed = false) => {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
@@ -335,10 +357,9 @@ const PengajuanDesaBaru = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -428,7 +449,6 @@ const PengajuanDesaBaru = ({ user }) => {
           )}
         </div>
       )}
-      {/* Form Permohonan Desa Adat */}
       <div className={styles.contentArea}>
         <div className={styles.cardContainer}>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -605,10 +625,7 @@ const PengajuanDesaBaru = ({ user }) => {
                     <p className={styles.namaFile}>
                       {formDataPengajuan.previewFileName}
                     </p>
-                    <button 
-                      type="button" 
-                      onClick={() => setFormDataPengajuan(prev => ({ ...prev, fileDokumen: null, previewFileName: '' }))}
-                      className={styles.btnHapusFile}>
+                    <button type="button" onClick={handleHapusFile} className={styles.btnHapusFile}>
                       Hapus File
                     </button>
                   </div>
@@ -628,12 +645,10 @@ const PengajuanDesaBaru = ({ user }) => {
                           disabled={isLoading}
                         />
                       </label>
-                      <p className="pl-1">
-                        atau drag and drop
-                      </p>
+                      <p className="pl-1">atau drag and drop</p>
                     </div>
                     <p className="text-xs text-gray-500">
-                      PNG, JPG, JPEG, PDF, Max 5MB
+                      PNG, JPG, JPEG, PDF, Max 2MB
                     </p>
                   </>
                 )}

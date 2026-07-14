@@ -105,11 +105,12 @@ const createSlug = (namaLengkap, tipeData, id) => {
 };
 
 const VerifikasiDataDetail = ({ user }) => {
-  const notifDropdownRef = useRef(null);
   const { id: slugParam } = useParams();
-
+  const notifDropdownRef = useRef(null);
+  
   const [keluargaMap, setKeluargaMap] = useState({});
   const [masterDesaMap, setMasterDesaMap] = useState({});
+  const [kramaCacheMap, setKramaCacheMap] = useState({});
   
   const [krama, setKrama] = useState(null);
   const [relasiList, setRelasiList] = useState([]);
@@ -167,54 +168,52 @@ const VerifikasiDataDetail = ({ user }) => {
     }
   }, [slugParam]);
 
-  // Helper: hak akses manajemen data detail krama bali
-  // 1. Ekstrak userDesaId di level atas komponen agar bisa diakses oleh tombol UI di bawah
-const userDesaId = useMemo(() => {
-  if (!user) return null;
-  const rawId = user.desa_adat_id || user.desaAdatId || user.desa_adat?.id;
-  return rawId ? String(rawId) : null;
-}, [user]);
+  // Helper: menentukan hak manajemen ruang lingkup data
+  const userDesaId = useMemo(() => {
+    if (!user) return null;
+    const rawId = user.desa_adat_id || user.desaAdatId || user.desa_adat?.id;
+    return rawId ? String(rawId) : null;
+  }, [user]);
 
-// 2. Perbaiki fungsi hasAccess Anda
-const hasAccess = useMemo(() => {
-  if (!user || !krama) return false;
-  if (user.role === 'Super Admin') return true;
-  
-  if (user.role === 'Admin Desa') {
-    if (String(user.id || user.userId) === String(krama.user_id)) return true;
+  const hasAccess = useMemo(() => {
+    if (!user || !krama) return false;
+    if (user.role === 'Super Admin') return true;
+    
+    if (user.role === 'Admin Desa') {
+      if (String(user.id || user.userId) === String(krama.user_id)) return true;
 
-    const kramaDesaRaw = krama.desa_adat_id || krama.desaAdatId || krama.desa_id;
-    const kramaDesaId = kramaDesaRaw ? String(kramaDesaRaw) : null;
+      const kramaDesaRaw = krama.desa_adat_id || krama.desaAdatId || krama.desa_id;
+      const kramaDesaId = kramaDesaRaw ? String(kramaDesaRaw) : null;
 
-    // Menggunakan userDesaId yang sudah di-ekstrak di atas
-    if (userDesaId && kramaDesaId && userDesaId === kramaDesaId) return true;
+      // Menggunakan userDesaId yang sudah di-ekstrak di atas
+      if (userDesaId && kramaDesaId && userDesaId === kramaDesaId) return true;
 
-    if (modalRelasiData) {
-      const relasiDesaId = modalRelasiData.desa_adat_id || modalRelasiData.desaAdatId || modalRelasiData.desa_id;
-      const relasiTujuanId = modalRelasiData.desa_adat_id_tujuan || modalRelasiData.data_perubahan?.desa_adat_id_tujuan;
-      if (userDesaId && (String(relasiDesaId) === userDesaId || String(relasiTujuanId) === userDesaId)) return true;
+      if (modalRelasiData) {
+        const relasiDesaId = modalRelasiData.desa_adat_id || modalRelasiData.desaAdatId || modalRelasiData.desa_id;
+        const relasiTujuanId = modalRelasiData.desa_adat_id_tujuan || modalRelasiData.data_perubahan?.desa_adat_id_tujuan;
+        if (userDesaId && (String(relasiDesaId) === userDesaId || String(relasiTujuanId) === userDesaId)) return true;
+      }
+      
+      if (modalKawinData) {
+        const kawinSuamiDesa = modalKawinData.suami?.desa_adat_id || modalKawinData.suami?.desaAdatId;
+        const kawinIstriDesa = modalKawinData.istri?.desa_adat_id || modalKawinData.istri?.desaAdatId;
+        if (userDesaId && (String(kawinSuamiDesa) === userDesaId || String(kawinIstriDesa) === userDesaId)) return true;
+      }
+
+      const isDesaTujuan = Array.isArray(relasiList) && relasiList.some(r => {
+        const tujuanId = r.desa_adat_id_tujuan || r.data_perubahan?.desa_adat_id_tujuan;
+        const asalId = r.desa_adat_id || r.desa_id;
+        return userDesaId && (String(tujuanId) === userDesaId || String(asalId) === userDesaId);
+      });
+
+      return isDesaTujuan;
     }
     
-    if (modalKawinData) {
-      const kawinSuamiDesa = modalKawinData.suami?.desa_adat_id || modalKawinData.suami?.desaAdatId;
-      const kawinIstriDesa = modalKawinData.istri?.desa_adat_id || modalKawinData.istri?.desaAdatId;
-      if (userDesaId && (String(kawinSuamiDesa) === userDesaId || String(kawinIstriDesa) === userDesaId)) return true;
+    if (user.role === 'Krama') {
+      return String(user.id || user.userId) === String(krama.user_id);
     }
-
-    const isDesaTujuan = Array.isArray(relasiList) && relasiList.some(r => {
-      const tujuanId = r.desa_adat_id_tujuan || r.data_perubahan?.desa_adat_id_tujuan;
-      const asalId = r.desa_adat_id || r.desa_id;
-      return userDesaId && (String(tujuanId) === userDesaId || String(asalId) === userDesaId);
-    });
-
-    return isDesaTujuan;
-  }
-  
-  if (user.role === 'Krama') {
-    return String(user.id || user.userId) === String(krama.user_id);
-  }
-  return false;
-}, [user, krama, relasiList, modalRelasiData, modalKawinData, userDesaId]); // Tambahkan userDesaId ke dependency array
+    return false;
+  }, [user, krama, relasiList, modalRelasiData, modalKawinData, userDesaId]);
 
   const fetchAllData = async () => {
     if (!realId) { 
@@ -268,12 +267,11 @@ const hasAccess = useMemo(() => {
       if (resPerkawinan.status === 'fulfilled') {
         let rawPerkawinan = resPerkawinan.value.data?.data || resPerkawinan.value.data;
         let cleanPerkawinanList = Array.isArray(rawPerkawinan) ? rawPerkawinan : (rawPerkawinan ? [rawPerkawinan] : []);
-        // Data tetap menggunakan mode 'verification' jika statusnya masih Draft ATAU sedang pending update (parsial)
+
         const isPerkawinanFinal = cleanPerkawinanList.length > 0 && 
           (cleanPerkawinanList[0].status_verifikasi === 'Disetujui' || cleanPerkawinanList[0].status === 'Disetujui') &&
           !cleanPerkawinanList[0].is_pending_update;
-
-        // Jika di mode verifikasi kosong (berarti sudah beres) ATAU statusnya terdeteksi sudah final, baru pindah ke public
+          
         if (cleanPerkawinanList.length === 0 || isPerkawinanFinal) {
           const resPerkawinanPublic = await axiosInstance.get(`/perkawinan?krama_id=${realId}&mode=public`);
           const rawPerkawinanPub = resPerkawinanPublic.data?.data || resPerkawinanPublic.data;
@@ -334,6 +332,72 @@ const hasAccess = useMemo(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realId]);
 
+  useEffect(() => {
+    const resolusiNamaKramaGlobal = async () => {
+      // Kumpulkan semua sumber perkawinan (baik yang aktif di card luar maupun yang di dalam modal)
+      const semuaPerkawinan = [...perkawinanList];
+      if (modalKawinData) semuaPerkawinan.push(modalKawinData);
+
+      const idsToFetch = [];
+
+      semuaPerkawinan.forEach(pItem => {
+        let data_perubahan_kawin = pItem?.data_perubahan;
+        if (data_perubahan_kawin && data_perubahan_kawin.data_perubahan) {
+          data_perubahan_kawin = data_perubahan_kawin.data_perubahan;
+        }
+        if (!data_perubahan_kawin) return;
+
+        const targetPayload = data_perubahan_kawin.UPDATE_PERKAWINAN || 
+                              data_perubahan_kawin.UPDATE_PERCERAIAN ||
+                              data_perubahan_kawin.PERCERAIAN || 
+                              data_perubahan_kawin;
+        
+        const idSuamiBaru = targetPayload.suami_id;
+        const idIstriBaru = targetPayload.istri_id;
+
+        if (idSuamiBaru && !kramaCacheMap[idSuamiBaru] && !idsToFetch.includes(idSuamiBaru)) {
+          idsToFetch.push(idSuamiBaru);
+        }
+        if (idIstriBaru && !kramaCacheMap[idIstriBaru] && !idsToFetch.includes(idIstriBaru)) {
+          idsToFetch.push(idIstriBaru);
+        }
+      });
+
+      if (idsToFetch.length > 0) {
+        try {
+          const newCache = { ...kramaCacheMap };
+          let hasChanges = false;
+          
+          await Promise.all(
+            idsToFetch.map(async (id) => {
+              if (!id || isNaN(Number(id))) return;
+              try {
+                const res = await axiosInstance.get(`/krama-bali/${id}`);
+                if (res.data?.data?.nama_lengkap) {
+                  newCache[id] = res.data.data.nama_lengkap;
+                  hasChanges = true;
+                }
+              } catch (err) {
+                console.error(`Gagal mengambil resolusi nama krama ID ${id}:`, err);
+              }
+            })
+          );
+          
+          if (hasChanges) {
+            setKramaCacheMap(newCache);
+          }
+        } catch (error) {
+          console.error("Gagal memproses batch resolusi nama krama:", error);
+        }
+      }
+    };
+
+    if (perkawinanList.length > 0 || modalKawinData) {
+      resolusiNamaKramaGlobal();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perkawinanList, modalKawinData?.id]);
+
   // Helper: Fungsi verifikasi data
   const handleVerifyKrama = async () => {
     if (verifyKramaAction === 'Ditolak' && !catatanKramaValidator.trim()) {
@@ -372,59 +436,57 @@ const hasAccess = useMemo(() => {
     }
   };
 
-const handleVerifyRelasi = async () => {
-  if (!selectedRelasi?.id) return;
-  if (verifyRelasiAction === 'Ditolak' && !catatanRelasiValidator.trim()) {
-    setAlert({
-      show: true,
-      type: 'warning',
-      message: 'Wajib mengisi catatan/alasan ketika keputusan verifikasi ditolak!'
-    });
-    return;
-  }
-  setIsSubmittingRelasi(true);
-  try {
-    let endpointUrl = "";
-    let payload = {
-      status_verifikasi: verifyRelasiAction,
-      catatan_admin_desa: catatanRelasiValidator 
-    };
-
-    // 🌟 KEMBALI KE KONSEP UTAMA KAMU SECARA ABSOLUT:
-    // Kita tentukan endpoint murni berdasarkan konteks tombol yang diklik!
-    if (konteksVerifikasiRelasi === 'UPDATE_RELASI') {
-      endpointUrl = `/relasi-krama/update/verifikasi/${selectedRelasi.id}`;
-    } else {
-      endpointUrl = `/relasi-krama/create/verifikasi/${selectedRelasi.id}`;
+  const handleVerifyRelasi = async () => {
+    if (!selectedRelasi?.id) return;
+    if (verifyRelasiAction === 'Ditolak' && !catatanRelasiValidator.trim()) {
+      setAlert({
+        show: true,
+        type: 'warning',
+        message: 'Wajib mengisi catatan/alasan ketika keputusan verifikasi ditolak!'
+      });
+      return;
     }
-    
-    console.log(`🚀 Mengarahkan ke Kamar Route Adat: ${endpointUrl} (Konteks: ${konteksVerifikasiRelasi})`);
-    
-    await axiosInstance.patch(endpointUrl, payload);
-    setAlert({
-      show: true,
-      type: 'success',
-      message: `Proses keputusan verifikasi adat berhasil disimpan dengan status: ${verifyRelasiAction}.`
-    });
-    
-    setIsOpenModalRelasi(false);
-    setCatatanRelasiValidator('');
-    setSelectedRelasi(null);
-    setModalRelasiData(null);
-    fetchAllData();
-  } catch (error) {
-    console.error(error);
-    setAlert({
-      show: true,
-      type: 'error',
-      message: error.response?.data?.message || 'Gagal memproses keputusan verifikasi data relasi krama.'
-    });
-  } finally {
-    setIsSubmittingRelasi(false);
-  }
-};
+    setIsSubmittingRelasi(true);
+    try {
+      let endpointUrl = "";
+      let payload = {
+        status_verifikasi: verifyRelasiAction,
+        catatan_admin_desa: catatanRelasiValidator 
+      };
 
-const handleVerifyKawin = async () => {
+      if (konteksVerifikasiRelasi === 'UPDATE_RELASI') {
+        endpointUrl = `/relasi-krama/update/verifikasi/${selectedRelasi.id}`;
+      } else {
+        endpointUrl = `/relasi-krama/create/verifikasi/${selectedRelasi.id}`;
+      }
+      
+      console.log(`🚀 Mengarahkan ke Kamar Route Adat: ${endpointUrl} (Konteks: ${konteksVerifikasiRelasi})`);
+      
+      await axiosInstance.patch(endpointUrl, payload);
+      setAlert({
+        show: true,
+        type: 'success',
+        message: `Proses keputusan verifikasi adat berhasil disimpan dengan status: ${verifyRelasiAction}.`
+      });
+      
+      setIsOpenModalRelasi(false);
+      setCatatanRelasiValidator('');
+      setSelectedRelasi(null);
+      setModalRelasiData(null);
+      fetchAllData();
+    } catch (error) {
+      console.error(error);
+      setAlert({
+        show: true,
+        type: 'error',
+        message: error.response?.data?.message || 'Gagal memproses keputusan verifikasi data relasi krama.'
+      });
+    } finally {
+      setIsSubmittingRelasi(false);
+    }
+  };
+
+  const handleVerifyKawin = async () => {
     if (!selectedKawin?.id) return;
     if (verifyKawinAction === 'Ditolak' && !catatanKawinValidator.trim()) {
       setAlert({
@@ -439,9 +501,26 @@ const handleVerifyKawin = async () => {
 
     try {
       let endpointUrl = "";
+
       let payload = {
         status_verifikasi: verifyKawinAction,
         catatan_admin: catatanKawinValidator
+      };
+
+      const dapatkanTargetSisiEkstensi = () => {
+        if (user?.role === 'Super Admin') return "super_admin";
+        if (user?.role === 'Admin Desa') {
+          const desaSuamiId = selectedKawin.suami?.desa_adat_id || selectedKawin.suami?.desaAdatId || selectedKawin.desa_pria_id;
+          const desaIstriId = selectedKawin.istri?.desa_adat_id || selectedKawin.istri?.desaAdatId || selectedKawin.desa_wanita_id;
+          
+          if (String(desaIstriId) === String(userDesaId)) {
+            return "istri";
+          }
+          if (String(desaSuamiId) === String(userDesaId)) {
+            return "suami";
+          }
+        }
+        return "super_admin";
       };
 
       switch (konteksVerifikasiKawin) {
@@ -450,46 +529,31 @@ const handleVerifyKawin = async () => {
           break;
         case 'REGULAR_CERAI':
           endpointUrl = `/perkawinan/cerai/verifikasi/${selectedKawin.id}`;
-          // ====================================================================
-          // PERBAIKAN: SUNTIKKAN PAYLOAD DRAF UNTUK AKURASI MUTASI FISIK BACKEND
-          // ====================================================================
           payload.perkawinan_id = selectedKawin.id;
-          
-          // Deteksi otomatis sisi admin desa mana yang sedang menekan tombol verifikasi
-          if (user?.role === 'Admin Desa') {
-            const desaSuamiId = selectedKawin.suami?.desa_adat_id || selectedKawin.suami?.desaAdatId || selectedKawin.desa_pria_id;
-            const desaIstriId = selectedKawin.istri?.desa_adat_id || selectedKawin.istri?.desaAdatId || selectedKawin.desa_wanita_id;
-            
-            if (String(desaSuamiId) === String(userDesaId)) {
-              payload.target_sisi = "suami";
-            } else if (String(desaIstriId) === String(userDesaId)) {
-              payload.target_sisi = "istri";
-            }
-          } else if (user?.role === 'Super Admin') {
-            payload.target_sisi = "super_admin";
-          }
+          payload.target_sisi = dapatkanTargetSisiEkstensi();
           break;
         case 'UPDATE_PERKAWINAN':
           endpointUrl = `/perkawinan/update/verifikasi/${selectedKawin.id}`;
           payload.tipe_update = "PERKAWINAN";
+          payload.target_sisi = dapatkanTargetSisiEkstensi();
           break;
         case 'UPDATE_PERCERAIAN':
           endpointUrl = `/perkawinan/update/verifikasi/${selectedKawin.id}`;
           payload.tipe_update = "PERCERAIAN";
+          payload.target_sisi = dapatkanTargetSisiEkstensi();
           break;
         default:
           throw new Error("Konteks verifikasi perkawinan tidak dikenali.");
       }
 
-      // Kirim data mutasi verifikasi dengan method PATCH sesuai routing backend
       await axiosInstance.patch(endpointUrl, payload);
-      
+
       setAlert({
         show: true,
         type: 'success',
-        message: `Proses keputusan verifikasi adat berhasil disimpan dengan status: ${verifyKawinAction}.`
+        message: `Proses verifikasi berhasil disimpan dengan status: ${verifyKawinAction}.`
       });
-      
+
       setIsOpenModalKawin(false);
       setCatatanKawinValidator('');
       setSelectedKawin(null);
@@ -502,7 +566,7 @@ const handleVerifyKawin = async () => {
       setAlert({
         show: true,
         type: 'error',
-        message: error.response?.data?.message || 'Gagal memproses keputusan verifikasi perkawinan/perceraian adat.'
+        message: error.response?.data?.message || 'Terjadi kesalahan pada sistem saat memproses keputusan verifikasi perkawinan/perceraian adat.'
       });
     } finally {
       setIsSubmittingKawin(false);
@@ -621,6 +685,7 @@ const handleVerifyKawin = async () => {
   }, [isOpenModalKawin]);
 
   // Helper: menangani filter data master
+  // Helper: menangani filter data master (TERPILIH & DIPERBAIKI SINKRONISASI ID)
   const processedData = useMemo(() => {
     if (!krama) return null;
 
@@ -628,18 +693,32 @@ const handleVerifyKawin = async () => {
     const orangTuaKandung = anakRelasiList.find(r => r.status_hubungan === 'Anak Kandung');
     const orangTuaAngkatList = anakRelasiList.filter(r => r.status_hubungan === 'Anak Angkat');
 
-    const userPerkawinanList = perkawinanList.filter(p => 
-      p && (String(p.suami_id) === String(krama.id) || String(p.istri_id) === String(krama.id))
-    );
+    // Penguatan pencocokan ID: memeriksa primitive ID maupun object relation ID dari backend
+    const userPerkawinanList = perkawinanList.filter(p => {
+      if (!p) return false;
+      const idSuami = String(p.suami_id || p.suami?.id || '');
+      const idIstri = String(p.istri_id || p.istri?.id || '');
+      const idKrama = String(krama.id || '');
+      return idSuami === idKrama || idIstri === idKrama;
+    });
 
-    const perkawinanAktifList = userPerkawinanList.filter(p => p.status_perkawinan === 'Kawin');
-    const riwayatPerkawinanLama = userPerkawinanList.filter(p => p.status_perkawinan !== 'Kawin');
+    // Perbaikan Toleransi Huruf Besar/Kecil (Mencegah data terlempar ke log lampau akibat string 'KAWIN')
+    const perkawinanAktifList = userPerkawinanList.filter(p => {
+      const status = p.status_perkawinan ? String(p.status_perkawinan).trim().toLowerCase() : '';
+      return status === 'kawin';
+    });
+
+    const riwayatPerkawinanLama = userPerkawinanList.filter(p => {
+      const status = p.status_perkawinan ? String(p.status_perkawinan).trim().toLowerCase() : '';
+      return status !== 'kawin';
+    });
 
     let namaPasanganAktif = "Tidak Ada Pasangan Aktif";
 
     if (perkawinanAktifList.length > 0) {
       namaPasanganAktif = perkawinanAktifList.map(p => {
-        return String(p.suami_id) === String(krama.id)
+        const idSuami = String(p.suami_id || p.suami?.id || '');
+        return idSuami === String(krama.id)
           ? p.istri?.nama_lengkap || "Istri" 
           : p.suami?.nama_lengkap || "Suami";
       }).join(", ");
@@ -819,14 +898,14 @@ const handleVerifyKawin = async () => {
     );
   };
 
-  const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text', perkawinanItem = null, kramaPasanganObj = null) => {
+  const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text', perkawinanItem = null, kramaPasanganObj = null, cacheMap = {}) => {
     const targetData = perkawinanItem || modalKawinData;
     if (!targetData) return null;
 
     let rawChange = targetData?.data_perubahan;
     
     if (typeof rawChange === 'string') {
-      try { rawChange = JSON.parse(rawChange); } catch (e) {e}
+      try { rawChange = JSON.parse(rawChange); } catch (e) { console.error(e); }
     }
     if (rawChange && rawChange.data_perubahan) {
       rawChange = rawChange.data_perubahan;
@@ -835,7 +914,7 @@ const handleVerifyKawin = async () => {
     let camelField = namaField.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
     let nilaiBaru = undefined;
 
-    // Ekstraksi Objek Utama Perubahan
+    // Ekstraksi Objek Utama Perubahan berdasarkan draf aktif
     const searchObj = rawChange ? (rawChange.UPDATE_PERKAWINAN || rawChange.PERCERAIAN || rawChange.UPDATE_PERCERAIAN || rawChange) : null;
 
     if (searchObj) {
@@ -846,50 +925,60 @@ const handleVerifyKawin = async () => {
       nilaiBaru = targetData[namaField] !== undefined ? targetData[namaField] : targetData[camelField];
     }
 
+    // Jika tidak ada perubahan nilai baru di draf manapun, sembunyikan baris
+    if (nilaiBaru === undefined) return null;
+
     let nilaiLamaDiformat = type === 'date' ? formatDate(nilaiLama) : nilaiLama;
     let nilaiBaruDiformat = type === 'date' ? formatDate(nilaiBaru) : nilaiBaru;
 
     // ============================================================
-    // LOGIKA TRANSLASI NAMA YANG BARU DIBUAT (ANTI-ID ANGKA)
+    // RESOLUSI NAMA LENGKAP KRAMA BARU (ANTI-STUCK / DIRECT BLENDING)
     // ============================================================
     if (namaField === 'suami_id' || namaField === 'istri_id') {
-      // 1. Set Nilai Lama menggunakan Nama dari Objek Relasi yang Lolos Eager Loading
-      if (kramaPasanganObj?.nama_lengkap) {
-        const isLamaDraft = kramaPasanganObj?.status_verifikasi === 'Draft';
-        nilaiLamaDiformat = `${kramaPasanganObj.nama_lengkap}${isLamaDraft ? ' [DRAFT]' : ''}`;
+      const relasiKey = namaField === 'suami_id' ? 'suami' : 'istri';
+      const kramaLama = kramaPasanganObj || targetData?.[relasiKey];
+
+      // 1. Tentukan Nilai Tampilan Lama
+      if (kramaLama?.nama_lengkap) {
+        const isLamaDraft = kramaLama?.status_verifikasi === 'Draft';
+        nilaiLamaDiformat = `${kramaLama.nama_lengkap}${isLamaDraft ? ' [DRAFT]' : ''}`;
+      } else if (nilaiLama) {
+        nilaiLamaDiformat = `Krama ID: ${nilaiLama}`;
       }
 
-      // 2. Set Nilai Baru dengan cerdas
-      if (String(nilaiBaru) === String(kramaPasanganObj?.id)) {
-        // Jika ID tidak berubah, maka namanya sama dengan yang lama
+      if (String(nilaiBaru) === String(kramaLama?.id || nilaiLama)) {
         nilaiBaruDiformat = nilaiLamaDiformat;
       } else {
-        // JIKA ID BERBEDA (KASUS GANTI PASANGAN BARU / DRAFT BARU)
-        // Kita bongkar field `catatan_update` tempat kita menitipkan nama pasangan tadi!
-        let namaDariCatatan = "";
-        try {
-          const parsedCatatan = JSON.parse(searchObj?.catatan_update || targetData?.catatan_update);
-          namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
-        } catch (e) {
-          e
-          // Jika gagal parse JSON (berarti catatan_update lama berwujud text biasa)
-          namaDariCatatan = "";
+        const kramaBaruPayload = searchObj?.[relasiKey];
+        
+        if (kramaBaruPayload?.nama_lengkap) {
+          nilaiBaruDiformat = `${kramaBaruPayload.nama_lengkap} [DRAFT]`;
         }
+        // Jika data asinkronus dari useEffect langkah 1 sudah masuk, tampilkan nama lengkapnya!
+        else if (cacheMap && cacheMap[nilaiBaru]) {
+          nilaiBaruDiformat = `${cacheMap[nilaiBaru]} [DRAFT]`;
+        } 
+        else {
+          let namaDariCatatan = "";
+          try {
+            const parsedCatatan = JSON.parse(searchObj?.catatan_update || targetData?.catatan_update);
+            namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
+          } catch (e) {
+            console.log(e);
+            namaDariCatatan = "";
+          }
 
-        if (namaDariCatatan) {
-          nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
-        } else if (searchObj?.suami?.nama_lengkap || searchObj?.istri?.nama_lengkap) {
-          // Fallback cadangan jika backend ternyata ikut menyertakan objek krama gabungan
-          const kramaBaru = searchObj?.suami || searchObj?.istri;
-          nilaiBaruDiformat = `${kramaBaru.nama_lengkap} [DRAFT]`;
-        } else {
-          // Fallback terakhir jika mutlak buntu
-          nilaiBaruDiformat = `Krama ID: ${nilaiBaru} [DRAFT]`;
+          if (namaDariCatatan && namaDariCatatan.trim() !== "") {
+            nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
+          } else {
+            // Biarkan bertuliskan Memuat Nama sebentar, karena useEffect global di atas akan langsung menimpanya dengan nama asli
+            nilaiBaruDiformat = `Memuat Nama... [DRAFT]`;
+          }
         }
       }
     }
 
-    // Sembunyikan baris jika nama/nilai lama dan baru sama (artinya field ini tidak dirubah)
+    // Sembunyikan baris jika tidak ada perubahan nilai nyata
     if (String(nilaiLamaDiformat ?? '').trim() === String(nilaiBaruDiformat ?? '').trim()) {
       return null;
     }
@@ -907,7 +996,6 @@ const handleVerifyKawin = async () => {
               {nilaiBaruDiformat?.includes('[DRAFT]') ? (
                 <>
                   {nilaiBaruDiformat.replace(' [DRAFT]', '')} 
-                  <span className={styles.labelDraftChange}>DRAFT</span>
                 </>
               ) : (
                 nilaiBaruDiformat ?? '-'
@@ -1004,10 +1092,9 @@ const handleVerifyKawin = async () => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -1531,8 +1618,8 @@ let hasChanges = false;
                                       </tr>
                                     </thead>
                                     <tbody className={styles.tableBody}>
-                                      {renderPerubahanPerkawinanRow("Nama Suami", pAktif?.suami_id, "suami_id", "text", pAktif, pAktif?.suami)}
-                                      {renderPerubahanPerkawinanRow("Nama Istri", pAktif?.istri_id, "istri_id", "text", pAktif, pAktif?.istri)}
+                                      {renderPerubahanPerkawinanRow("Nama Suami", pAktif?.suami_id, "suami_id", "text", pAktif, pAktif?.suami, kramaCacheMap)}
+                                      {renderPerubahanPerkawinanRow("Nama Istri", pAktif?.istri_id, "istri_id", "text", pAktif, pAktif?.istri, kramaCacheMap)}
                                       {renderPerubahanPerkawinanRow("Jenis Perkawinan", pAktif?.jenis_perkawinan, "jenis_perkawinan", "text", pAktif)}
                                       {renderPerubahanPerkawinanRow("Tanggal Perkawinan", pAktif?.tanggal_perkawinan, "tanggal_perkawinan", "date", pAktif)}
                                       {renderPerubahanPerkawinanRow("Status Perkawinan", pAktif?.status_perkawinan, "status_perkawinan", "text", pAktif)}
@@ -1544,6 +1631,7 @@ let hasChanges = false;
                                   {(() => {
                                   const targetCatatan = 
                                     pAktif?.data_perubahan?.UPDATE_PERKAWINAN?.catatan_update || 
+                                    pAktif?.data_perubahan?.UPDATE_PERCERAIAN?.catatan_update || 
                                     pAktif?.data_perubahan?.catatan_update || 
                                     pAktif?.catatan_update;
 
@@ -1582,7 +1670,7 @@ let hasChanges = false;
                                 </div>
                               </div>
                             )}
-                            {/* Action Verifikasi */}
+                            {/* VERIFIKASI */}
                             {(() => {
                               const desaSuamiId = pAktif.suami?.desa_adat_id || pAktif.suami?.desaAdatId || pAktif.desa_pria_id;
                               const desaIstriId = pAktif.istri?.desa_adat_id || pAktif.istri?.desaAdatId || pAktif.desa_wanita_id;
@@ -1593,27 +1681,32 @@ let hasChanges = false;
                                 return (
                                   <div className="flex justify-end mt-3 border-t border-gray-100 pt-2">
                                     <button 
+                                      className={styles.btnInfoDetail}
                                       onClick={() => {
-  setSelectedKawin(pAktif);
-  setModalKawinData(pAktif);
-  
-  // Tentukan default tab yang terbuka otomatis berdasarkan prioritas draf yang ada
-  if (pAktif.status_verifikasi === 'Draft') {
-    setTabVerifikasiAktif('KAWIN');
-    setKonteksVerifikasiKawin('REGULAR_KAWIN');
-  } else if (pAktif.data_perubahan?.PERCERAIAN) {
-    setTabVerifikasiAktif('CERAI');
-    setKonteksVerifikasiKawin('REGULAR_CERAI');
-  } else {
-    setTabVerifikasiAktif('KAWIN');
-    setKonteksVerifikasiKawin('REGULAR_KAWIN');
-  }
-  
-  setVerifyKawinAction('Disetujui'); 
-  setCatatanKawinValidator('');
-  setIsOpenModalKawin(true);
-}}
-                                      className={styles.btnInfoDetail}>
+                                        setSelectedKawin(pAktif);
+                                        setModalKawinData(pAktif);
+                                        
+                                        if (pAktif.status_verifikasi === 'Draft') {
+                                          setTabVerifikasiAktif('KAWIN');
+                                          setKonteksVerifikasiKawin('REGULAR_KAWIN');
+                                        } else if (pAktif.data_perubahan?.UPDATE_PERCERAIAN) {
+                                          setTabVerifikasiAktif('UPDATE_CERAI');
+                                          setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
+                                        } else if (pAktif.data_perubahan?.UPDATE_PERKAWINAN) {
+                                          setTabVerifikasiAktif('UPDATE_KAWIN');
+                                          setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
+                                        } else if (pAktif.data_perubahan?.PERCERAIAN) {
+                                          setTabVerifikasiAktif('CERAI');
+                                          setKonteksVerifikasiKawin('REGULAR_CERAI');
+                                        } else {
+                                          setTabVerifikasiAktif('KAWIN');
+                                          setKonteksVerifikasiKawin('REGULAR_KAWIN');
+                                        }
+                                        
+                                        setVerifyKawinAction('Disetujui'); 
+                                        setCatatanKawinValidator('');
+                                        setIsOpenModalKawin(true);
+                                      }}>
                                       <FaEdit className="mb-0.5 mr-1"/> Verifikasi Perkawinan
                                     </button>
                                   </div>
@@ -1628,7 +1721,7 @@ let hasChanges = false;
                   ) : (
                     <div className="p-4 rounded-lg border border-gray-100/70">
                       <p className="text-gray-400 text-xs italic text-center py-2">
-                        Data perkawinan adat saat ini tidak ada yang tercatat aktif.
+                        Data perkawinan adat saat ini tidak ada yang tercatat aktif
                       </p>
                     </div>
                   )}
@@ -1643,7 +1736,9 @@ let hasChanges = false;
                         const namaPasanganLama = String(pLama.suami_id) === String(krama.id)
                           ? pLama.istri?.nama_lengkap || "Istri" 
                           : pLama.suami?.nama_lengkap || "Suami";
+
                         const isCeraiMati = pLama.status_perkawinan?.toLowerCase().includes('mati');
+
                         const noRegPasanganLama = String(pLama.suami_id) === String(krama.id)
                           ? (pLama.istri?.nomor_pendaftaran || pLama.nomor_pendaftaran_istri || "-")
                           : (pLama.suami?.nomor_pendaftaran || pLama.nomor_pendaftaran_suami || "-");
@@ -1691,7 +1786,7 @@ let hasChanges = false;
                                 <span className={`${styles.labelStatus} ${isCeraiMati ? styles.labelCeraiMati : styles.labelCerai}`}>
                                   {pLama.status_perkawinan}
                                 </span>
-                                {/* Action Verifikasi */}
+                                {/* VERIFIKASI */}
                                 {(() => {
                                   const desaSuamiId = pLama.suami?.desa_adat_id || pLama.suami?.desaAdatId || pLama.desa_pria_id;
                                   const desaIstriId = pLama.istri?.desa_adat_id || pLama.istri?.desaAdatId || pLama.desa_wanita_id;
@@ -1702,21 +1797,27 @@ let hasChanges = false;
                                   if (hasAccess || isAdminTerlibat) {
                                     return (
                                       <button 
+                                        className={styles.eyeLog}
                                         onClick={() => { 
                                           setSelectedKawin(pLama);
-                                          setModalKawinData(pLama); 
+                                          setModalKawinData(pLama);
+                                          
                                           if (pLama.data_perubahan?.UPDATE_PERCERAIAN) {
+                                            setTabVerifikasiAktif('UPDATE_CERAI');
                                             setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
+                                          } else if (pLama.data_perubahan?.UPDATE_PERKAWINAN) {
+                                            setTabVerifikasiAktif('UPDATE_KAWIN');
+                                            setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
                                           } else {
                                             setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
                                           }
+                                          
                                           setVerifyKawinAction(isKonteksVerifikasi ? (pLama.status_verifikasi || 'Draft') : 'Disetujui');
                                           setCatatanKawinValidator('');
                                           setIsOpenModalKawin(true); 
-                                        }}  
-                                        className={styles.eyeLog}>
+                                        }}>
                                         <FaEye className="text-xs" />
-                                        <span>{isKonteksVerifikasi ? 'Verifikasi' : 'Detail Log'}</span>
+                                        <span>{isKonteksVerifikasi ? 'Verifikasi Perceraian' : 'Detail Log'}</span>
                                       </button>
                                     );
                                   }
@@ -1741,8 +1842,8 @@ let hasChanges = false;
                                       </tr>
                                     </thead>
                                     <tbody className={styles.tableBody}>
-                                      {renderPerubahanPerkawinanRow("Nama Suami", pLama?.suami_id, "suami_id", "text", pLama, pLama?.suami)}
-                                      {renderPerubahanPerkawinanRow("Nama Istri", pLama?.istri_id, "istri_id", "text", pLama, pLama?.istri)}
+                                      {renderPerubahanPerkawinanRow("Nama Suami", pLama?.suami_id, "suami_id", "text", pLama, pLama?.suami, kramaCacheMap)}
+                                      {renderPerubahanPerkawinanRow("Nama Istri", pLama?.istri_id, "istri_id", "text", pLama, pLama?.istri, kramaCacheMap)}
                                       {renderPerubahanPerkawinanRow("Jenis Perkawinan", pLama?.jenis_perkawinan, "jenis_perkawinan", "text", pLama)}
                                       {renderPerubahanPerkawinanRow("Tanggal Perkawinan", pLama?.tanggal_perkawinan, "tanggal_perkawinan", "date", pLama)}
                                       {renderPerubahanPerkawinanRow("Status Perkawinan", pLama?.status_perkawinan, "status_perkawinan", "text", pLama)}
@@ -1754,6 +1855,7 @@ let hasChanges = false;
                                   {(() => {
                                     const targetCatatan = 
                                       pLama?.data_perubahan?.UPDATE_PERKAWINAN?.catatan_update || 
+                                      pLama?.data_perubahan?.UPDATE_PERCERAIAN?.catatan_update || 
                                       pLama?.data_perubahan?.catatan_update || 
                                       pLama?.catatan_update;
 
@@ -2268,44 +2370,105 @@ let hasChanges = false;
                     )}
                   </div>
                   {/* Tab Fokus Verifikasi */}
-                  {modalKawinData.status_verifikasi === 'Draft' && modalKawinData.data_perubahan?.PERCERAIAN && (
-                    <div className="pt-2 border-b border-gray-100">
-                      <div className="flex items-center gap-2 text-stone-700">
-                        <h4 className="font-bold text-xs uppercase tracking-wide">
-                          Target Fokus Verifikasi:
-                        </h4>
-                      </div>
-                      <span className="text-[9px] text-amber-700 italic">
-                        *Sahkan status perkawinan terlebih dahulu
-                      </span>
-                      <div className="flex mb-4 pt-1">
-                        <button
-                          type="button"
-                          className={`${styles.tabTarget} ${tabVerifikasiAktif === 'KAWIN' 
-                              ? 'bg-amber-700 text-white shadow-sm' 
-                              : 'text-stone-500 hover:text-stone-800'
-                          }`}
-                          onClick={() => {
-                            setTabVerifikasiAktif('KAWIN');
-                            setKonteksVerifikasiKawin('REGULAR_KAWIN');
-                            setVerifyKawinAction('Disetujui');
-                            setCatatanKawinValidator('');
-                          }}>
-                          Draft Pendaftaran Perkawinan
-                        </button>
-                        <button
-                          type="button"
-                          disabled={true}
-                          title="Status perkawinan harus disetujui/disahkan terlebih dahulu sebelum dapat memproses perceraian."
-                          className={`${styles.tabTarget} ${styles.tabTargetDisable}`}>
-                          Draft Usulan Perceraian
-                        </button>
-                      </div>
-                    </div>
-                  )}
+{(modalKawinData?.status_verifikasi === 'Draft' || modalKawinData?.is_pending_update) && (
+  <div className="pt-2 border-b border-gray-100">
+    <div className="flex items-center gap-2 text-stone-700">
+      <h4 className="font-bold text-xs uppercase tracking-wide">
+        Target Fokus Verifikasi:
+      </h4>
+    </div>
+    
+    <div className="flex mb-4 pt-1 flex-wrap gap-1">
+      {/* 1. JALUR DRAF PERKAWINAN BARU (REGULAR KAWIN) */}
+      {modalKawinData?.status_verifikasi === 'Draft' && (
+        <button
+          type="button"
+          className={`${styles.tabTarget} ${tabVerifikasiAktif === 'KAWIN' 
+            ? 'bg-amber-700 text-white shadow-sm' 
+            : 'text-stone-500 hover:text-stone-800'
+          }`}
+          onClick={() => {
+            setTabVerifikasiAktif('KAWIN');
+            setKonteksVerifikasiKawin('REGULAR_KAWIN');
+            setVerifyKawinAction('Disetujui');
+            setCatatanKawinValidator('');
+          }}>
+          Draft Pendaftaran Perkawinan
+        </button>
+      )}
+
+      {/* 2. JALUR DRAF PERCERAIAN BARU (REGULAR CERAI) */}
+      {modalKawinData?.data_perubahan?.PERCERAIAN && (
+        <button
+          type="button"
+          disabled={modalKawinData?.status_verifikasi === 'Draft'}
+          title={modalKawinData?.status_verifikasi === 'Draft' ? "Status perkawinan harus disetujui terlebih dahulu sebelum memproses perceraian." : "Verifikasi draft perceraian"}
+          className={`${styles.tabTarget} ${
+            modalKawinData?.status_verifikasi === 'Draft'
+              ? styles.tabTargetDisable
+              : tabVerifikasiAktif === 'CERAI'
+              ? 'bg-blue-700 text-white shadow-sm'
+              : 'text-stone-500 hover:text-stone-800'
+          }`}
+          onClick={() => {
+            if (modalKawinData?.status_verifikasi === 'Draft') return;
+            setTabVerifikasiAktif('CERAI');
+            setKonteksVerifikasiKawin('REGULAR_CERAI');
+            setVerifyKawinAction('Disetujui');
+            setCatatanKawinValidator('');
+          }}>
+          Draft Usulan Perceraian
+        </button>
+      )}
+
+      {/* 3. JALUR DRAF KOREKSI DATA PERKAWINAN (UPDATE PERKAWINAN) */}
+      {modalKawinData?.data_perubahan?.UPDATE_PERKAWINAN && (
+        <button
+          type="button"
+          className={`${styles.tabTarget} ${tabVerifikasiAktif === 'UPDATE_KAWIN'
+            ? 'bg-emerald-700 text-white shadow-sm'
+            : 'text-stone-500 hover:text-stone-800'
+          }`}
+          onClick={() => {
+            setTabVerifikasiAktif('UPDATE_KAWIN');
+            setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
+            setVerifyKawinAction('Disetujui');
+            setCatatanKawinValidator('');
+          }}>
+          Koreksi Data Perkawinan
+        </button>
+      )}
+
+      {/* 4. JALUR DRAF KOREKSI DATA PERCERAIAN (UPDATE PERCERAIAN) */}
+      {modalKawinData?.data_perubahan?.UPDATE_PERCERAIAN && (
+        <button
+          type="button"
+          className={`${styles.tabTarget} ${tabVerifikasiAktif === 'UPDATE_CERAI'
+            ? 'bg-indigo-700 text-white shadow-sm'
+            : 'text-stone-500 hover:text-stone-800'
+          }`}
+          onClick={() => {
+            setTabVerifikasiAktif('UPDATE_CERAI');
+            setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
+            setVerifyKawinAction('Disetujui');
+            setCatatanKawinValidator('');
+          }}>
+          Koreksi Data Perceraian
+        </button>
+      )}
+    </div>
+    
+    {/* Info Alert pembantu jika status perkawinan perdana masih bertipe Draft */}
+    {modalKawinData?.status_verifikasi === 'Draft' && modalKawinData?.data_perubahan?.PERCERAIAN && (
+      <span className="text-[10px] text-amber-700 italic block mb-3 bg-amber-50 p-2 rounded border-l-2 border-amber-500">
+        * Catatan: Sistem mendeteksi adanya draf perceraian yang tertunda. Anda diwajibkan menyetujui/mengesahkan status <strong>Draft Pendaftaran Perkawinan</strong> ini terlebih dahulu sebelum tab perceraian terbuka.
+      </span>
+    )}
+  </div>
+)}
                   {/* VERIFIKASI */}
                   {(modalKawinData?.is_pending_update || modalKawinData?.status_verifikasi === "Draft" || modalKawinData?.status_verifikasi === "Ditolak") && (
-                    <div className="pt-2">
+                    <div>
                       <div className="flex items-center gap-2 text-stone-700">
                         <h4 className="font-bold text-xs uppercase tracking-wide">
                           Verifikasi Data:

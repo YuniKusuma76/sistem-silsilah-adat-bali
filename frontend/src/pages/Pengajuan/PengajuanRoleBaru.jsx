@@ -188,14 +188,28 @@ const PengajuanRoleBaru = ({ user }) => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > 2 * 1024 * 1024) {
         setAlert({ 
           show: true, 
           type: 'error',
-          message: 'Ukuran file maksimal 5MB!' 
+          message: 'Ukuran file terlalu besar! Maksimal ukuran file dokumen pendukung adalah 2MB.' 
         });
+        e.target.value = null; 
         return;
       }
+
+      const allowedExtensions = /(\.jpg|\.jpeg|\.png|\.pdf)$/i;
+      
+      if (!allowedExtensions.exec(file.name)) {
+        setAlert({
+          show: true,
+          type: 'error',
+          message: 'Format file tidak valid! Format file wajib .jpeg/.jpg/.png/.pdf'
+        });
+        e.target.value = null;
+        return;
+      }
+
       setFormPengajuan(prev => ({
         ...prev,
         fileDokumen: file,
@@ -342,10 +356,9 @@ const PengajuanRoleBaru = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -435,7 +448,6 @@ const PengajuanRoleBaru = ({ user }) => {
           )}
         </div>
       )}
-      {/* Form Permohonan Role */}
       <div className={styles.contentArea}>
         <div className={styles.cardContainer}>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -610,7 +622,7 @@ const PengajuanRoleBaru = ({ user }) => {
                     <p className="pl-1">atau drag and drop</p>
                   </div>
                   <p className="text-xs text-gray-500">
-                    PNG, JPG, JPEG, PDF, Max 5MB
+                    PNG, JPG, JPEG, PDF, Max 2MB
                   </p>
                 </>
               )}

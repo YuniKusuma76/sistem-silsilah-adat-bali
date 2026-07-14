@@ -38,8 +38,8 @@ const formatWaktuRelatif = (dateString) => {
 
 const DataKramaEditKawin = ({ user }) => {
   const { id: slugParam } = useParams();
-  const notifDropdownRef = useRef(null);
   const navigate = useNavigate();
+  const notifDropdownRef = useRef(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -226,7 +226,7 @@ const DataKramaEditKawin = ({ user }) => {
               setSearchPasangan({ 0: objekPasangan.nama_lengkap });
             }
 
-            const tipeAwal = (resKawin.status_perkawinan === "Cerai" || resKawin.status_perkawinan === "Cerai Mati") 
+            const tipeAwal = (resKawin.status_perkawinan === "Cerai Hidup" || resKawin.status_perkawinan === "Cerai" || resKawin.status_perkawinan === "Cerai Mati") 
               ? "PERCERAIAN" 
               : "PERKAWINAN";
 
@@ -257,7 +257,7 @@ const DataKramaEditKawin = ({ user }) => {
         setAlert({ 
           show: true, 
           type: 'error', 
-          message: 'Gagal memuat detail data perkawinan. Periksa koneksi Anda.' 
+          message: 'Terjadi kesalahan pada sistem saat memuat detail data perkawinan. Periksa koneksi Anda!' 
         });
       } finally {
         setIsLoading(false);
@@ -385,19 +385,22 @@ const DataKramaEditKawin = ({ user }) => {
         updatedItem[field] = value;
       }
       
-      // =========================================================================
-      // PENYESUAIAN TAMBAHAN: SINKRONISASI TIPE UPDATE DENGAN STATUS PILIHAN FRONTEND
-      // =========================================================================
       if (field === "status_perkawinan") {
-        if (value === "Cerai" || value === "Cerai Mati") {
+        if (value === "Cerai Hidup" || value === "Cerai" || value === "Cerai Mati") {
           updatedItem.tipe_update = "PERCERAIAN";
         } else {
           updatedItem.tipe_update = "PERKAWINAN";
         }
       }
-      // =========================================================================
 
-      // Otomatisasi status hidup ketika cerai mati
+      if (field === "tanggal_perkawinan" || field === "jenis_perkawinan" || field === "pasangan_id") {
+        updatedItem.tipe_update = "PERKAWINAN";
+      }
+
+      if (field === "tanggal_cerai" || field === "pihak_meninggal" || field === "pilihan_predana") {
+        updatedItem.tipe_update = "PERCERAIAN";
+      }
+
       if (field === "status_perkawinan" && value === "Cerai Mati") {
         updatedItem.pihak_meninggal = updatedItem.pihak_meninggal || "Pasangan";
         updatedItem.pilihan_predana = updatedItem.pilihan_predana || "Kembali ke Asal";
@@ -639,11 +642,11 @@ const DataKramaEditKawin = ({ user }) => {
           continue;
         }
 
-        if (currentKawinRaw?.status_perkawinan === "Kawin" && (m.status_perkawinan === "Cerai" || m.status_perkawinan === "Cerai Mati")) {
+        if (currentKawinRaw?.status_perkawinan === "Kawin" && m.status_perkawinan && m.status_perkawinan !== "Kawin") {
           setAlert({
             show: true,
             type: 'warning',
-            message: 'Proses dihentikan! Gunakan modul pengajuan perceraian jika ingin mengubah status perkawinan menjadi cerai hidup/cerai mati.'
+            message: 'Proses dihentikan! Anda tidak dapat mengubah status perkawinan aktif menjadi cerai melalui pembaruan ini. Gunakan fitur Ajukan Perceraian.'
           });
           setIsLoading(false);
           return; 
@@ -690,15 +693,40 @@ const DataKramaEditKawin = ({ user }) => {
           throw new Error(`Gagal memproses data pasangan pada baris perkawinan ke-${perkawinanlist.indexOf(m) + 1}. Data pasangan tidak ditemukan.`);
         }
 
+        let penentuanTipeUpdate = m.tipe_update;
+
+        const tglPerkawinanLama = currentKawinRaw?.tanggal_perkawinan ? currentKawinRaw.tanggal_perkawinan.substring(0, 10) : "";
+        const isUserMenggeserTglKawin = m.tanggal_perkawinan !== tglPerkawinanLama;
+
+        if (isUserMenggeserTglKawin) {
+          penentuanTipeUpdate = "PERKAWINAN";
+        }
+
+        if (!penentuanTipeUpdate) {
+          penentuanTipeUpdate = "PERKAWINAN";
+        }
+
+        if (penentuanTipeUpdate === "PERKAWINAN" && currentKawinRaw?.tanggal_cerai) {
+          if (new Date(m.tanggal_perkawinan) > new Date(currentKawinRaw.tanggal_cerai)) {
+            setAlert({
+              show: true,
+              type: 'error',
+              message: 'Tanggal perkawinan baru tidak boleh melampaui tanggal perceraian terdaftar.'
+            });
+            setIsLoading(false);
+            return;
+          }
+        }
+
         const payloadPutBackend = {
-          tipe_update: m.tipe_update, 
+          tipe_update: penentuanTipeUpdate, 
           suami_id: kramaData?.jenis_kelamin === "Laki-laki" ? mainId : targetPasanganId,
           istri_id: kramaData?.jenis_kelamin === "Laki-laki" ? targetPasanganId : mainId,
           jenis_perkawinan: m.jenis_perkawinan,
-          tanggal_event: m.tipe_update === "PERCERAIAN" ? safeDate(m.tanggal_cerai) : safeDate(m.tanggal_perkawinan),
+          tanggal_event: penentuanTipeUpdate === "PERCERAIAN" ? safeDate(m.tanggal_cerai) : safeDate(m.tanggal_perkawinan),
           status_perkawinan: m.status_perkawinan, 
-          pihak_meninggal: m.tipe_update === "PERCERAIAN" ? (m.pihak_meninggal || null) : null,
-          pilihan_predana: m.tipe_update === "PERCERAIAN" ? (m.pilihan_predana || null) : null,
+          pihak_meninggal: penentuanTipeUpdate === "PERCERAIAN" ? (m.pihak_meninggal || null) : null,
+          pilihan_predana: penentuanTipeUpdate === "PERCERAIAN" ? (m.pilihan_predana || null) : null,
           catatan_update: JSON.stringify({
             keterangan: m.catatan_update || `Perubahan data utama perkawinan relasi purusa-predana.`,
             nama_pasangan_baru: namaPasanganTerbaca
@@ -725,7 +753,6 @@ const DataKramaEditKawin = ({ user }) => {
         state: { successMessage: 'Perubahan data perkawinan adat berhasil diperbarui!' },
         replace: true
       });
-
     } catch (error) {
       console.error(error);
       setAlert({ 
@@ -790,16 +817,15 @@ const DataKramaEditKawin = ({ user }) => {
                             INFORMASI: styles.badgeInformasi,
                           };
                           const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
-  
+
                           return (
                             <div 
                               key={notif.id} 
                               onClick={() => {
                                 if (!notif.is_read) handleTandaiDibaca(notif.id);
-                                if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                                if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                               }}
-                              className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                            >
+                              className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -891,18 +917,20 @@ const DataKramaEditKawin = ({ user }) => {
         )}
         <div className="p-8 flex-1 flex flex-col items-center">
           <div className="w-full max-w-4xl">
+            {/* BANNER WARNING */}
             <div className={`${styles.noteFormEdit} animate-fade-in`}>
               <div className="flex items-start gap-3">
-                <div className="text-amber-600 mt-0.5 text-xl">
+                <div className="text-amber-600 text-xl animate-pulse">
                   <FaExclamationTriangle />
                 </div>
                 <div className="flex-1">
                   <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wider">
-                    Pemberitahuan Perubahan Pasangan Perkawinan Adat
+                    Pemberitahuan Pembaruan Data Perkawinan Adat
                   </h4>
-                  <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
-                    Perubahan atau pergantian pasangan dilakukan dari sudut pandang <strong>Krama Utama selaku pihak Purusa</strong>. 
-                  </p>
+                  <ul className="text-[11px] text-amber-800 list-disc list-inside space-y-0.5 pt-1 italic">
+                    <li>Perubahan atau pergantian pasangan dilakukan dari sudut pandang <strong>Krama Utama selaku pihak Purusa</strong>.</li>
+                    <li>Untuk perubahan tanggal perkawinan/tanggal perceraian, lakukan secara bertahap agar sistem dapat memproses pembaruan dengan baik.</li>
+                  </ul>
                   <p className="text-[11px] text-amber-700 mt-2 font-semibold">
                     <strong>PENTING:</strong> <i>Jika perkawinan lama telah memiliki relasi anak (keturunan). pastikan Anda telah memindahkan/mengamankan relasi silsilah anak-anak dari pasangan lama terlebih dahulu di modul manajemen relasi orang tua sebelum mengganti data pasangan di form ini!</i>
                   </p>
@@ -1186,7 +1214,7 @@ const DataKramaEditKawin = ({ user }) => {
                                 value={m.status_perkawinan} 
                                 onChange={(e) => handlePerkawinanChange(index, "status_perkawinan", e.target.value)} 
                                 className={`${styles.inputPilihan} ${m.isDataLamaTerunci ? 'bg-gray-100 cursor-not-allowed text-gray-600' : ''}`}
-                                disabled={true}>
+                                disabled={m.isDataLamaTerunci}>
                                 <option value="Kawin">Kawin</option>
                                 <option value="Cerai Hidup">Cerai Hidup</option>
                                 <option value="Cerai Mati">Cerai Mati</option>
