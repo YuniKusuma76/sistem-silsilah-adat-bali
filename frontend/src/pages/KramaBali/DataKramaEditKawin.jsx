@@ -10,11 +10,15 @@ import {
   FaInfoCircle, 
   FaEraser, 
   FaExclamationTriangle,
-  FaLock
+  FaLock,
+  FaCamera
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
 import styles from './DataKramaBaru.module.css';
+
+const SUPABASE_STORAGE_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/";
+const DEFAULT_AVATAR_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/default-avatar.jpg";
 
 // Helper: Membuat format waktu
 const formatWaktuRelatif = (dateString) => {
@@ -55,6 +59,7 @@ const DataKramaEditKawin = ({ user }) => {
   // STATE KRAMA UTAMA:
   const [kramaList, setKramaList] = useState([]);
   const [searchDesaUtama, setSearchDesaUtama] = useState("");
+  const [previewFoto, setPreviewFoto] = useState(DEFAULT_AVATAR_URL);
 
   // STATE PERKAWINAN:
   const [perkawinanlist, setPerkawinanlist] = useState([]);
@@ -214,7 +219,12 @@ const DataKramaEditKawin = ({ user }) => {
               tipe_data: kramaUtama.tipe_data || "Keturunan"
             });
 
+            if (kramaUtama.foto_profile) {
+              setPreviewFoto(`${SUPABASE_STORAGE_URL}${kramaUtama.foto_profile}`);
+            }
+            
             const activeDesa = dataDesa.find(d => String(d.id) === String(kramaUtama.desa_adat_id));
+
             if (activeDesa) {
               setSearchDesaUtama(activeDesa.nama_desa_adat);
             }
@@ -817,7 +827,7 @@ const DataKramaEditKawin = ({ user }) => {
                             INFORMASI: styles.badgeInformasi,
                           };
                           const activeBadgeStyle = badgeStyles[notif.kategori] || styles.badgeInformasi;
-
+  
                           return (
                             <div 
                               key={notif.id} 
@@ -925,10 +935,10 @@ const DataKramaEditKawin = ({ user }) => {
                 </div>
                 <div className="flex-1">
                   <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wider">
-                    Pemberitahuan Pembaruan Data Perkawinan Adat
+                    Pemberitahuan Pembaruan Data Perkawinan/Perceraian
                   </h4>
                   <ul className="text-[11px] text-amber-800 list-disc list-inside space-y-0.5 pt-1 italic">
-                    <li>Perubahan atau pergantian pasangan dilakukan dari sudut pandang <strong>Krama Utama selaku pihak Purusa</strong>.</li>
+                    <li>Perubahan atau pergantian pasangan dilakukan dari sisi <strong>Laki-laki/Suami</strong>.</li>
                     <li>Untuk perubahan tanggal perkawinan/tanggal perceraian, lakukan secara bertahap agar sistem dapat memproses pembaruan dengan baik.</li>
                   </ul>
                   <p className="text-[11px] text-amber-700 mt-2 font-semibold">
@@ -988,6 +998,36 @@ const DataKramaEditKawin = ({ user }) => {
                       className={styles.inputText}
                       disabled={true}
                     />
+                  </div>
+                  <div className="flex flex-col space-y-1">
+                    <label className={styles.labelInput}>
+                      Foto Profile
+                    </label>
+                    <div className={styles.inputFoto}>
+                      {previewFoto ? (
+                        <div className="relative group w-52 h-52">
+                          <img src={previewFoto} alt="Preview 1:1" className={styles.previewFoto} />
+                        </div>
+                      ) : (
+                        <div className={styles.emptyFoto}>
+                          <FaCamera size={20} />
+                          <span className="text-[10px] font-medium">
+                            No Photo
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex flex-col space-y-1">
+                        <input 
+                          type="file" 
+                          accept="image/jpeg, image/jpg, image/png"
+                          className={styles.chooseFoto}
+                          disabled={true}
+                        />
+                        <p className="text-[10px] text-gray-400 font-medium">
+                          * Format gambar: .jpg, .jpeg, .png (maksimal 2MB)
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <div className={styles.dualInput}>
                     {/* Jenis Kelamin */}
@@ -1322,12 +1362,30 @@ const DataKramaEditKawin = ({ user }) => {
                                               setOpenDropdownIndex(null);
                                               setSearchPasangan({ ...searchPasangan, [index]: k.nama_lengkap });
                                             }}>
-                                            <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
+                                            <div className="flex items-baseline gap-1.5">
+                                              <p className="font-bold text-gray-800">{k.nama_lengkap}</p>
+                                              {k.nomor_pendaftaran && (
+                                                <span className="text-[10px] font-mono font-bold text-gray-600 bg-gray-100 px-1 rounded">
+                                                  [{k.nomor_pendaftaran}]
+                                                </span>
+                                              )}
+                                            </div>
                                             <p className="text-[10px] text-gray-500 uppercase italic">
-                                              {k.is_bali 
-                                                ? (desaList.find(d => String(d.id) === String(k.desa_adat_id))?.nama_desa_adat || "Asal Bali")
-                                                : (k.alamat_luar || "Luar Bali")
-                                              } • {k.nama_panggilan || k.tipe_data}
+                                              {(() => {
+                                                const desaAdat = k.desa_adat_id 
+                                                  ? desaList.find(d => String(d.id) === String(k.desa_adat_id))
+                                                  : null;
+                                                if (desaAdat) {
+                                                  return desaAdat.nama_desa_adat;
+                                                }
+                                                if (k.is_bali === true || k.is_bali === "true" || k.is_bali === 1) {
+                                                  return "Asal Bali";
+                                                }
+                                                if (k.tipe_data === "Leluhur") {
+                                                  return "Asal Bali (Leluhur)";
+                                                }
+                                                return k.alamat_luar || "Luar Bali";
+                                              })()} • {k.nama_panggilan || k.tipe_data || "Krama"}
                                             </p>
                                           </div>
                                         ))
@@ -1340,8 +1398,14 @@ const DataKramaEditKawin = ({ user }) => {
                                   </>
                                 )}
                               </div>
-                              {/* Preview Pasangan */}
-                              {pasanganTerpilih && !m.isPasanganBaru && (
+                            </div>
+                            {/* Preview Pasangan Terpilih */}
+                            {pasanganTerpilih && !m.isPasanganBaru && (() => {
+                              const desaAdatPasangan = pasanganTerpilih.desa_adat_id
+                                ? desaList.find(d => String(d.id) === String(pasanganTerpilih.desa_adat_id))
+                                : null;
+
+                              return (
                                 <div className={`${styles.preview} animate-fade-in`}>
                                   <div className={styles.previewTitle}>
                                     <FaInfoCircle className="text-blue-600 mb-0.5" /> Preview Ringkas Data Diri Pasangan
@@ -1373,16 +1437,29 @@ const DataKramaEditKawin = ({ user }) => {
                                         Wilayah Adat Asal/Alamat Asal
                                       </span>
                                       <span className="font-medium">
-                                        {pasanganTerpilih.is_bali 
-                                          ? (desaList.find(d => String(d.id) === String(pasanganTerpilih.desa_adat_id))?.nama_desa_adat || "Asal Bali")
-                                          : (pasanganTerpilih.alamat_luar || "Luar Bali")
-                                        }
+                                        {desaAdatPasangan ? (
+                                          <span className="text-blue-700 font-medium">
+                                            Desa Adat {desaAdatPasangan.nama_desa_adat}
+                                          </span>
+                                        ) : pasanganTerpilih.is_bali ? (
+                                          "Asal Bali"
+                                        ) : (
+                                          pasanganTerpilih.alamat_luar || "Luar Bali"
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1">
+                                      <span className={styles.previewLabel}>
+                                        Nomor Pendaftaran Krama
+                                      </span>
+                                      <span className="font-mono font-bold text-xs">
+                                        {pasanganTerpilih.nomor_pendaftaran || "-"}
                                       </span>
                                     </div>
                                   </div>
                                 </div>
-                              )}
-                            </div>
+                              );
+                            })()}
                             {/* Data Detail jika Pasangan Baru */}
                             {m.isPasanganBaru && !m.isDataLamaTerunci && (
                               <div className={`${styles.cardPasanganBaru} animate-fade-in shadow-inner`}>
@@ -1687,7 +1764,7 @@ const DataKramaEditKawin = ({ user }) => {
                                       </div>
                                     </div>
                                     {/* Catatan Adat Otomatis */}
-                                    {isPredanaMeninggal && (
+                                    {(isPredanaMeninggal && m.jenis_perkawinan !== "Pade Gelahang") && (
                                       <div className={styles.notedPredana}>
                                         <strong>Catatan Adat:</strong> Karena pihak <strong>{isGenderPredana}/Predana</strong> yang meninggal dalam status pernikahan aktif, 
                                         disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat Bali, swadharma dan 

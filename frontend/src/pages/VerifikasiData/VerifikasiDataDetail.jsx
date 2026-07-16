@@ -31,6 +31,7 @@ import {
   FaHourglassHalf,
   FaPlusCircle,
   FaEye,
+  FaEyeSlash,
   FaIdCardAlt,
   FaCamera 
 } from 'react-icons/fa';
@@ -145,6 +146,7 @@ const VerifikasiDataDetail = ({ user }) => {
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
+  const [openDetails, setOpenDetails] = useState({});
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -154,6 +156,14 @@ const VerifikasiDataDetail = ({ user }) => {
     type: '',
     message: ''
   });
+
+  // Helper: melihat detail riwayat keluarga
+  const toggleRowDetail = (index) => {
+    setOpenDetails((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  };
 
   // Helper: enkripsi slug url menjadi id asli
   const realId = useMemo(() => {
@@ -499,7 +509,7 @@ const VerifikasiDataDetail = ({ user }) => {
       setAlert({
         show: true,
         type: 'warning',
-        message: `Wajib mengisi catatan/alasan ketika pengajuan verifikasi ditolak!`
+        message: `Wajib mengisi catatan/alasan ketika pengajuan verifikasi data perkawinan adat ditolak!`
       });
       return;
     }
@@ -519,6 +529,11 @@ const VerifikasiDataDetail = ({ user }) => {
         if (user?.role === 'Admin Desa') {
           const desaSuamiId = selectedKawin.suami?.desa_adat_id || selectedKawin.suami?.desaAdatId || selectedKawin.desa_pria_id;
           const desaIstriId = selectedKawin.istri?.desa_adat_id || selectedKawin.istri?.desaAdatId || selectedKawin.desa_wanita_id;
+          const jenisPerkawinan = selectedKawin.jenis_perkawinan;
+
+          if (jenisPerkawinan === "Pade Gelahang" && String(desaSuamiId) === String(desaIstriId)) {
+            return "super_admin";
+          }
           
           if (String(desaIstriId) === String(userDesaId)) {
             return "istri";
@@ -533,6 +548,7 @@ const VerifikasiDataDetail = ({ user }) => {
       switch (konteksVerifikasiKawin) {
         case 'REGULAR_KAWIN':
           endpointUrl = `/perkawinan/kawin/verifikasi/${selectedKawin.id}`;
+          payload.target_sisi = dapatkanTargetSisiEkstensi();
           break;
         case 'REGULAR_CERAI':
           endpointUrl = `/perkawinan/cerai/verifikasi/${selectedKawin.id}`;
@@ -562,6 +578,7 @@ const VerifikasiDataDetail = ({ user }) => {
       });
 
       setIsOpenModalKawin(false);
+      setModalKawinData(null);
       setCatatanKawinValidator('');
       setSelectedKawin(null);
       
@@ -1578,7 +1595,7 @@ let hasChanges = false;
                 )}
               </div>
             </div>
-            {/* Data Perkawinan */}
+            {/* CARD: Data Perkawinan */}
             <div className={styles.cardSection}>
               <div className={styles.headerSection}>
                 <FaUserFriends className="text-white" />
@@ -1720,12 +1737,15 @@ let hasChanges = false;
                                 </div>
                               </div>
                             )}
-                            {/* VERIFIKASI */}
+                            {/* VERIFIKASI UNTUK PERKAWINAN AKTIF */}
                             {(() => {
-                              const desaSuamiId = pAktif.suami?.desa_adat_id || pAktif.suami?.desaAdatId || pAktif.desa_pria_id;
-                              const desaIstriId = pAktif.istri?.desa_adat_id || pAktif.istri?.desaAdatId || pAktif.desa_wanita_id;
-                              const isAdminTerlibat = user.role === 'Super Admin' || (user.role === 'Admin Desa' && userDesaId && (String(desaSuamiId) === userDesaId || String(desaIstriId) === userDesaId));
-                              const sudahVerifikasi = pAktif.riwayat_verifikasi?.some(v => String(v.desa_adat_id) === userDesaId);
+                              const desaSuamiId = pAktif.suami?.desa_adat_id || pAktif.suami?.desaAdatId || pAktif.desa_pria_id || pAktif.suami_desa_id;
+                              const desaIstriId = pAktif.istri?.desa_adat_id || pAktif.istri?.desaAdatId || pAktif.desa_wanita_id || pAktif.istri_desa_id;
+                              const currentAdminDesaId = String(userDesaId || user?.desa_adat_id || user?.desaAdatId || "");
+                              const isAdminTerlibat = user?.role === 'Super Admin' || 
+                                (user?.role === 'Admin Desa' && currentAdminDesaId !== "" && 
+                                (String(desaSuamiId) === currentAdminDesaId || String(desaIstriId) === currentAdminDesaId));
+                              const sudahVerifikasi = pAktif.riwayat_verifikasi?.some(v => String(v.desa_adat_id) === currentAdminDesaId);
 
                               if (isAdminTerlibat && (pAktif.status_verifikasi === 'Draft' || pAktif.is_pending_update) && !sudahVerifikasi) {
                                 return (
@@ -1757,7 +1777,7 @@ let hasChanges = false;
                                         setCatatanKawinValidator('');
                                         setIsOpenModalKawin(true);
                                       }}>
-                                      <FaEdit className="mb-0.5 mr-1"/> Verifikasi Perkawinan
+                                      <FaEdit className="mb-0.5"/> Verifikasi Perkawinan
                                     </button>
                                   </div>
                                 );
@@ -1836,43 +1856,46 @@ let hasChanges = false;
                                 <span className={`${styles.labelStatus} ${isCeraiMati ? styles.labelCeraiMati : styles.labelCerai}`}>
                                   {pLama.status_perkawinan}
                                 </span>
-                                {/* VERIFIKASI */}
-                                {(() => {
-                                  const desaSuamiId = pLama.suami?.desa_adat_id || pLama.suami?.desaAdatId || pLama.desa_pria_id;
-                                  const desaIstriId = pLama.istri?.desa_adat_id || pLama.istri?.desaAdatId || pLama.desa_wanita_id;
-                                  const isAdminTerlibat = user.role === 'Super Admin' || (user.role === 'Admin Desa' && userDesaId && (String(desaSuamiId) === userDesaId || String(desaIstriId) === userDesaId));
-                                  const sudahVerifikasiParsial = pLama.riwayat_verifikasi?.some(v => String(v.desa_adat_id) === userDesaId);
-                                  const isKonteksVerifikasi = pLama.is_pending_update && !sudahVerifikasiParsial;
+                                {/* VERIFIKASI UNTUK RIWAYAT KOREKSI LAMPAU */}
+                              {(() => {
+                                const desaSuamiId = pLama.suami?.desa_adat_id || pLama.suami?.desaAdatId || pLama.desa_pria_id || pLama.suami_desa_id;
+                                const desaIstriId = pLama.istri?.desa_adat_id || pLama.istri?.desaAdatId || pLama.desa_wanita_id || pLama.istri_desa_id;
+                                const currentAdminDesaId = String(userDesaId || user?.desa_adat_id || user?.desaAdatId || "");
+                                const isAdminTerlibat = user?.role === 'Super Admin' || 
+                                  (user?.role === 'Admin Desa' && currentAdminDesaId !== "" && 
+                                  (String(desaSuamiId) === currentAdminDesaId || String(desaIstriId) === currentAdminDesaId));
+                                const sudahVerifikasiParsial = pLama.riwayat_verifikasi?.some(v => String(v.desa_adat_id) === currentAdminDesaId);
+                                const isKonteksVerifikasi = pLama.is_pending_update && !sudahVerifikasiParsial;
 
-                                  if (hasAccess || isAdminTerlibat) {
-                                    return (
-                                      <button 
-                                        className={styles.eyeLog}
-                                        onClick={() => { 
-                                          setSelectedKawin(pLama);
-                                          setModalKawinData(pLama);
-                                          
-                                          if (pLama.data_perubahan?.UPDATE_PERCERAIAN) {
-                                            setTabVerifikasiAktif('UPDATE_CERAI');
-                                            setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
-                                          } else if (pLama.data_perubahan?.UPDATE_PERKAWINAN) {
-                                            setTabVerifikasiAktif('UPDATE_KAWIN');
-                                            setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
-                                          } else {
-                                            setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
-                                          }
-                                          
-                                          setVerifyKawinAction(isKonteksVerifikasi ? (pLama.status_verifikasi || 'Draft') : 'Disetujui');
-                                          setCatatanKawinValidator('');
-                                          setIsOpenModalKawin(true); 
-                                        }}>
-                                        <FaEye className="text-xs" />
-                                        <span>{isKonteksVerifikasi ? 'Verifikasi Perceraian' : 'Detail Log'}</span>
-                                      </button>
-                                    );
-                                  }
-                                  return null;
-                                })()}
+                                if (hasAccess || isAdminTerlibat) {
+                                  return (
+                                    <button 
+                                      className={`${styles.eyeLog} ${isKonteksVerifikasi ? styles.verifUpdateCerai : ''}`}
+                                      onClick={() => { 
+                                        setSelectedKawin(pLama);
+                                        setModalKawinData(pLama);
+                                        
+                                        if (pLama.data_perubahan?.UPDATE_PERCERAIAN) {
+                                          setTabVerifikasiAktif('UPDATE_CERAI');
+                                          setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
+                                        } else if (pLama.data_perubahan?.UPDATE_PERKAWINAN) {
+                                          setTabVerifikasiAktif('UPDATE_KAWIN');
+                                          setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
+                                        } else {
+                                          setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
+                                        }
+                                        
+                                        setVerifyKawinAction('Disetujui');
+                                        setCatatanKawinValidator('');
+                                        setIsOpenModalKawin(true); 
+                                      }}>
+                                      <FaEye className="text-xs" />
+                                      <span>{isKonteksVerifikasi ? 'Verifikasi Update' : 'Detail Log'}</span>
+                                    </button>
+                                  );
+                                }
+                                return null;
+                              })()}
                               </div>
                             </div>
                             {/* DATA PERUBAHAN */}
@@ -2012,6 +2035,7 @@ let hasChanges = false;
                     const keluargaIdTarget = kel.keluarga_id || kel.keluarga?.id;
                     const keluargaData = keluargaMap[keluargaIdTarget];
                     const namaKepala = keluargaData ? keluargaData.nama_kepala : "Tidak Diketahui";
+
                     let jenisKeluarga = keluargaData?.jenis_keluarga || kel.keluarga?.jenis_keluarga || "Anggota Keluarga";
 
                     if (['Biasa', 'Nyentana', 'Pade Gelahang'].includes(jenisKeluarga)) {
@@ -2020,8 +2044,23 @@ let hasChanges = false;
                       jenisKeluarga = `Keluarga ${jenisKeluarga}`;
                     }
 
+                    const isRowOpen = !!openDetails[idx];
+                    let labelEvent = kel.kategori_event || "Riwayat";
+
+                    if (labelEvent === "LAHIR") labelEvent = "Kelahiran";
+                    if (labelEvent === "KAWIN") labelEvent = "Perkawinan Adat";
+                    if (labelEvent === "CERAI") labelEvent = "Perceraian";
+                    if (labelEvent === "PENGANGKATAN") labelEvent = "Pengangkatan Anak (Sentana)";
+
                     return (
                       <div key={kel.id || idx} className={styles.jalurRiwayat}>
+                        <button
+                          onClick={() => toggleRowDetail(idx)}
+                          className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-md transition-all duration-200"
+                          title={isRowOpen ? "Sembunyikan detail keputusan" : "Tampilkan detail keputusan"}
+                        >
+                          {isRowOpen ? <FaEyeSlash size={14} /> : <FaEye size={14} />}
+                        </button>
                         <div className={`${styles.jalurAktif} ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                         <p className={styles.tanggalAktif}>
                           {formatDate(kel.awal_masuk)} - {isActive ? 'Sekarang' : formatDate(kel.akhir_masuk)}
@@ -2035,6 +2074,20 @@ let hasChanges = false;
                         <p className={styles.kedudukan}>
                           {kel.kedudukan}
                         </p>
+                        {isRowOpen && (
+                          <div className="bg-blue-50 rounded-sm mt-3 p-2 shadow-inner animate-fade-in">
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <span className={styles.labelEvent}>
+                                Kronologis: {labelEvent}
+                              </span>
+                            </div>
+                            <div className="pt-2">
+                              <p className="text-xs font-medium text-gray-600">
+                                {kel.dasar_keputusan}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -2074,7 +2127,7 @@ let hasChanges = false;
               </button>
             </div>
             <div className="space-y-2 text-[11px]">
-              <div className="flex items-center gap-2 text-stone-700">
+              <div className="flex items-center gap-2 text-black">
                 <h4 className="font-bold text-xs uppercase tracking-wide">
                   Status & Sinkronisasi Data:
                 </h4>
@@ -2130,7 +2183,7 @@ let hasChanges = false;
             {/* VERIFIKASI */}
             {(is_pending_update || status_verifikasi === "Draft" || status_verifikasi === "Ditolak") && (
               <div className="pt-7">
-                <div className="flex items-center gap-2 text-stone-700">
+                <div className="flex items-center gap-2 text-black">
                   <h4 className="font-bold text-xs uppercase tracking-wide">
                     Verifikasi Data:
                   </h4>
@@ -2337,7 +2390,7 @@ let hasChanges = false;
             </div>
               <div className="flex-1 overflow-y-auto space-y-4">
                 <div className="space-y-2 text-[11px]">
-                  <div className="flex items-center gap-2 text-stone-700">
+                  <div className="flex items-center gap-2 text-black">
                     <h4 className="font-bold text-xs uppercase tracking-wide">
                       Status & Sinkronisasi Data:
                     </h4>
@@ -2368,7 +2421,7 @@ let hasChanges = false;
                           <FaExclamationTriangle size={11} className="mb-0.5" /> 
                           <span>Menunggu Verifikasi</span>
                         </span>
-                      ) : status_verifikasi === "Ditolak" ? (
+                      ) : modalKawinData?.status_verifikasi === "Ditolak" ? (
                         <span className={styles.badgeRejected}>
                           <FaTimes size={11} /> 
                           <span>Pengajuan Ditolak</span>
@@ -2437,106 +2490,100 @@ let hasChanges = false;
                     )}
                   </div>
                   {/* Tab Fokus Verifikasi */}
-{(modalKawinData?.status_verifikasi === 'Draft' || modalKawinData?.is_pending_update) && (
-  <div className="pt-2 border-b border-gray-100">
-    <div className="flex items-center gap-2 text-stone-700">
-      <h4 className="font-bold text-xs uppercase tracking-wide">
-        Target Fokus Verifikasi:
-      </h4>
-    </div>
-    
-    <div className="flex mb-4 pt-1 flex-wrap gap-1">
-      {/* 1. JALUR DRAF PERKAWINAN BARU (REGULAR KAWIN) */}
-      {modalKawinData?.status_verifikasi === 'Draft' && (
-        <button
-          type="button"
-          className={`${styles.tabTarget} ${tabVerifikasiAktif === 'KAWIN' 
-            ? 'bg-amber-700 text-white shadow-sm' 
-            : 'text-stone-500 hover:text-stone-800'
-          }`}
-          onClick={() => {
-            setTabVerifikasiAktif('KAWIN');
-            setKonteksVerifikasiKawin('REGULAR_KAWIN');
-            setVerifyKawinAction('Disetujui');
-            setCatatanKawinValidator('');
-          }}>
-          Draft Pendaftaran Perkawinan
-        </button>
-      )}
-
-      {/* 2. JALUR DRAF PERCERAIAN BARU (REGULAR CERAI) */}
-      {modalKawinData?.data_perubahan?.PERCERAIAN && (
-        <button
-          type="button"
-          disabled={modalKawinData?.status_verifikasi === 'Draft'}
-          title={modalKawinData?.status_verifikasi === 'Draft' ? "Status perkawinan harus disetujui terlebih dahulu sebelum memproses perceraian." : "Verifikasi draft perceraian"}
-          className={`${styles.tabTarget} ${
-            modalKawinData?.status_verifikasi === 'Draft'
-              ? styles.tabTargetDisable
-              : tabVerifikasiAktif === 'CERAI'
-              ? 'bg-blue-700 text-white shadow-sm'
-              : 'text-stone-500 hover:text-stone-800'
-          }`}
-          onClick={() => {
-            if (modalKawinData?.status_verifikasi === 'Draft') return;
-            setTabVerifikasiAktif('CERAI');
-            setKonteksVerifikasiKawin('REGULAR_CERAI');
-            setVerifyKawinAction('Disetujui');
-            setCatatanKawinValidator('');
-          }}>
-          Draft Usulan Perceraian
-        </button>
-      )}
-
-      {/* 3. JALUR DRAF KOREKSI DATA PERKAWINAN (UPDATE PERKAWINAN) */}
-      {modalKawinData?.data_perubahan?.UPDATE_PERKAWINAN && (
-        <button
-          type="button"
-          className={`${styles.tabTarget} ${tabVerifikasiAktif === 'UPDATE_KAWIN'
-            ? 'bg-emerald-700 text-white shadow-sm'
-            : 'text-stone-500 hover:text-stone-800'
-          }`}
-          onClick={() => {
-            setTabVerifikasiAktif('UPDATE_KAWIN');
-            setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
-            setVerifyKawinAction('Disetujui');
-            setCatatanKawinValidator('');
-          }}>
-          Koreksi Data Perkawinan
-        </button>
-      )}
-
-      {/* 4. JALUR DRAF KOREKSI DATA PERCERAIAN (UPDATE PERCERAIAN) */}
-      {modalKawinData?.data_perubahan?.UPDATE_PERCERAIAN && (
-        <button
-          type="button"
-          className={`${styles.tabTarget} ${tabVerifikasiAktif === 'UPDATE_CERAI'
-            ? 'bg-indigo-700 text-white shadow-sm'
-            : 'text-stone-500 hover:text-stone-800'
-          }`}
-          onClick={() => {
-            setTabVerifikasiAktif('UPDATE_CERAI');
-            setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
-            setVerifyKawinAction('Disetujui');
-            setCatatanKawinValidator('');
-          }}>
-          Koreksi Data Perceraian
-        </button>
-      )}
-    </div>
-    
-    {/* Info Alert pembantu jika status perkawinan perdana masih bertipe Draft */}
-    {modalKawinData?.status_verifikasi === 'Draft' && modalKawinData?.data_perubahan?.PERCERAIAN && (
-      <span className="text-[10px] text-amber-700 italic block mb-3 bg-amber-50 p-2 rounded border-l-2 border-amber-500">
-        * Catatan: Sistem mendeteksi adanya draf perceraian yang tertunda. Anda diwajibkan menyetujui/mengesahkan status <strong>Draft Pendaftaran Perkawinan</strong> ini terlebih dahulu sebelum tab perceraian terbuka.
-      </span>
-    )}
-  </div>
-)}
-                  {/* VERIFIKASI */}
+                  {(modalKawinData?.status_verifikasi === 'Draft' || modalKawinData?.is_pending_update) && (
+                    <div className="pt-3 border-b border-gray-100">
+                      <div className="flex items-center gap-2 text-black">
+                        <h4 className="font-bold text-xs uppercase tracking-wide">
+                          Target Fokus Verifikasi:
+                        </h4>
+                      </div>
+                      <div className="flex mb-3 pt-1 flex-wrap gap-1">
+                        {/* Perkawinan Baru */}
+                        {modalKawinData?.status_verifikasi === 'Draft' && (
+                          <button
+                            type="button"
+                            className={`${styles.tabTarget} ${tabVerifikasiAktif === 'KAWIN' 
+                              ? 'bg-amber-700 text-white shadow-sm' 
+                              : 'text-stone-500 hover:text-stone-800'
+                            }`}
+                            onClick={() => {
+                              setTabVerifikasiAktif('KAWIN');
+                              setKonteksVerifikasiKawin('REGULAR_KAWIN');
+                              setVerifyKawinAction('Disetujui');
+                              setCatatanKawinValidator('');
+                            }}>
+                            Draft Pendaftaran Perkawinan
+                          </button>
+                        )}
+                        {/* Perceraian */}
+                        {modalKawinData?.data_perubahan?.PERCERAIAN && (
+                          <button
+                            type="button"
+                            disabled={modalKawinData?.status_verifikasi === 'Draft'}
+                            title={modalKawinData?.status_verifikasi === 'Draft' 
+                              ? "Status perkawinan harus disetujui terlebih dahulu sebelum memproses perceraian" 
+                              : "Verifikasi draft perceraian"
+                            }
+                            className={`${styles.tabTarget} ${modalKawinData?.status_verifikasi === 'Draft'
+                                ? styles.tabTargetDisable : tabVerifikasiAktif === 'CERAI'
+                                ? 'bg-purple-700 text-white shadow-sm' : 'text-stone-500 hover:text-stone-800'
+                            }`}
+                            onClick={() => {
+                              if (modalKawinData?.status_verifikasi === 'Draft') return;
+                              setTabVerifikasiAktif('CERAI');
+                              setKonteksVerifikasiKawin('REGULAR_CERAI');
+                              setVerifyKawinAction('Disetujui');
+                              setCatatanKawinValidator('');
+                            }}>
+                            Draft Usulan Perceraian
+                          </button>
+                        )}
+                        {/* Update Perkawinan */}
+                        {modalKawinData?.data_perubahan?.UPDATE_PERKAWINAN && (
+                          <button
+                            type="button"
+                            className={`${styles.tabTarget} ${tabVerifikasiAktif === 'UPDATE_KAWIN'
+                              ? 'bg-emerald-700 text-white shadow-sm'
+                              : 'text-stone-500 hover:text-stone-800'
+                            }`}
+                            onClick={() => {
+                              setTabVerifikasiAktif('UPDATE_KAWIN');
+                              setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
+                              setVerifyKawinAction('Disetujui');
+                              setCatatanKawinValidator('');
+                            }}>
+                            Update Data Perkawinan
+                          </button>
+                        )}
+                        {/* Update Perceraian */}
+                        {modalKawinData?.data_perubahan?.UPDATE_PERCERAIAN && (
+                          <button
+                            type="button"
+                            className={`${styles.tabTarget} ${tabVerifikasiAktif === 'UPDATE_CERAI'
+                              ? 'bg-indigo-700 text-white shadow-sm'
+                              : 'text-stone-500 hover:text-stone-800'
+                            }`}
+                            onClick={() => {
+                              setTabVerifikasiAktif('UPDATE_CERAI');
+                              setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
+                              setVerifyKawinAction('Disetujui');
+                              setCatatanKawinValidator('');
+                            }}>
+                            Update Data Perceraian
+                          </button>
+                        )}
+                      </div>
+                      {modalKawinData?.status_verifikasi === 'Draft' && modalKawinData?.data_perubahan?.PERCERAIAN && (
+                        <span className={styles.noteTabTarget}>
+                          *Catatan: Sistem mendeteksi adanya draft perceraian yang tertunda. Anda diwajibkan menyetujui/mengesahkan status <strong>Draft Pendaftaran Perkawinan</strong> ini terlebih dahulu sebelum tab perceraian terbuka.
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {/* VERIFIKASI DATA */}
                   {(modalKawinData?.is_pending_update || modalKawinData?.status_verifikasi === "Draft" || modalKawinData?.status_verifikasi === "Ditolak") && (
                     <div>
-                      <div className="flex items-center gap-2 text-stone-700">
+                      <div className="flex items-center gap-2 text-black">
                         <h4 className="font-bold text-xs uppercase tracking-wide">
                           Verifikasi Data:
                         </h4>

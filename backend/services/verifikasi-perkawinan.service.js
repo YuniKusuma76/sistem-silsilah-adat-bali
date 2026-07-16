@@ -50,8 +50,10 @@ export const eksekusiVerifikasiPerkawinan = async ({
     } = perkawinan;
 
     const existingCatatan = perkawinan.catatan_admin_desa || {};
-    const infoTambahanDasar = !tanggal_perkawinan ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal perkawinan kosong)." : "";
-    const tanggalPerkawinanMurni = tanggal_perkawinan || new Date().toISOString().split('T')[0];
+    const hariIniStr = new Date().toISOString().split('T')[0];
+    const infoTambahanDasar = (!tanggal_perkawinan || tanggal_perkawinan === hariIniStr) ? " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal perkawinan kosong)." : "";
+
+    const tanggalPerkawinanMurni = tanggal_perkawinan || hariIniStr;
     const finalTanggalPerkawinan = new Date(`${tanggalPerkawinanMurni} ${new Date().toTimeString().split(' ')[0]}`);
 
     // STATUS VERIFIKASI BERDASARKAN ROLE
@@ -280,6 +282,29 @@ export const eksekusiVerifikasiPerkawinan = async ({
       tutupKeluargaAngkat({ krama_id: istri_id, t })
     ]);
 
+    await Promise.all([
+      RiwayatPeranAdat.update(
+        { selesai_tanggal: finalTanggalPerkawinan },
+        { 
+          where: { 
+            krama_id: suami_id, 
+            selesai_tanggal: null 
+          }, 
+          transaction: t 
+        }
+      ),
+      RiwayatPeranAdat.update(
+        { selesai_tanggal: finalTanggalPerkawinan },
+        { 
+          where: { 
+            krama_id: istri_id, 
+            selesai_tanggal: null 
+          }, 
+          transaction: t 
+        }
+      )
+    ]);
+
     // Mapping decision tree untuk menentukan status peran adat
     const [peranSuami, peranIstri] = await Promise.all([
       mappingAturanAdatBali("KAWIN", { 
@@ -378,8 +403,8 @@ export const eksekusiVerifikasiPerkawinan = async ({
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
           dasar_keputusan: isPoligami
-            ? "Kedudukan sebagai kepala keluarga pada perkawinan poligami diberikan dengan tetap mempertahankan kedudukan pada perkawinan sebelumnya."
-            : "Kedudukan sebagai kepala keluarga diberikan karena krama ini berstatus purusa dalam perkawinannya.",
+            ? "Kedudukan sebagai kepala keluarga pada perkawinan poligami diberikan dengan tetap mempertahankan kedudukan pada perkawinan sebelumnya." + infoTambahanDasar
+            : "Kedudukan sebagai kepala keluarga diberikan karena krama ini berstatus purusa dalam perkawinannya." + infoTambahanDasar,
           event_date: finalTanggalPerkawinan,
           allow_multiple: isPoligami
         }, t),
@@ -391,8 +416,8 @@ export const eksekusiVerifikasiPerkawinan = async ({
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
           dasar_keputusan: isPoligami
-            ? "Kedudukan sebagai anggota diberikan kepada istri berikutnya untuk masuk ke dalam keluarga purusa suami karena terlibat perkawinan poligami."
-            : "Kedudukan sebagai anggota diberikan karena krama ini berstatus predana dalam perkawinannya.",
+            ? "Kedudukan sebagai anggota diberikan kepada istri berikutnya untuk masuk ke dalam keluarga purusa suami karena terlibat perkawinan poligami." + infoTambahanDasar
+            : "Kedudukan sebagai anggota diberikan karena krama ini berstatus predana dalam perkawinannya." + infoTambahanDasar,
           event_date: finalTanggalPerkawinan
         }, t)
       ]);
@@ -441,7 +466,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
           kedudukan: "Kepala Keluarga",
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
-          dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan kepada krama ini karena memiliki status purusa di keluarga orang tuanya pada perkawinan pade gelahang.",
+          dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan kepada krama ini karena memiliki status purusa di keluarga orang tuanya pada perkawinan pade gelahang." + infoTambahanDasar,
           event_date: finalTanggalPerkawinan,
           allow_multiple: true
         }, t),
@@ -452,7 +477,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
           kedudukan: "Anggota",
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
-          dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini karena memiliki status peran adat predana di keluarga suaminya pada perkawinan pade gelahang.",
+          dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini karena memiliki status peran adat predana di keluarga suaminya pada perkawinan pade gelahang." + infoTambahanDasar,
           event_date: finalTanggalPerkawinan,
           allow_multiple: true
         }, t),
@@ -463,7 +488,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
           kedudukan: "Kepala Keluarga",
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
-          dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan kepada krama ini karena memiliki status purusa di keluarga orang tuanya pada perkawinan pade gelahang.",
+          dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan kepada krama ini karena memiliki status purusa di keluarga orang tuanya pada perkawinan pade gelahang." + infoTambahanDasar,
           event_date: finalTanggalPerkawinan,
           allow_multiple: true
         }, t),
@@ -474,7 +499,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
           kedudukan: "Anggota",
           kategori_event: "KAWIN",
           bobot_event: BOBOT_EVENT["KAWIN"],
-          dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini karena memiliki status peran adat predana di keluarga istrinya pada perkawinan pade gelahang.",
+          dasar_keputusan: "Kedudukan sebagai anggota diberikan kepada krama ini karena memiliki status peran adat predana di keluarga istrinya pada perkawinan pade gelahang." + infoTambahanDasar,
           event_date: finalTanggalPerkawinan,
           allow_multiple: true
         }, t)

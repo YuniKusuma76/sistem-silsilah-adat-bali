@@ -158,6 +158,28 @@ export const getAllPerkawinan = async (req, res) => {
                 ]
               }
             ]
+          },{
+            [Op.and]: [
+              { "data_perubahan.UPDATE_PERKAWINAN.jenis_perkawinan": "Biasa" },
+              { "$suami.desa_adat_id$": userDesaId }
+            ]
+          },
+          {
+            [Op.and]: [
+              { "data_perubahan.UPDATE_PERKAWINAN.jenis_perkawinan": "Nyentana" },
+              { "$istri.desa_adat_id$": userDesaId }
+            ]
+          },
+          {
+            [Op.and]: [
+              { "data_perubahan.UPDATE_PERKAWINAN.jenis_perkawinan": "Pade Gelahang" },
+              {
+                [Op.or]: [
+                  { "$suami.desa_adat_id$": userDesaId },
+                  { "$istri.desa_adat_id$": userDesaId }
+                ]
+              }
+            ]
           }
         ];
       }
@@ -187,7 +209,7 @@ export const getAllPerkawinan = async (req, res) => {
       }
     ];
 
-    const perkawinanList = await Perkawinan.findAll({
+    const perkawinanRaw = await Perkawinan.findAll({
       where: finalWhere,
       include: PERKAWINAN_INCLUDE_KHUSUS,
       order: [["id", "DESC"]]
@@ -196,19 +218,16 @@ export const getAllPerkawinan = async (req, res) => {
     // Mapping Data Keluarga Aktif
     const kepalaKeluargaIds = [];
 
-    perkawinanList.forEach((item) => {
-      if (item.jenis_perkawinan === "Pade Gelahang") {
-        if (item.suami_id) {
-          kepalaKeluargaIds.push(item.suami_id);
-        }
-        if (item.istri_id) {
-          kepalaKeluargaIds.push(item.istri_id);
-        }
+    perkawinanRaw.forEach((item) => {
+      const draftKey = "UPDATE_PERKAWINAN";
+      const jenisKawinEfektif = item.data_perubahan?.[draftKey]?.jenis_perkawinan || item.jenis_perkawinan;
+
+      if (jenisKawinEfektif === "Pade Gelahang") {
+        if (item.suami_id) kepalaKeluargaIds.push(item.suami_id);
+        if (item.istri_id) kepalaKeluargaIds.push(item.istri_id);
       } else {
-        const purusaId = item.jenis_perkawinan === "Nyentana" ? item.istri_id : item.suami_id;
-        if (purusaId) {
-          kepalaKeluargaIds.push(purusaId);
-        }
+        const purusaId = jenisKawinEfektif === "Nyentana" ? item.istri_id : item.suami_id;
+        if (purusaId) kepalaKeluargaIds.push(purusaId);
       }
     });
 
@@ -229,23 +248,34 @@ export const getAllPerkawinan = async (req, res) => {
       });
     }
 
-    // Pemetaan data keluarga sebagai struktur data response akhir
-    const datakawin = perkawinanList.map((item) => {
-      const data = item.get({ clone: true });
-      if (data.jenis_perkawinan === "Pade Gelahang") {
+    const perkawinanList = perkawinanRaw.map((instance) => {
+      const data = instance.toJSON();
+      const isOwner = data.user_id === currentUserId;
+      const isAdmin = userRole === "Admin Desa" || userRole === "Super Admin";
+
+      if (!isOwner && !isAdmin) {
+        delete data.data_perubahan;
+        delete data.status_sebelum_draft;
+      }
+
+      const draftKey = "UPDATE_PERKAWINAN";
+      const jenisKawinEfektif = data.data_perubahan?.[draftKey]?.jenis_perkawinan || data.jenis_perkawinan;
+
+      if (jenisKawinEfektif === "Pade Gelahang") {
         data.keluarga_suami = mapKeluargaAktif.get(data.suami_id) || null;
         data.keluarga_istri = mapKeluargaAktif.get(data.istri_id) || null;
       } else {
-        const purusaId = data.jenis_perkawinan === "Nyentana" ? data.istri_id : data.suami_id;
+        const purusaId = jenisKawinEfektif === "Nyentana" ? data.istri_id : data.suami_id;
         data.keluarga_baru = mapKeluargaAktif.get(purusaId) || null;
       }
+
       return data;
     });
 
     return res.status(200).json({
       message: "Berhasil mengambil data perkawinan!",
-      count: datakawin.length,
-      data: datakawin
+      count: perkawinanList.length,
+      data: perkawinanList
     });
   } catch (error) {
     const statusCode = error.status || 500;
@@ -1125,7 +1155,7 @@ export const verifikasiPerceraian = async (req, res) => {
 
     let targetSisi = null;
 
-    // Validasi hak akses ruang lingkup data
+    // VALIDASI HAK AKSES RUANG LINGKUP DATA & PENENTUAN TARGET SISI
     if (user_role === "Admin Desa") {
       const jenisPerkawinan = perkawinan.jenis_perkawinan;
       const isDesaSuami = suami.desa_adat_id === user_desa_id;
@@ -1133,28 +1163,29 @@ export const verifikasiPerceraian = async (req, res) => {
 
       if (jenisPerkawinan === "Biasa" || jenisPerkawinan === "Tidak Diketahui" || !jenisPerkawinan) {
         if (!isDesaSuami) {
-          throw {
-            status: 403,
-            message: "Otoritas mengakses data ditolak! Hanya desa adat pihak suami yang dapat mengelola dan memverifikasi perceraian ini."
-          };
+          throw { status: 403, message: "Otoritas ditolak! Hanya desa pihak suami yang dapat memverifikasi." };
         }
         targetSisi = "suami";
       } else if (jenisPerkawinan === "Nyentana") {
         if (!isDesaIstri) {
-          throw {
-            status: 403,
-            message: "Otoritas mengakses data ditolak! Hanya desa adat pihak istri yang dapat mengelola dan memverifikasi perceraian ini."
-          };
+          throw { status: 403, message: "Otoritas ditolak! Hanya desa pihak istri yang dapat memverifikasi." };
         }
         targetSisi = "istri";
       } else if (jenisPerkawinan === "Pade Gelahang") {
         if (!isDesaSuami && !isDesaIstri) {
-          throw {
-            status: 403,
-            message: "Otoritas mengakses data ditolak! Wilayah desa adat Anda tidak terikat dengan kedua belah pihak krama."
-          };
+          throw { status: 403, message: "Otoritas ditolak! Wilayah desa adat Anda tidak terikat dengan krama." };
         }
-        targetSisi = isDesaSuami ? "suami" : "istri";
+        
+        if (suami.desa_adat_id === istri.desa_adat_id) {
+          targetSisi = "super_admin";
+        } else {
+          const { target_sisi: targetSisiInput } = req.body;
+          if (!targetSisiInput || !["suami", "istri"].includes(targetSisiInput)) {
+            targetSisi = isDesaSuami ? "suami" : "istri";
+          } else {
+            targetSisi = targetSisiInput;
+          }
+        }
       }
     } else if (user_role === "Super Admin") {
       targetSisi = "super_admin";
@@ -1164,7 +1195,7 @@ export const verifikasiPerceraian = async (req, res) => {
 
     if (user_role === "Admin Desa") {
       const desa = await DesaAdat.findByPk(user_desa_id);
-      namaOperator = desa ? `Admin Desa ${desa.nama_desa_adat}` : `Admin Desa ID ${user_desa_id}`;
+      namaOperator = desa ? `Admin Desa ${desa.nama_desa_adat}` : `Admin Desa ${user_desa_id}`;
     }
 
     const hasilVerifikasi = await eksekusiVerifikasiPerceraian({
@@ -1214,10 +1245,10 @@ export const verifikasiPerceraian = async (req, res) => {
       if (suami.desa_adat_id) {
         notifikasiPromises.push(
           kirimNotifikasiSistem(req, {
-            judul: "Pencatatan Putus Perkawinan (Cerai)",
+            judul: "Pencatatan Perkawinan Cerai",
             deskripsi: `${deskripsiNotif} (Sisi Wilayah Adat Suami)`,
             kategori: "LOG_SISTEM",
-            tautan_fitur: "/perceraian",
+            tautan_fitur: "/krama-bali",
             desa_adat_id: suami.desa_adat_id,
             sender_id: user_id,
             kontak_pesan_id: null,
@@ -1229,10 +1260,10 @@ export const verifikasiPerceraian = async (req, res) => {
       if (istri.desa_adat_id && String(suami.desa_adat_id) !== String(istri.desa_adat_id)) {
         notifikasiPromises.push(
           kirimNotifikasiSistem(req, {
-            judul: "Pencatatan Putus Perkawinan (Cerai)",
+            judul: "Pencatatan Perkawinan Cerai",
             deskripsi: `${deskripsiNotif} (Sisi Wilayah Adat Istri)`,
             kategori: "LOG_SISTEM",
-            tautan_fitur: "/perceraian",
+            tautan_fitur: "/krama-bali",
             desa_adat_id: istri.desa_adat_id,
             sender_id: user_id,
             kontak_pesan_id: null,
@@ -1650,7 +1681,12 @@ export const updatePerkawinanById = async (req, res) => {
 export const verifikasiUpdatePerkawinan = async (req, res) => {
   try {
     const { id } = req.params;
-    const { tipe_update, status_verifikasi, catatan_admin } = req.body;
+
+    const { 
+      tipe_update, 
+      status_verifikasi, 
+      catatan_admin 
+    } = req.body;
 
     const user_id = req.userId;
     const user_role = req.role;
@@ -1697,49 +1733,68 @@ export const verifikasiUpdatePerkawinan = async (req, res) => {
       };
     }
 
+    const isSatuDesaAdat = suamiLama.desa_adat_id === user_desa_id && istriLama.desa_adat_id === user_desa_id;
     let targetSisi = "super_admin";
 
     if (user_role === "Admin Desa") {
-      const jenisPerkawinan = perkawinan.jenis_perkawinan;
+      const jenisPerkawinanEfektif = subDraftUpdate.jenis_perkawinan || perkawinan.jenis_perkawinan;
       const isDesaSuami = suamiLama.desa_adat_id === user_desa_id;
       const isDesaIstri = istriLama.desa_adat_id === user_desa_id;
 
-      if (jenisPerkawinan === "Biasa" || jenisPerkawinan === "Tidak Diketahui" || !jenisPerkawinan) {
-        if (!isDesaSuami) {
-          throw { 
-            status: 403, 
-            message: "Proses verifikasi dihentikan! Otoritas mengesahkan perubahan data hanya milik desa adat pihak suami." 
-          };
-        }
-        targetSisi = "suami";
-      } else if (jenisPerkawinan === "Nyentana") {
-        if (!isDesaIstri) {
-          throw { 
-            status: 403, 
-            message: "Proses verifikasi dihentikan! Otoritas mengesahkan perubahan data hanya milik desa adat pihak istri." 
-          };
-        }
-        targetSisi = "istri";
-      } else if (jenisPerkawinan === "Pade Gelahang") {
+      if (jenisPerkawinanEfektif === "Pade Gelahang") {
         if (!isDesaSuami && !isDesaIstri) {
           throw { 
             status: 403,
             message: "Otoritas mengakses data ditolak! Wilayah desa adat berbeda." 
           };
         }
-        if (user_desa_id === istriLama.desa_adat_id) {
+
+        if (suamiLama.desa_adat_id === istriLama.desa_adat_id) {
+          targetSisi = "super_admin";
+        } else if (user_desa_id === istriLama.desa_adat_id) {
           targetSisi = "istri";
         } else {
           targetSisi = "suami";
         }
+      } else if (jenisPerkawinanEfektif === "Nyentana") {
+        if (!isDesaIstri) {
+          throw { 
+            status: 403, 
+            message: "Proses verifikasi dihentikan! Otoritas mengesahkan perubahan data hanya milik desa adat pihak istri/pradana." 
+          };
+        }
+        targetSisi = "istri";
+      } else {
+        if (!isDesaSuami) {
+          throw { 
+            status: 403, 
+            message: "Proses verifikasi dihentikan! Otoritas mengesahkan perubahan data hanya milik desa adat pihak suami/purusha." 
+          };
+        }
+        targetSisi = "suami";
       }
     }
 
+    // PENYELARASAN NAMA DESA OPERATOR
     let namaOperator = "Super Admin";
 
     if (user_role === "Admin Desa") {
-      const desa = await DesaAdat.findByPk(user_desa_id);
-      namaOperator = desa ? `Admin Desa ${desa.nama_desa_adat}` : `Admin Desa ${user_desa_id}`;
+      const kramaOperator = suamiLama.desa_adat_id === user_desa_id 
+        ? suamiLama 
+        : (istriLama.desa_adat_id === user_desa_id ? istriLama : null);
+
+      if (kramaOperator?.wilayah_adat?.nama_desa_adat) {
+        const namaBersih = kramaOperator.wilayah_adat.nama_desa_adat.replace(/Admin Desa\s+/i, "");
+        namaOperator = `Admin Desa ${namaBersih}`;
+      } else {
+        const desa = await DesaAdat.findByPk(user_desa_id);
+        if (desa) {
+          const namaBersih = desa.nama_desa_adat.replace(/Admin Desa\s+/i, "");
+          namaOperator = `Admin Desa ${namaBersih}`;
+        } else {
+          namaOperator = `Admin Desa ${user_desa_id}`;
+        }
+      }
     }
 
     const resultVerifikasi = await verifikasiUpdateDataPerkawinan({
@@ -1769,13 +1824,14 @@ export const verifikasiUpdatePerkawinan = async (req, res) => {
 
       const namaSuami = suamiFinal?.nama_lengkap || "Krama";
       const namaIstri = istriFinal?.nama_lengkap || "Krama";
+      const labelTipe = tipe_update.toLowerCase();
 
       if (status_verifikasi === "Ditolak") {
-        deskripsiNotif = `Usulan draft perubahan data ${tipe_update.toLowerCase()} antara ${namaSuami} dan ${namaIstri} ditolak oleh ${user_role}.`;
+        deskripsiNotif = `Usulan draft perubahan data ${labelTipe} antara ${namaSuami} dan ${namaIstri} ditolak oleh ${user_role}.`;
       } else if (resultVerifikasi.type === "PERSETUJUAN_UPDATE_PENUH") {
-        deskripsiNotif = `Usulan draft perubahan data ${tipe_update.toLowerCase()} antara ${namaSuami} dan ${namaIstri} telah disetujui dan disahkan oleh ${user_role}.`;
+        deskripsiNotif = `Usulan draft perubahan data ${labelTipe} antara ${namaSuami} dan ${namaIstri} telah disetujui dan disahkan oleh ${user_role}.`;
       } else {
-        deskripsiNotif = `Usulan draft perubahan data ${tipe_update.toLowerCase()} telah disetujui secara parsial oleh ${namaOperator}. Menunggu verifikasi dari Admin Desa Pasangannya.`;
+        deskripsiNotif = `Usulan draft perubahan data ${labelTipe} telah disetujui secara parsial oleh ${namaOperator}. Menunggu verifikasi dari Admin Desa Pasangannya.`;
       }
 
       const notifikasiPromises = [];

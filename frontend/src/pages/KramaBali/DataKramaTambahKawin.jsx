@@ -10,11 +10,15 @@ import {
   FaInfoCircle, 
   FaEraser, 
   FaExclamationTriangle,
-  FaLock
+  FaLock,
+  FaCamera 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
 import styles from './DataKramaBaru.module.css';
+
+const SUPABASE_STORAGE_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/";
+const DEFAULT_AVATAR_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/default-avatar.jpg";
 
 // Helper: Membuat format waktu
 const formatWaktuRelatif = (dateString) => {
@@ -56,6 +60,7 @@ const DataKramaTambahKawin = ({ user }) => {
   // STATE KRAMA UTAMA:
   const [kramaList, setKramaList] = useState([]);
   const [searchDesaUtama, setSearchDesaUtama] = useState("");
+  const [previewFoto, setPreviewFoto] = useState(DEFAULT_AVATAR_URL);
 
   // STATE PERKAWINAN:
   const [perkawinanlist, setPerkawinanlist] = useState([]);
@@ -185,6 +190,10 @@ const DataKramaTambahKawin = ({ user }) => {
             alamat_luar: resKrama.alamat_luar || "",
             tipe_data: resKrama.tipe_data || "Keturunan"
           });
+
+          if (resKrama.foto_profile) {
+            setPreviewFoto(`${SUPABASE_STORAGE_URL}${resKrama.foto_profile}`);
+          }
 
           const activeDesa = dataDesa.find(d => String(d.id) === String(resKrama.desa_adat_id));
 
@@ -862,10 +871,9 @@ const DataKramaTambahKawin = ({ user }) => {
                               key={notif.id} 
                               onClick={() => {
                                 if (!notif.is_read) handleTandaiDibaca(notif.id);
-                                if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                                if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                               }}
-                              className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                            >
+                              className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -957,6 +965,7 @@ const DataKramaTambahKawin = ({ user }) => {
         )}
         <div className="p-8 flex-1 flex flex-col items-center">
           <div className="w-full max-w-4xl">
+            {/* BANNER WARNING */}
             <div className={`${styles.noteForm} animate-fade-in`}>
               <div className="flex gap-3">
                 <div className="text-blue-600 mt-0.5">
@@ -1027,6 +1036,36 @@ const DataKramaTambahKawin = ({ user }) => {
                       className={styles.inputText}
                       disabled={true}
                     />
+                  </div>
+                  <div className="flex flex-col space-y-1">
+                    <label className={styles.labelInput}>
+                      Foto Profile
+                    </label>
+                    <div className={styles.inputFoto}>
+                      {previewFoto ? (
+                        <div className="relative group w-52 h-52">
+                          <img src={previewFoto} alt="Preview 1:1" className={styles.previewFoto} />
+                        </div>
+                      ) : (
+                        <div className={styles.emptyFoto}>
+                          <FaCamera size={20} />
+                          <span className="text-[10px] font-medium">
+                            No Photo
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex flex-col space-y-1">
+                        <input 
+                          type="file" 
+                          accept="image/jpeg, image/jpg, image/png"
+                          className={styles.chooseFoto}
+                          disabled={true}
+                        />
+                        <p className="text-[10px] text-gray-400 font-medium">
+                          * Format gambar: .jpg, .jpeg, .png (maksimal 2MB)
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <div className={styles.dualInput}>
                     {/* Jenis Kelamin */}
@@ -1763,7 +1802,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                       </div>
                                     </div>
                                     {/* Catatan Adat Otomatis */}
-                                    {isPredanaMeninggal && (
+                                    {(isPredanaMeninggal && m.jenis_perkawinan !== "Pade Gelahang") && (
                                       <div className={styles.notedPredana}>
                                         <strong>Catatan Adat:</strong> Karena pihak <strong>{isGenderPredana} (Predana)</strong> yang meninggal dalam status pernikahan aktif, 
                                         disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat Bali, swadharma dan 

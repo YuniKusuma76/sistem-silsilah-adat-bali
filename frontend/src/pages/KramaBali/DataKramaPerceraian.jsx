@@ -10,11 +10,15 @@ import {
   FaInfoCircle, 
   FaEraser, 
   FaExclamationTriangle,
-  FaLock
+  FaLock,
+  FaCamera
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
 import styles from './DataKramaBaru.module.css';
+
+const SUPABASE_STORAGE_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/";
+const DEFAULT_AVATAR_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/default-avatar.jpg";
 
 // Helper: Membuat format waktu
 const formatWaktuRelatif = (dateString) => {
@@ -55,6 +59,7 @@ const DataKramaPerceraian = ({ user }) => {
   // STATE KRAMA UTAMA:
   const [kramaList, setKramaList] = useState([]);
   const [searchDesaUtama, setSearchDesaUtama] = useState("");
+  const [previewFoto, setPreviewFoto] = useState(DEFAULT_AVATAR_URL);
 
   // STATE PERKAWINAN:
   const [perkawinanlist, setPerkawinanlist] = useState([]);
@@ -214,7 +219,12 @@ const DataKramaPerceraian = ({ user }) => {
               tipe_data: kramaUtama.tipe_data || "Keturunan"
             });
 
+            if (kramaUtama.foto_profile) {
+              setPreviewFoto(`${SUPABASE_STORAGE_URL}${kramaUtama.foto_profile}`);
+            }
+
             const activeDesa = dataDesa.find(d => String(d.id) === String(kramaUtama.desa_adat_id));
+
             if (activeDesa) {
               setSearchDesaUtama(activeDesa.nama_desa_adat);
             }
@@ -642,29 +652,21 @@ const DataKramaPerceraian = ({ user }) => {
 
         const stringTanggalKawinDb = safeDate(m.tanggal_perkawinan); 
         const stringTanggalCeraiForm = safeDate(m.tanggal_cerai);
-        let tglCeraiFinal;
 
-        if (!stringTanggalCeraiForm) {
-          // Jika kosong, gunakan tanggal hari ini dengan format YYYY-MM-DD (WITA/Lokal)
-          const hariIni = new Date();
-          const offset = hariIni.getTimezoneOffset();
-          const localDate = new Date(hariIni.getTime() - (offset * 60 * 1000));
-          tglCeraiFinal = localDate.toISOString().split('T')[0];
-        } else {
-          tglCeraiFinal = stringTanggalCeraiForm;
-        }
-
-        if (stringTanggalKawinDb && new Date(tglCeraiFinal) < new Date(stringTanggalKawinDb)) {
-          setAlert({
-            show: true,
-            type: 'error',
-            message: `Tanggal perceraian tidak boleh lebih lampau dari tanggal perkawinan (${stringTanggalKawinDb})!`
-          });
-          setIsLoading(false);
-          return;
+        if (stringTanggalCeraiForm && stringTanggalKawinDb) {
+          if (new Date(stringTanggalCeraiForm) < new Date(stringTanggalKawinDb)) {
+            setAlert({
+              show: true,
+              type: 'error',
+              message: `Tanggal perceraian tidak boleh lebih lampau dari tanggal perkawinan (${stringTanggalKawinDb})!`
+            });
+            setIsLoading(false);
+            return;
+          }
         }
 
         let pihakMeninggalFinal = null;
+
         if (m.status_perkawinan === "Cerai Mati") {
           const pilihanForm = m.pihak_meninggal || "Pasangan";
           const kramaUtamaLaki = kramaData?.jenis_kelamin === "Laki-laki";
@@ -694,7 +696,7 @@ const DataKramaPerceraian = ({ user }) => {
           suami_id: kramaData?.jenis_kelamin === "Laki-laki" ? mainId : targetPasanganId,
           istri_id: kramaData?.jenis_kelamin === "Laki-laki" ? targetPasanganId : mainId,
           jenis_perkawinan: m.jenis_perkawinan,
-          tanggal_event: tglCeraiFinal,
+          tanggal_cerai: stringTanggalCeraiForm,
           status_perkawinan: m.status_perkawinan,
           pihak_meninggal: pihakMeninggalFinal, 
           pilihan_predana: pilihanPredanaFinal,
@@ -779,10 +781,9 @@ const DataKramaPerceraian = ({ user }) => {
                             key={notif.id} 
                             onClick={() => {
                               if (!notif.is_read) handleTandaiDibaca(notif.id);
-                              if (notif.tautan_fitur) window.location.href = notif.tautan_fitur;
+                              if (notif.tautan_fitur) navigate(notif.tautan_fitur);
                             }}
-                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}
-                          >
+                            className={`${styles.notifItemRow} ${notif.is_read ? styles.rowRead : styles.rowUnread}`}>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className={`${styles.badgeBase} ${activeBadgeStyle}`}>
@@ -874,6 +875,7 @@ const DataKramaPerceraian = ({ user }) => {
       )}
       <div className="p-8 flex-1 flex flex-col items-center">
         <div className="w-full max-w-4xl">
+          {/* BANNER WARNING */}
           <div className={styles.noteFormCerai}>
             <div className="flex items-start gap-3">
               <div className="text-rose-600 mt-0.5 text-xl">
@@ -881,11 +883,15 @@ const DataKramaPerceraian = ({ user }) => {
               </div>
               <div className="flex-1">
                 <h4 className="text-sm font-bold text-rose-900 uppercase tracking-wider">
-                  Peringatan Relasi Anak (Ngelesang Rabi)
+                  Pemberitahuan Penting Pengajuan Perceraian Perkawinan Adat
                 </h4>
                 <p className="text-xs text-rose-800 mt-1 leading-relaxed">
                   Sesuai ketetapan hukum silsilah Adat Bali, relasi anak pada perkawinan ini setelah <strong>Cerai Hidup/Cerai Mati</strong> akan ikut ke relasi silsilah keluarga pihak Purusa.
                 </p>
+                <ul className="text-[11px] text-rose-600 list-disc list-inside space-y-0.5 pt-1 italic">
+                  <li>Perhatikan setiap kolom input agar tidak salah memasukkan data perceraian perkawinan adat.</li>
+                  <li>Penginputan data perceraian perkawinan adat akan dilihat dari sisi Laki-laki/Suami sebagai Krama Utama (Form I).</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -940,6 +946,36 @@ const DataKramaPerceraian = ({ user }) => {
                     className={styles.inputText}
                     disabled={true}
                   />
+                </div>
+                <div className="flex flex-col space-y-1">
+                  <label className={styles.labelInput}>
+                    Foto Profile
+                  </label>
+                  <div className={styles.inputFoto}>
+                    {previewFoto ? (
+                      <div className="relative group w-52 h-52">
+                        <img src={previewFoto} alt="Preview 1:1" className={styles.previewFoto} />
+                      </div>
+                    ) : (
+                      <div className={styles.emptyFoto}>
+                        <FaCamera size={20} />
+                        <span className="text-[10px] font-medium">
+                          No Photo
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex flex-col space-y-1">
+                      <input 
+                        type="file" 
+                        accept="image/jpeg, image/jpg, image/png"
+                        className={styles.chooseFoto}
+                        disabled={true}
+                      />
+                      <p className="text-[10px] text-gray-400 font-medium">
+                        * Format gambar: .jpg, .jpeg, .png (maksimal 2MB)
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 <div className={styles.dualInput}>
                   {/* Jenis Kelamin */}
@@ -1675,7 +1711,7 @@ const DataKramaPerceraian = ({ user }) => {
                                     </div>
                                   </div>
                                   {/* Catatan Adat Otomatis */}
-                                  {isPredanaMeninggal && (
+                                  {(isPredanaMeninggal && m.jenis_perkawinan !== "Pade Gelahang") && (
                                     <div className={styles.notedPredana}>
                                       <strong>Catatan Adat:</strong> Karena pihak <strong>{isGenderPredana}/Predana</strong> yang meninggal dalam status pernikahan aktif, 
                                       disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat Bali, swadharma dan 

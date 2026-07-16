@@ -31,6 +31,7 @@ import {
   FaHourglassHalf,
   FaPlusCircle,
   FaEye,
+  FaEyeSlash,
   FaIdCardAlt,
   FaCamera
 } from 'react-icons/fa';
@@ -157,6 +158,7 @@ const DataKramaDetail = ({ user }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
+  const [openDetails, setOpenDetails] = useState({});
 
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
@@ -178,6 +180,14 @@ const DataKramaDetail = ({ user }) => {
     title: '',
     message: ''
   });
+
+  // Helper: melihat detail riwayat keluarga
+  const toggleRowDetail = (index) => {
+    setOpenDetails((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  };
 
   // Helper: enkripsi slug url menjadi id asli
   const realId = useMemo(() => {
@@ -1102,32 +1112,35 @@ const DataKramaDetail = ({ user }) => {
   };
 
 const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text') => {
-  let data_perubahan_kawin = modalKawinData?.data_perubahan;
-
-  if (data_perubahan_kawin && data_perubahan_kawin.data_perubahan) {
-    data_perubahan_kawin = data_perubahan_kawin.data_perubahan;
-  }
+  // Ambil data_perubahan langsung dari modalKawinData
+  const data_perubahan_kawin = modalKawinData?.data_perubahan;
   if (!data_perubahan_kawin) return null;
 
-  let nilaiBaru;
+  let nilaiBaru = undefined;
 
-  if (data_perubahan_kawin.PERCERAIAN && data_perubahan_kawin.PERCERAIAN[namaField] !== undefined) {
-    nilaiBaru = data_perubahan_kawin.PERCERAIAN[namaField];
-  } else if (data_perubahan_kawin.UPDATE_PERKAWINAN && data_perubahan_kawin.UPDATE_PERKAWINAN[namaField] !== undefined) {
+  // 1. Cari nilai baru di dalam draft yang bersesuaian
+  if (data_perubahan_kawin.UPDATE_PERKAWINAN && data_perubahan_kawin.UPDATE_PERKAWINAN[namaField] !== undefined) {
     nilaiBaru = data_perubahan_kawin.UPDATE_PERKAWINAN[namaField];
+  } else if (data_perubahan_kawin.UPDATE_PERCERAIAN && data_perubahan_kawin.UPDATE_PERCERAIAN[namaField] !== undefined) {
+    nilaiBaru = data_perubahan_kawin.UPDATE_PERCERAIAN[namaField];
+  } else if (data_perubahan_kawin.PERCERAIAN && data_perubahan_kawin.PERCERAIAN[namaField] !== undefined) {
+    nilaiBaru = data_perubahan_kawin.PERCERAIAN[namaField];
   } else if (data_perubahan_kawin[namaField] !== undefined) {
     nilaiBaru = data_perubahan_kawin[namaField];
-  } else {
+  }
+
+  // Jika field ini tidak mengalami usulan perubahan dalam draft, sembunyikan barisnya
+  if (nilaiBaru === undefined) {
     return null;
   }
 
   let nilaiLamaDiformat = nilaiLama;
   let nilaiBaruDiformat = nilaiBaru;
 
-  // 1. Format Tipe Tanggal
+  // 2. Format Tipe Tanggal
   if (type === 'date') {
-    nilaiLamaDiformat = formatDate(nilaiLama);
-    nilaiBaruDiformat = formatDate(nilaiBaru);
+    nilaiLamaDiformat = formatDate ? formatDate(nilaiLama) : nilaiLama;
+    nilaiBaruDiformat = formatDate ? formatDate(nilaiBaru) : nilaiBaru;
   }
 
   // ============================================================
@@ -1137,7 +1150,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
     const relasiKey = namaField === 'suami_id' ? 'suami' : 'istri';
     const kramaLama = modalKawinData?.[relasiKey];
 
-    // 1. Tentukan Nilai Tampilan Lama (Data Aktif)
+    // Tentukan Nilai Tampilan Lama (Data Aktif)
     if (kramaLama?.nama_lengkap) {
       const isLamaDraft = kramaLama?.status_verifikasi === 'Draft';
       nilaiLamaDiformat = `${kramaLama.nama_lengkap}${isLamaDraft ? ' [DRAFT]' : ''}`;
@@ -1145,35 +1158,34 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
       nilaiLamaDiformat = `Krama ID: ${nilaiLama}`;
     }
 
-    // 2. Tentukan Nilai Tampilan Baru (Data Usulan)
+    // Tentukan Nilai Tampilan Baru (Data Usulan)
     if (String(nilaiBaru) === String(kramaLama?.id || nilaiLama)) {
       nilaiBaruDiformat = nilaiLamaDiformat;
     } else {
-      // Cek apakah nama lengkap ID baru sudah berhasil diunduh ke cache
-      if (kramaCacheMap[nilaiBaru]) {
+      if (typeof kramaCacheMap !== 'undefined' && kramaCacheMap?.[nilaiBaru]) {
         nilaiBaruDiformat = `${kramaCacheMap[nilaiBaru]} [DRAFT]`;
       } else {
         // Fallback cadangan: bongkar dari string json catatan_update jika ada
         let namaDariCatatan = "";
         try {
-          const targetSearchObj = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin;
+          const targetSearchObj = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin.UPDATE_PERCERAIAN || data_perubahan_kawin;
           const parsedCatatan = JSON.parse(targetSearchObj?.catatan_update || modalKawinData?.catatan_update);
           namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
         } catch (e) {
-          console.log(e);
+          console.log("Gagal parsing catatan_update:", e);
           namaDariCatatan = "";
         }
 
         if (namaDariCatatan) {
           nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
         } else {
-          nilaiBaruDiformat = `Memuat Nama (ID: ${nilaiBaru})... [DRAFT]`;
+          nilaiBaruDiformat = `Krama Baru (ID: ${nilaiBaru}) [DRAFT]`;
         }
       }
     }
   }
 
-  // Sembunyikan baris jika tidak ada perubahan nilai nyata
+  // Sembunyikan baris jika tidak ada perubahan nilai nyata antara lama dan baru
   if (String(nilaiLamaDiformat ?? '').trim() === String(nilaiBaruDiformat ?? '').trim()) {
     return null;
   }
@@ -1192,7 +1204,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
         <div className="flex items-center gap-2">
           <FaArrowRight className={styles.arrows} />
           <span className={styles.newValue}>
-            {nilaiBaruDiformat?.includes('[DRAFT]') ? (
+            {typeof nilaiBaruDiformat === 'string' && nilaiBaruDiformat.includes('[DRAFT]') ? (
               <>
                 {nilaiBaruDiformat.replace(' [DRAFT]', '')} 
               </>
@@ -1629,7 +1641,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                 )}
               </div>
             </div>
-            {/* Data Perkawinan */}
+            {/* CARD: Data Perkawinan */}
             <div className={styles.cardSection}>
               <div className={styles.headerSection}>
                 <FaUserFriends className="text-white" />
@@ -1820,7 +1832,6 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
               </div>
             </div>
           </div>
-          {/* KOLOM KANAN */}
           <div className="space-y-6">
             {/* Foto Profile */}
             <div className={styles.previewFoto}>
@@ -1870,11 +1881,14 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                     Belum terdaftar dalam keluarga manapun
                   </p>
                 ) : (
-                  filteredRiwayatKeluarga.map((kel, idx) => {
+                  [...filteredRiwayatKeluarga]
+                  .sort((a, b) => new Date(b.awal_masuk) - new Date(a.awal_masuk))
+                  .map((kel, idx) => {
                     const isActive = kel.akhir_masuk === null;
-                    const keluargaData = keluargaMap[kel.keluarga_id || kel.keluarga?.id];
+                    const keluargaIdTarget = kel.keluarga_id || kel.keluarga?.id;
+                    const keluargaData = keluargaMap[keluargaIdTarget];
                     const namaKepala = keluargaData ? keluargaData.nama_kepala : "Tidak Diketahui";
-                    
+
                     let jenisKeluarga = keluargaData?.jenis_keluarga || kel.keluarga?.jenis_keluarga || "Anggota Keluarga";
 
                     if (['Biasa', 'Nyentana', 'Pade Gelahang'].includes(jenisKeluarga)) {
@@ -1883,8 +1897,23 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                       jenisKeluarga = `Keluarga ${jenisKeluarga}`;
                     }
 
+                    const isRowOpen = !!openDetails[idx];
+                    let labelEvent = kel.kategori_event || "Riwayat";
+
+                    if (labelEvent === "LAHIR") labelEvent = "Kelahiran";
+                    if (labelEvent === "KAWIN") labelEvent = "Perkawinan Adat";
+                    if (labelEvent === "CERAI") labelEvent = "Perceraian";
+                    if (labelEvent === "PENGANGKATAN") labelEvent = "Pengangkatan Anak (Sentana)";
+
                     return (
-                      <div key={idx} className={styles.jalurRiwayat}>
+                      <div key={kel.id || idx} className={styles.jalurRiwayat}>
+                        <button
+                          onClick={() => toggleRowDetail(idx)}
+                          className="absolute top-3 right-3 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-gray-100 rounded-md transition-all duration-200"
+                          title={isRowOpen ? "Sembunyikan detail keputusan" : "Tampilkan detail keputusan"}
+                        >
+                          {isRowOpen ? <FaEyeSlash size={14} /> : <FaEye size={14} />}
+                        </button>
                         <div className={`${styles.jalurAktif} ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                         <p className={styles.tanggalAktif}>
                           {formatDate(kel.awal_masuk)} - {isActive ? 'Sekarang' : formatDate(kel.akhir_masuk)}
@@ -1893,13 +1922,25 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                           {jenisKeluarga}
                         </h4>
                         <p className="text-xs text-gray-500 mt-1">
-                          Kepala Keluarga: <span className="font-semibold text-gray-700">
-                            {namaKepala}
-                          </span>
+                          Kepala Keluarga: <span className="font-semibold text-gray-700">{namaKepala}</span>
                         </p>
                         <p className={styles.kedudukan}>
                           {kel.kedudukan}
                         </p>
+                        {isRowOpen && (
+                          <div className="bg-blue-50 rounded-sm mt-3 p-2 shadow-inner animate-fade-in">
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <span className={styles.labelEvent}>
+                                Kronologis: {labelEvent}
+                              </span>
+                            </div>
+                            <div className="pt-2">
+                              <p className="text-xs font-medium text-gray-600">
+                                {kel.dasar_keputusan}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })

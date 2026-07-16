@@ -1094,7 +1094,6 @@ const DataKramaBaru = ({ user }) => {
           const mRes = await axiosInstance.post("/perkawinan/kawin", payloadP);
           const dataRoot = mRes.data?.data;
           const marriageId = dataRoot?.perkawinan?.id || dataRoot?.id;
-          const tanggalKawinEfektif = dataRoot?.perkawinan?.tanggal_perkawinan || dataRoot?.tanggal_perkawinan;
 
           if (!marriageId || typeof marriageId === "object" || isNaN(parseInt(marriageId))) {
             console.error("Data perkawinan tidak ditemukan, data perceraian tidak diproses:", marriageId);
@@ -1106,15 +1105,7 @@ const DataKramaBaru = ({ user }) => {
           if (isCeraiSimultan) {
             try {
               const jenisMutasiFinal = isCeraiMatiSimultan ? "Cerai Mati" : "Cerai Hidup";
-              let tglCeraiFinal = m.tanggal_cerai || tanggalKawinEfektif;
-
-              if (!m.tanggal_cerai || m.tanggal_cerai === tanggalKawinEfektif) {
-                const sekarang = new Date();
-                sekarang.setSeconds(sekarang.getSeconds() + 10); 
-                const offset = sekarang.getTimezoneOffset() * 60000;
-                const lokalISOTime = (new Date(sekarang - offset)).toISOString(); 
-                tglCeraiFinal = lokalISOTime;
-              }
+              let tglCeraiFinal = m.tanggal_cerai ? m.tanggal_cerai : null;
 
               let pihakMeninggalFinal = null;
 
@@ -2415,7 +2406,7 @@ const DataKramaBaru = ({ user }) => {
                                     </div>
                                   </div>
                                   {/* Catatan Adat Otomatis */}
-                                  {isPredanaMeninggal && (
+                                  {(isPredanaMeninggal && m.jenis_perkawinan !== "Pade Gelahang") && (
                                     <div className={styles.notedPredana}>
                                       <strong>Catatan Adat:</strong> Karena pihak <strong>{isGenderPredana} (Predana)</strong> yang meninggal dalam status pernikahan aktif, 
                                       disarankan memilih ketetapan silsilah <strong>"Tetap di Purusa"</strong>. Menurut hukum adat Bali, swadharma dan 

@@ -154,6 +154,10 @@
   @apply w-56 h-56 md:w-56 md:h-56 object-cover shadow-md transition-transform hover:scale-105;
 }
 
+.labelEvent {
+  @apply px-2 py-0.5 text-[10px] font-semibold rounded-md bg-indigo-100 text-indigo-600 border border-indigo-200 uppercase tracking-wider;
+}
+
 .jalurRiwayat {
   @apply border-l-2 border-gray-100 pl-4 pb-2 last:pb-0 relative;
 }
