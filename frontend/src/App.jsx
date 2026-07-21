@@ -25,9 +25,6 @@ import PengajuanDesaBaru from './pages/Pengajuan/PengajuanDesaBaru.jsx';
 import PengajuanDesaDetail from './pages/Pengajuan/PengajuanDesaDetail.jsx';
 import VerifikasiData from './pages/VerifikasiData/VerifikasiData.jsx';
 import Sidebar from './components/Sidebar/Sidebar.jsx';
-
-
-
 import PengajuanKrama from './pages/VerifikasiData/PengajuanKrama.jsx';
 import PengajuanRelasi from './pages/VerifikasiData/PengajuanRelasi.jsx';
 import PengajuanPerkawinan from './pages/VerifikasiData/PengajuanPerkawinan.jsx';

@@ -28,13 +28,11 @@ const SIDEBAR_MENU = {
       path: "/home", 
       label: "Home", 
       icon: <FaHome size={18} /> 
-    },
-    { 
+    },{ 
       path: "/treh-bali", 
       label: "Treh Bali", 
       icon: <LuNetwork size={18} /> 
-    },
-    { 
+    },{ 
       path: "/pusat-bantuan", 
       label: "Pusat Bantuan", 
       icon: <MdLiveHelp size={18} /> 
@@ -224,7 +222,6 @@ const Sidebar = ({ user, onLoginClick, onRegisterClick, onLogout }) => {
 
   const role = user?.role || "Guest";
 
-  // Helper: fungsi untuk dropdown sidebar
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };

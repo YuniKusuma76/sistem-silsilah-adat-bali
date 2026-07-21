@@ -3,10 +3,10 @@
   --line-width: 2px;
   --gap: 70px;
   --card-height: 50px;
-  --sibling-gap: 30px;
+  --sibling-gap: 80px;
 }
 
-/* Warna Gender */
+/* Style Warna Jenis Kelamin */
 .genderMale {
   background-color: #4a90e2 !important;
   border-color: #357abd !important;
@@ -22,28 +22,42 @@
   border-color: #007f5f !important;
 }
 
-/* Warna Ornamen */
-.crownIcon {
-  color: #ffd700 !important;
-  filter: drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.3));
-  flex-shrink: 0;
-}
-.seedlingIcon {
-  color: #2ecc71 !important;
-  filter: drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.2));
-  flex-shrink: 0;
-}
-
+/* Style Icon Ornamen*/
 .ancestorOrnament,
-.descendantOrnament {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent !important;
-  border: none !important;
+.descendantOrnament,
+.spouseOrnament {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  border: 1px solid #ffffff !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
 }
 
-/* Styling Legenda */
+.ancestorOrnament {
+  background-color: #f59e0b !important;
+}
+
+.descendantOrnament {
+  background-color: #10b981 !important;
+}
+
+.spouseOrnament {
+  background-color: #0ea5e9 !important;
+}
+
+.ancestorOrnament svg,
+.descendantOrnament svg,
+.spouseOrnament svg {
+  color: #ffffff !important;
+  filter: none !important;
+}
+
+/* Style Legenda */
 .legendContainer {
   position: absolute;
   bottom: 50px;
@@ -84,31 +98,39 @@
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-/* Styling Kartu */
+/* Style Node Krama Bali */
 .treeCard {
-  border-radius: 7px;
-  padding: 5px 10px;
-  min-width: 150px;
-  height: var(--card-height);
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  justify-content: center;
+  width: 150px;
+  padding: 14px 10px;
+  background-color: #ffffff;
+  border-radius: 16px;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   cursor: pointer;
-  z-index: 20;
-  transition: all 0.2s ease;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+  position: relative;
+}
+
+.treeCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .treeCard.isTarget {
   box-shadow: 0 0 15px rgba(197, 160, 89, 0.6) !important;
   transform: scale(1.05);
+  z-index: 20;
   border: 2px solid #c5a059 !important;
   animation: pulseGold 2s infinite ease-in-out;
 }
 
 .cardAncestor,
-.cardDescendant {
+.cardDescendant,
+.cardSpouse {
   border: none !important;
   box-shadow: none !important;
 }
@@ -131,56 +153,7 @@
   padding: 3px;
 }
 
-/* Modal Detail Krama */
-.modal {
-  @apply fixed ml-72 inset-0 z-[999] flex items-center justify-center p-4;
-}
-
-.overlay {
-  @apply absolute inset-0 bg-black/50 backdrop-blur-sm;
-}
-
-.cardModal {
-  @apply relative bg-[#ffffff] rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-[#c5a059]/30;
-}
-
-.cardHeader {
-  @apply bg-[#3a2000] p-5 flex justify-between items-center text-white border-b border-[#c5a059];
-}
-
-.titleHeader {
-  @apply font-bold flex items-center gap-2 tracking-wide uppercase text-sm;
-}
-
-.tipeData {
-  @apply text-[12px] text-[#c5a059] font-semibold font-sans tracking-[0.3em] uppercase mb-2;
-}
-
-.namaLengkap {
-  @apply text-2xl font-bold text-[#3a2000] leading-tight;
-}
-
-.namaPanggilan {
-  @apply text-gray-600 text-sm font-medium mt-2;
-}
-
-.detailContent {
-  @apply grid grid-cols-2 gap-y-6 gap-x-4 border-t border-b border-gray-200 py-6 mb-8;
-}
-
-.titleDetail {
-  @apply text-[10px] font-semibold text-gray-400 uppercase tracking-tighter mb-1;
-}
-
-.textDetail {
-  @apply font-bold text-black text-sm;
-}
-
-.btnTreh {
-  @apply w-full py-4 bg-[#3a2000] text-white rounded-lg hover:bg-amber-950/90 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-lg active:scale-95;
-}
-
-/* Styling Loading */
+/* Style Loading Stage */
 .loadContainer {
   @apply ml-72 min-h-screen flex flex-col items-center justify-center bg-[#f4f1ea];
 }
@@ -197,7 +170,7 @@
   @apply text-[#3A2000] font-bold tracking-widest animate-pulse uppercase text-sm;
 }
 
-/* Styling Halaman Utama */
+/* Style Halaman Utama */
 .visualisasi {
   background-color: #ffffff;
   margin-left: 18rem;
@@ -239,6 +212,18 @@
   @apply px-4 py-2 bg-red-600 text-white rounded-md text-xs font-bold flex items-center gap-2 hover:bg-red-700 transition-all shadow-md;
 }
 
+.zoomCard {
+  @apply absolute top-4 right-4 z-50 flex items-center gap-2 bg-white/95 p-1.5 px-2 rounded-xl shadow-lg border border-[#c5a059]/40 backdrop-blur-md select-none;
+}
+
+.zoom {
+  @apply p-2 hover:bg-amber-100 text-gray-700 rounded-lg transition-colors active:scale-95;
+}
+
+.resetZoom {
+  @apply p-2 hover:bg-amber-100 text-amber-900 rounded-lg transition-colors active:scale-95;
+}
+
 /* Area Visualisasi */
 .areaVisualisasi {
   background-color: #f4f1ea;
@@ -251,6 +236,10 @@
 
 .areaVisualisasi:active {
   cursor: grabbing;
+}
+
+.iconCloseModal {
+  @apply hover:rotate-90 transition-transform duration-300;
 }
 
 @keyframes pulseGold {
@@ -293,8 +282,9 @@
   text-align: center;
   list-style-type: none;
   position: relative;
+  /* Memberikan padding horizontal yang cukup antar saudara */
   padding: var(--gap) var(--sibling-gap) 0 var(--sibling-gap);
-  flex: 1 1 auto;
+  flex: 0 0 auto; /* Ganti dari flex: 1 1 auto agar node tidak memampat atau menyusut */
 }
 
 .tree > ul {
@@ -393,39 +383,170 @@
   border-radius: 0 8px 0 0;
 }
 
-/* Wrapper Node & Pasangan */
+/* 3. Mencegah Wrapper Menyusut */
 .treeNodeWrapper {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   position: relative;
   z-index: 10;
+  flex-shrink: 0;
 }
-
+/* 2. Container Pasangan (Mencegah penyusutan saat ada perkawinan) */
 .coupleContainer {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  width: 140px; /* Lebar tetap kartu suami */
+  width: auto;
   margin: 0 auto;
+  /* Pastikan container tidak menyusut secara paksa ketika layar memuat banyak pasangan */
+  flex-shrink: 0;
 }
 
 .coupleContainer:not(:has(.marriageLine)) {
   margin-right: 0 !important;
 }
 
-.coupleContainer > :nth-child(3) {
-  position: absolute;
-  left: 160px;
+.coupleContainer:has(.marriageLine) {
+  transform: translateX(calc((100% - 150px) / 2));
+}
+
+.coupleContainer > :nth-child(n + 3) {
+  position: relative;
+  left: auto;
   z-index: 20;
 }
 
+/* Garis pernikahan antar pasangan */
 .marriageLine {
-  position: absolute;
-  left: 140px;
-  width: 20px;
+  position: relative;
+  left: auto;
+  width: 30px;
   height: var(--line-width);
-  background-color: var(--line-color);
+  background-color: #ec4899;
   z-index: 5;
+  flex-shrink: 0;
+}
+
+.marriageLine::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  background-color: #ec4899;
+  border: 1.5px solid #ffffff;
+  border-radius: 50%;
+}
+
+/* Garis Penghubung Krama Bali */
+.lineAnakKandung::before,
+.lineAnakKandung::after,
+.lineAnakKandung:last-child::before,
+.lineAnakKandung:only-child > .treeNodeWrapper::before {
+  border-color: #10b981 !important;
+}
+
+.lineAnakKandung.hasChildren > .treeNodeWrapper::after {
+  border-left-color: #10b981 !important;
+}
+
+.lineAnakAngkat::before,
+.lineAnakAngkat::after,
+.lineAnakAngkat:last-child::before,
+.lineAnakAngkat:only-child > .treeNodeWrapper::before {
+  border-color: #f59e0b !important;
+}
+
+.lineAnakAngkat.hasChildren > .treeNodeWrapper::after {
+  border-left-color: #f59e0b !important;
+}
+
+/* Style Node Sub Component */
+.iconLeluhur {
+  @apply absolute -top-1 -right-1 bg-amber-500 text-white rounded-full p-1 shadow border border-white;
+}
+
+.iconKeturunan {
+  @apply absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-1 shadow border border-white;
+}
+
+.iconPasangan {
+  @apply absolute -top-1 -right-1 bg-sky-500 text-white rounded-full p-1 shadow border border-white;
+}
+
+.nodeDisplayName {
+  @apply font-bold text-sm text-white leading-snug text-center line-clamp-1 max-w-[120px];
+}
+
+.nodeTipeData {
+  @apply text-[10px] text-gray-800 font-medium mb-3 text-center capitalize italic;
+}
+
+.labelIstri {
+  @apply absolute -top-2.5 left-1/2 transform -translate-x-1/2 bg-sky-600 text-white text-[9px] font-semibold px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap z-20;
+}
+
+/* Style Modal Detail Krama */
+.modal {
+  @apply fixed ml-72 inset-0 z-[999] flex items-center justify-center p-4;
+}
+
+.overlay {
+  @apply absolute inset-0 bg-black/50 backdrop-blur-sm;
+}
+
+.cardModal {
+  @apply relative bg-[#ffffff] rounded-xl shadow-2xl w-full max-w-lg overflow-hidden border border-[#c5a059]/30;
+}
+
+.cardHeader {
+  @apply bg-[#3a2000] p-5 flex justify-between items-center text-white border-b border-[#c5a059];
+}
+
+.titleHeader {
+  @apply font-bold flex items-center gap-2 tracking-wide uppercase text-sm;
+}
+
+.avatarDetail {
+  @apply w-32 h-32 rounded-full object-cover border-2 border-[#c5a059] shadow-md mb-2;
+}
+
+.tipeData {
+  @apply text-[12px] text-[#c5a059] font-semibold font-sans tracking-[0.3em] uppercase mb-2;
+}
+
+.namaLengkap {
+  @apply text-2xl font-bold text-[#3a2000] leading-tight;
+}
+
+.namaPanggilan {
+  @apply text-gray-700 text-base font-serif font-medium;
+}
+
+.detailContent {
+  @apply grid grid-cols-2 gap-y-5 gap-x-4 py-3 px-2 mb-8;
+}
+
+.titleDetail {
+  @apply text-[10px] font-semibold text-gray-400/70 uppercase tracking-tighter;
+}
+
+.textDetail {
+  @apply font-bold text-gray-800 text-sm;
+}
+
+.textDetailReg {
+  @apply font-bold font-mono text-amber-800 text-sm;
+}
+
+.btnTreh {
+  @apply flex-1 py-3 bg-[#3a2000] text-white rounded-lg hover:bg-amber-950/90 flex items-center justify-center gap-2 text-xs font-bold transition-all shadow-lg active:scale-95 text-center;
+}
+
+.btnDetailTreh {
+  @apply flex-1 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-900/90 flex items-center justify-center gap-2 text-xs font-bold transition-colors duration-300 shadow-sm text-center;
 }

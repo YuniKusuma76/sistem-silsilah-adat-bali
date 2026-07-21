@@ -386,19 +386,19 @@ export const buatPerkawinanBali = async ({
       const purusa = peranSuami.status_peran_adat === "Purusa" ? suami : istri;
       const predana = purusa.id === suami.id ? istri : suami;
       
-      await simpanRiwayatKeluarga({
-        krama_id: purusa.id,
-        keluarga_id: keluargaTarget.id,
-        perkawinan_id: perkawinan.id,
-        kedudukan: "Kepala Keluarga",
-        kategori_event: "KAWIN",
-        bobot_event: BOBOT_EVENT["KAWIN"],
-        dasar_keputusan: isPoligami
-          ? "Kedudukan sebagai kepala keluarga pada perkawinan poligami diberikan dengan tetap mempertahankan kedudukan pada perkawinan sebelumnya." + infoTambahanDasar
-          : "Kedudukan sebagai kepala keluarga diberikan karena krama ini berstatus purusa dalam perkawinannya." + infoTambahanDasar,
-        event_date: finalTanggalPerkawinan,
-        allow_multiple: isPoligami
-      }, t);
+      if (!isPoligami) {
+        await simpanRiwayatKeluarga({
+          krama_id: purusa.id,
+          keluarga_id: keluargaTarget.id,
+          perkawinan_id: perkawinan.id,
+          kedudukan: "Kepala Keluarga",
+          kategori_event: "KAWIN",
+          bobot_event: BOBOT_EVENT["KAWIN"],
+          dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan karena krama ini berstatus purusa dalam perkawinannya." + infoTambahanDasar,
+          event_date: finalTanggalPerkawinan,
+          allow_multiple: false
+        }, t);
+      }
 
       await simpanRiwayatKeluarga({
         krama_id: predana.id,
@@ -410,7 +410,8 @@ export const buatPerkawinanBali = async ({
         dasar_keputusan: isPoligami
           ? "Kedudukan sebagai anggota diberikan kepada istri berikutnya untuk masuk ke dalam keluarga purusa suami karena terlibat perkawinan poligami." + infoTambahanDasar
           : "Kedudukan sebagai anggota diberikan karena krama ini berstatus predana dalam perkawinannya." + infoTambahanDasar,
-        event_date: finalTanggalPerkawinan
+        event_date: finalTanggalPerkawinan,
+        allow_multiple: false
       }, t);
 
       if (!isExternalTransaction) {

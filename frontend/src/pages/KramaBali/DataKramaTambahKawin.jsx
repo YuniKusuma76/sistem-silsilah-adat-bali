@@ -585,6 +585,8 @@ const DataKramaTambahKawin = ({ user }) => {
       }
 
       if (p.isPasanganBaru) {
+        const isLeluhur = p.dataPasanganBaru.tipe_data === "Leluhur";
+
         if (!p.dataPasanganBaru.nama_lengkap.trim()) {
           setAlert({ 
             show: true, 
@@ -593,7 +595,7 @@ const DataKramaTambahKawin = ({ user }) => {
           });
           return false;
         }
-        if (p.dataPasanganBaru.is_bali && !p.dataPasanganBaru.desa_adat_id) {
+        if (p.dataPasanganBaru.is_bali && !isLeluhur && p.dataPasanganBaru.tipe_data !== "Leluhur" && !p.dataPasanganBaru.desa_adat_id) {
           setAlert({ 
             show: true, 
             type: 'error', 
@@ -601,7 +603,7 @@ const DataKramaTambahKawin = ({ user }) => {
           });
           return false;
         }
-        if (!p.dataPasanganBaru.is_bali && !p.dataPasanganBaru.alamat_luar?.trim()) {
+        if (!p.dataPasanganBaru.is_bali && !isLeluhur && !p.dataPasanganBaru.alamat_luar?.trim()) {
           setAlert({ 
             show: true, 
             type: 'error', 
@@ -1505,7 +1507,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                   <FaInfoCircle/> Informasi Pasangan Baru
                                 </h4>
                                 <div className="space-y-5 mt-3">
-                                  {/* Tipe Data Pasangan Baru*/}
+                                  {/* Tipe Data Pasangan Baru */}
                                   <div className="flex flex-col space-y-1">
                                     <label className={styles.labelInput}>
                                       Tipe Data Pasangan <span className="text-red-500">*</span>
@@ -1535,7 +1537,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                       * Pilih tipe data krama yang sesuai
                                     </p>
                                   </div>
-                                  {/* Nama Lengkap Pasangan Baru*/}
+                                  {/* Nama Lengkap Pasangan Baru */}
                                   <div className="flex flex-col space-y-1">
                                     <label className={styles.labelInput}>
                                       Nama Lengkap <span className="text-red-500">*</span>
@@ -1543,7 +1545,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                     <input 
                                       type="text" 
                                       value={m.dataPasanganBaru.nama_lengkap || ""} 
-                                      onChange={(e) => handlePasanganBaruChange(index, "nama_lengkap", e.target.value)}
+                                      onChange={(e) => handlePasanganBaruChange(index, "nama_lengkap", e.target.value)} 
                                       className={styles.inputText}
                                       placeholder="Contoh: Ni Made Sri Utami" 
                                       required 
@@ -1575,7 +1577,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                         className={styles.inputCalendar} 
                                       />
                                     </div>
-                                    {/* Status Hidup Pasangan Baru*/}
+                                    {/* Status Hidup Pasangan Baru */}
                                     <div className="flex flex-col space-y-1.5">
                                       <label className={styles.labelInput}>
                                         Status Hidup 
@@ -1597,6 +1599,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                       </div>
                                     </div>
                                   </div>
+                                  {/* Checkbox Asal Bali */}
                                   <div className={styles.checkbox}>
                                     <div className="flex items-center gap-3">
                                       <input 
@@ -1626,6 +1629,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                       }
                                     </p>
                                   </div>
+                                  {/* Desa Adat / Alamat Luar Bali */}
                                   {m.dataPasanganBaru.is_bali ? (
                                     <div className="space-y-4 animate-fade-in">
                                       <div className="flex flex-col space-y-1.5 relative">
@@ -1637,6 +1641,7 @@ const DataKramaTambahKawin = ({ user }) => {
                                             type="text"
                                             className={styles.termsDesaAdat}
                                             placeholder="Cari desa adat pasangan..."
+                                            required={m.dataPasanganBaru.is_bali && m.dataPasanganBaru.tipe_data !== "Leluhur"}
                                             value={openDesaDropdownIndex === index 
                                               ? (searchDesaManual[index] || "") 
                                               : (desaList.find(d => String(d.id) === String(m.dataPasanganBaru.desa_adat_id))?.nama_desa_adat || "")
@@ -1702,8 +1707,8 @@ const DataKramaTambahKawin = ({ user }) => {
                                               <span className="block text-[10px] uppercase text-gray-400">
                                                 Provinsi
                                               </span>
-                                            <strong>{wilayah.provinsi}</strong>
-                                          </div>
+                                              <strong>{wilayah.provinsi}</strong>
+                                            </div>
                                           </div>
                                         );
                                       })()}

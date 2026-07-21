@@ -3,153 +3,237 @@ import {
   KramaBali,
   RelasiKrama,
   Perkawinan,
-  RiwayatPeranAdat,
-  DesaAdat
+  RiwayatPeranAdat
 } from "../models/associations.js";
 
-// Halper: Mengambil status peran adat terakhir
+const VERIFIKASI_APPROVED = { status_verifikasi: "Disetujui" };
+
+// Helper: mengambil riwayat peran adat terakhir
 const getLatestPeranAdat = async (krama_id) => {
   const peran = await RiwayatPeranAdat.findOne({
     where: { krama_id },
     order: [["mulai_tanggal", "DESC"]],
     attributes: ["status_peran_adat"] 
   });
-  return peran 
-    ? peran.status_peran_adat 
-    : "Tidak Memiliki Status Peran Adat";
+  return peran ? peran.status_peran_adat : "Tidak Memiliki Status Peran Adat";
 };
 
-// Helper: Mengambil detail pasangan (Istri/Suami)
-const getPasanganDetail = async (krama_id, target_id) => {
+// Helper: mengambil data pasangan beserta jenis perkawinannya
+const getPasangan = async (krama_id, jenis_kelamin) => {
+  const isLaki = jenis_kelamin === "Laki-laki" || jenis_kelamin === "L";
   const perkawinan = await Perkawinan.findAll({
     where: {
-      [Op.or]: [
-        { suami_id: krama_id }, 
-        { istri_id: krama_id }
-      ],
-      status_verifikasi: "Disetujui"
+      [isLaki ? "suami_id" : "istri_id"]: krama_id,
+      ...VERIFIKASI_APPROVED
     },
-    include: [
-      {
-        model: KramaBali,
-        as: "suami",
-        where: { status_verifikasi: "Disetujui" },
-        attributes: ["id", "nama_lengkap", "nama_panggilan", "jenis_kelamin", "status_hidup", "tipe_data", "desa_adat_id", "tempat_asal_khusus", "alamat_luar"]
-      },
-      {
-        model: KramaBali,
-        as: "istri",
-        where: { status_verifikasi: "Disetujui" },
-        attributes: ["id", "nama_lengkap", "nama_panggilan", "jenis_kelamin", "status_hidup", "tipe_data", "desa_adat_id", "tempat_asal_khusus", "alamat_luar"]
-      }
-    ],
-    order: [["tanggal_perkawinan", "ASC"]]
+    include: [{
+      model: KramaBali,
+      as: isLaki ? "istri" : "suami",
+      where: VERIFIKASI_APPROVED,
+      attributes: ["id", "nomor_pendaftaran", "nama_lengkap", "nama_panggilan", "jenis_kelamin", "status_hidup", "tipe_data", "foto_profile", "status_verifikasi", "user_id"]
+    }],
+    order: [["tanggal_perkawinan", "DESC"]],
   });
 
   return Promise.all(perkawinan.map(async (p) => {
-    const pasanganObj = p.suami_id.toString() === krama_id.toString() 
-    ? p.istri 
-    : p.suami;
+    const targetPasangan = isLaki ? p.istri : p.suami;
+    if (!targetPasangan) return null;
 
-    if (!pasanganObj) {
+    const ketetapanPasangan = isLaki 
+      ? p.ketetapan_silsilah_istri 
+      : p.ketetapan_silsilah_suami;
+
+    if (ketetapanPasangan === "Kembali ke Asal") {
       return null;
     }
 
-    const peranAdat = await getLatestPeranAdat(pasanganObj.id);
+    const peranAdat = await getLatestPeranAdat(targetPasangan.id);
     
     return {
-      id: pasanganObj.id,
-      nama_lengkap: pasanganObj.nama_lengkap,
-      nama_panggilan: pasanganObj.nama_panggilan || "-",
+      ...targetPasangan.toJSON(),
       tipe_data: "Pasangan",
-      isTarget: target_id ? pasanganObj.id.toString() === target_id.toString() : false,
-      attributes: {
-        jenis_kelamin: pasanganObj.jenis_kelamin,
-        status_peran_adat: peranAdat,
-        status_perkawinan: p.status_perkawinan,
-        jenis_perkawinan: p.jenis_perkawinan
-      }
+      status_peran_adat: peranAdat,
+      status_verifikasi: p.status_verifikasi,
+      status_perkawinan: p.status_perkawinan, 
+      jenis_perkawinan: p.jenis_perkawinan  
     };
-  }));
+  })).then(results => results.filter(Boolean));
 };
 
-// Helper: Mencari daftar anak (Logika Purusha/Patrilineal)
-const getAnakIds = async (krama_id, jenis_kelamin) => {
-  if (jenis_kelamin !== 'Laki-laki' && jenis_kelamin !== 'l') {
-    return [];
+const isPerempuanPurusa = async (krama_id) => {
+  const perkawinanNyentana = await Perkawinan.findOne({
+    where: {
+      istri_id: krama_id,
+      jenis_perkawinan: { [Op.or]: ["Nyentana", "Pade Gelahang"] },
+      ...VERIFIKASI_APPROVED
+    }
+  });
+
+  if (perkawinanNyentana) return true;
+
+  const punyaAnak = await RelasiKrama.findOne({
+    where: {
+      ibu_id: krama_id,
+      ...VERIFIKASI_APPROVED
+    }
+  });
+
+  return !!punyaAnak;
+};
+
+const isPredana = async (krama_id, jenis_kelamin) => {
+  const isPerempuan = jenis_kelamin === "Perempuan" || jenis_kelamin === "P";
+  if (!isPerempuan) return false;
+
+  const perkawinanBiasa = await Perkawinan.findOne({
+    where: {
+      istri_id: krama_id,
+      jenis_perkawinan: { [Op.notIn]: ["Nyentana", "Pade Gelahang"] },
+      ...VERIFIKASI_APPROVED
+    }
+  });
+
+  return !!perkawinanBiasa;
+};
+
+// Helper: mengambil relasi anak berdasarkan garis keturunan purusa
+const getAnakRelasi = async (krama_id, jenis_kelamin) => {
+  let whereClause = { ...VERIFIKASI_APPROVED };
+
+  if (jenis_kelamin === "Laki-laki" || jenis_kelamin === "L") {
+    whereClause.ayah_id = krama_id;
+  } else {
+    const isPurusa = await isPerempuanPurusa(krama_id);
+    if (!isPurusa) return [];
+    whereClause.ibu_id = krama_id;
   }
-  const relasi = await RelasiKrama.findAll({
-    where: { 
-      ayah_id: krama_id, 
-      status_verifikasi: "Disetujui" 
-    },
-    attributes: ["anak_id"],
+
+  const listRelasi = await RelasiKrama.findAll({
+    where: whereClause,
+    attributes: ["anak_id", "status_hubungan", "status_verifikasi"], 
     order: [
-      ["urutan_lahir", "ASC"], 
+      ["urutan_lahir", "ASC"],
       ["id", "ASC"]
     ]
   });
-  return relasi.map(r => r.anak_id);
+
+  return listRelasi;
 };
 
-// Rekursi: Membangun struktur pohon ke bawah (Downstream)
-const buildPohonRekursif = async (krama_id, target_id, currentDepth = 1, maxDepth = 10) => {
-  if (currentDepth > maxDepth) {
-    return null;
+// Helper: mencari leluhur purusa tertinggi dalam silsilah
+const findLeluhurPurusa = async (krama_id) => {
+  let currentKramaId = krama_id;
+
+  while (true) {
+    const relasi = await RelasiKrama.findOne({ 
+      where: { 
+        anak_id: currentKramaId,
+        ...VERIFIKASI_APPROVED
+      } 
+    });
+
+    if (!relasi) break;
+
+    if (relasi.ayah_id) {
+      currentKramaId = relasi.ayah_id;
+    } else if (relasi.ibu_id) {
+      const isPurusa = await isPerempuanPurusa(relasi.ibu_id);
+      if (isPurusa) {
+        currentKramaId = relasi.ibu_id;
+      } else {
+        break;
+      }
+    } else {
+      break;
+    }
   }
+
+  return currentKramaId;
+};
+
+// Helper: membangun pohon silsilah keluarga
+const buildPohonSilsilah = async (
+  krama_id, 
+  target_highlight_id, 
+  depth = 1, 
+  maxDepth = 10, 
+  statusHubunganCurrent = "Anak Kandung"
+) => {
   const krama = await KramaBali.findOne({
-    where: { 
-      id: krama_id, 
-      status_verifikasi: "Disetujui" 
+    where: {
+      id: krama_id,
+      ...VERIFIKASI_APPROVED
     },
-    attributes: ["id", "nama_lengkap", "nama_panggilan", "jenis_kelamin", "status_hidup", "tipe_data", "desa_adat_id", "tempat_asal_khusus", "alamat_luar"],
-    include: [{ 
-      model: DesaAdat, 
-      as: "wilayah_adat", 
-      attributes: ["nama_desa_adat"] 
-    }]
+    attributes: ["id", "nomor_pendaftaran", "nama_lengkap", "nama_panggilan", "jenis_kelamin", "status_hidup", "tipe_data", "foto_profile", "status_verifikasi", "user_id"]
   });
 
-  if (!krama) {
-    return null;
-  }
+  if (!krama) return null;
+  const predanaStatus = await isPredana(krama.id, krama.jenis_kelamin);
 
-  const [peranAdat, pasanganRaw, anakIds] = await Promise.all([
+  const [peranAdat, infoKawin, pasangan, relasiAnakList] = await Promise.all([
     getLatestPeranAdat(krama_id),
-    getPasanganDetail(krama_id, target_id),
-    getAnakIds(krama_id, krama.jenis_kelamin)
+    Perkawinan.findOne({
+      where: { 
+        [Op.or]: [
+          { suami_id: krama_id }, 
+          { istri_id: krama_id }
+        ],
+        ...VERIFIKASI_APPROVED
+      },
+      order: [["tanggal_perkawinan", "DESC"]]
+    }),
+    getPasangan(krama_id, krama.jenis_kelamin),
+    (depth < maxDepth && !predanaStatus) ? getAnakRelasi(krama_id, krama.jenis_kelamin) : Promise.resolve([])
   ]);
 
-  const pasangan = pasanganRaw.filter(p => p !== null);
-  const children = await Promise.all(
-    anakIds.map(id => buildPohonRekursif(id, target_id, currentDepth + 1, maxDepth))
-  );
+  let childrenNodes = [];
+
+  if (depth < maxDepth && relasiAnakList.length > 0 && !predanaStatus) {
+    childrenNodes = await Promise.all(
+      relasiAnakList.map((relasi) => {
+        const statusRelasiRaw = relasi.status_hubungan ? String(relasi.status_hubungan).trim() : "Anak Kandung";
+        
+        return buildPohonSilsilah(
+          relasi.anak_id, 
+          target_highlight_id, 
+          depth + 1, 
+          maxDepth, 
+          statusRelasiRaw
+        );
+      })
+    );
+  }
 
   return {
     id: krama.id,
+    nomor_pendaftaran: krama.nomor_pendaftaran,
     nama_lengkap: krama.nama_lengkap,
-    nama_panggilan: krama.nama_panggilan || "-",
+    nama_panggilan: krama.nama_panggilan || null, 
+    jenis_kelamin: krama.jenis_kelamin,
+    status_hidup: krama.status_hidup,
     tipe_data: krama.tipe_data,
-    isTarget: target_id ? krama.id.toString() === target_id.toString() : false,
-    desa_adat_id: krama.wilayah_adat?.nama_desa_adat || "-",
-    attributes: {
-      jenis_kelamin: krama.jenis_kelamin,
-      status_peran_adat: peranAdat,
-      status_hidup: krama.status_hidup,
-      pasangan: pasangan.length > 0 ? pasangan.map(p => p.nama_lengkap).join(", ") : "-"
-    },
-    pasangan: pasangan,
-    children: children.filter(Boolean)
+    foto_profile: krama.foto_profile || null,
+    status_verifikasi: krama.status_verifikasi,
+    user_id: krama.user_id,
+    status_hubungan: statusHubunganCurrent, 
+    status_anak: statusHubunganCurrent,
+    status_peran_adat: peranAdat,
+    status_perkawinan: infoKawin ? infoKawin.status_perkawinan : "Tidak Diketahui",
+    jenis_perkawinan: infoKawin ? infoKawin.jenis_perkawinan : "-",
+    is_target: String(krama.id) === String(target_highlight_id),
+    generasi_ke: depth,
+    pasangan: pasangan, 
+    children: childrenNodes.filter(Boolean),
   };
 };
 
-// Service Utama
 export const getPuncakSilsilahService = async (krama_id, maxDepth = 10) => {
   let rootId = krama_id;
   let finalTargetId = krama_id;
 
   if (!rootId || rootId === "akar") {
     const relasiAnak = await RelasiKrama.findAll({ 
+      where: VERIFIKASI_APPROVED,
       attributes: ["anak_id"], 
       raw: true 
     });
@@ -159,7 +243,7 @@ export const getPuncakSilsilahService = async (krama_id, maxDepth = 10) => {
     const akarGlobal = await KramaBali.findOne({
       where: {
         tipe_data: "Leluhur",
-        status_verifikasi: "Disetujui",
+        ...VERIFIKASI_APPROVED,
         ...(listIdAnak.length > 0 && { 
           id: { [Op.notIn]: listIdAnak } 
         })
@@ -167,11 +251,16 @@ export const getPuncakSilsilahService = async (krama_id, maxDepth = 10) => {
       attributes: ["id"],
       order: [["id", "ASC"]]
     });
+    
     rootId = akarGlobal ? akarGlobal.id : null;
     finalTargetId = rootId;
   }
+
   if (!rootId) {
     return null;
   }
-  return await buildPohonRekursif(rootId, finalTargetId, 1, maxDepth);
+
+  rootId = await findLeluhurPurusa(finalTargetId);
+  const silsilahTree = await buildPohonSilsilah(rootId, finalTargetId, 1, maxDepth);
+  return silsilahTree; 
 };

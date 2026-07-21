@@ -3,6 +3,13 @@ import { getSilsilahPurusaTree } from "../services/silsilah-adat-bali.service.js
 export const getSilsilahTree = async (req, res) => {
   try {
     const { kramaId } = req.params;
+    const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth) : 4;
+
+    const currentUser = req.userId ? {
+      id: req.userId,
+      role: req.role
+    } : null;
+
     if (!kramaId) {
       return res.status(400).json({
         success: false,
@@ -10,7 +17,7 @@ export const getSilsilahTree = async (req, res) => {
       });
     }
 
-    const result = await getSilsilahPurusaTree(kramaId);
+    const result = await getSilsilahPurusaTree(kramaId, currentUser, maxDepth);
 
     return res.status(200).json({
       success: true,
@@ -22,10 +29,10 @@ export const getSilsilahTree = async (req, res) => {
     if (error.message === "Data Krama tidak ditemukan.") {
       return res.status(404).json({
         success: false,
-        message: "Data krama tidak ditemukan atau belum diverifikasi."
+        message: "Data krama tidak ditemukan."
       });
     }
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message || "Terjadi kesalahan saat memproses silsilah.",
     });

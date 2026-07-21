@@ -120,9 +120,11 @@ export const integrasiRelasiLeluhur = async ({
     // ===========================================================
     // LOGIKA OTOMATISASI STATUS PERKAWINAN LELUHUR
     // ===========================================================
+    let finalPerkawinanId = perkawinan_id || null;
+
     if (ayah_id && ibu_id && status_hubungan === "Anak Kandung") {
-      if (ayah && ayah.tipe_data === "Leluhur") {
-        const perkawinanLeluhur = await Perkawinan.findOne({
+      if (ayah?.tipe_data === "Leluhur" || ibu?.tipe_data === "Leluhur") {
+        let perkawinanLeluhur = await Perkawinan.findOne({
           where: {
             suami_id: ayah_id,
             istri_id: ibu_id
@@ -130,11 +132,25 @@ export const integrasiRelasiLeluhur = async ({
           transaction: t,
           lock: t.LOCK.UPDATE
         });
-        
-        if (perkawinanLeluhur && perkawinanLeluhur.status_perkawinan === "Kawin") {
-          await perkawinanLeluhur.update({
-            status_perkawinan: "Tidak Diketahui"
+
+        if (perkawinanLeluhur) {
+          finalPerkawinanId = perkawinanLeluhur.id;
+        } else {
+          const perkawinanBaru = await Perkawinan.create({
+            suami_id: ayah_id,
+            istri_id: ibu_id,
+            jenis_perkawinan: "Biasa",
+            status_perkawinan: "Tidak Diketahui",
+            status_verifikasi: "Disetujui",
+            tanggal_perkawinan: tanggalHariIniDateOnly,
+            catatan_admin_desa: {
+              catatan_desa_suami: "Data perkawinan leluhur dibuat otomatis oleh sistem silsilah Adat Bali.",
+              catatan_desa_istri: "Data perkawinan leluhur dibuat otomatis oleh sistem silsilah Adat Bali.",
+              last_updated_by: "Sistem (Integrasi Leluhur)"
+            }
           }, { transaction: t });
+
+          finalPerkawinanId = perkawinanBaru.id;
         }
       }
     }
@@ -189,7 +205,7 @@ export const integrasiRelasiLeluhur = async ({
         await simpanRiwayatKeluarga({
           krama_id: kepalaKeluargaId,
           keluarga_id: keluargaLeluhur.id,
-          perkawinan_id: perkawinan_id || null,
+          perkawinan_id: finalPerkawinanId,
           kedudukan: "Kepala Keluarga",
           dasar_keputusan: "Kedudukan sebagai kepala keluarga diberikan karena krama ini merupakan puncak treh di dalam silsilah keluarga leluhur.",
           event_date: objekWaktuKepala,
@@ -263,7 +279,7 @@ export const integrasiRelasiLeluhur = async ({
         await simpanRiwayatKeluarga({
           krama_id: anak_id,
           keluarga_id: keluargaId,
-          perkawinan_id: perkawinan_id || null,
+          perkawinan_id: finalPerkawinanId,
           kedudukan: "Anggota",
           dasar_keputusan: "Kedudukan sebagai anggota diberikan karena krama ini merupakan keturunan di dalam silsilah keluarga leluhur.",
           event_date: objekWaktuMulaiAnggota,

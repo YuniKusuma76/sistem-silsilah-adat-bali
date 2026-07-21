@@ -763,6 +763,9 @@ const DataKramaEditKrama = ({ user }) => {
                         <option value="" disabled>- Pilih -</option>
                         <option value="Laki-laki">Laki-laki</option>
                         <option value="Perempuan">Perempuan</option>
+                        {kramaData.tipe_data === "Leluhur" && (
+                          <option value="Tidak Diketahui">Tidak Diketahui</option>
+                        )}
                       </select>
                       <div className={styles.selectIcon}>
                         <FaChevronDown size={12}/>

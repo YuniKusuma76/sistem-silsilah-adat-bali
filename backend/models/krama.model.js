@@ -98,7 +98,7 @@ const KramaBali = db.define("tb_krama_bali", {
       where: {
         tipe_data: 'Leluhur',
       },
-      attributes: ['id', 'nomor_pendaftaran', 'nama_lengkap','nama_panggilan', 'jenis_kelamin', 'desa_adat_id', 'tempat_asal_khusus', 'tipe_data']
+      attributes: ['id', 'nomor_pendaftaran', 'nama_lengkap','nama_panggilan', 'jenis_kelamin', 'foto_profile', 'desa_adat_id', 'tempat_asal_khusus', 'tipe_data']
     },
     keturunanFull: {
       where: {
