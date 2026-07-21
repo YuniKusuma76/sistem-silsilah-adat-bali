@@ -1188,7 +1188,6 @@ const DataKramaTambahKawin = ({ user }) => {
                             if (typeof getWilayahLengkap !== "function") return null;
                             const w = getWilayahLengkap(kramaData.desa_adat_id);
                             if (!w) return null;
-
                             return (
                               <>
                                 <div className="flex flex-col">

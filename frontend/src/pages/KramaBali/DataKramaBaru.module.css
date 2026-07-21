@@ -429,3 +429,7 @@
 .previewLabelPasangan {
   @apply text-[11px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1;
 }
+
+.colPreviewPasangan {
+  @apply col-span-6 md:col-span-3 border-b md:border-b-0 md:border-r border-gray-200 pb-2 md:pb-0 md:pr-4;
+}

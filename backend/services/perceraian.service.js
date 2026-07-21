@@ -608,13 +608,19 @@ export const prosesPerceraianBali = async ({
       await tutupRiwayatKeluarga({ 
         krama_id: predana.id, 
         event_date: finalTanggalCerai, 
-        bobot_baru: 4, t 
+        bobot_baru: BOBOT_EVENT["CERAI"], t 
       });
       
-      const riwayatKeluargaAsal = await RiwayatKeluarga.findOne({
+      const riwayatMasaLalu = await RiwayatKeluarga.findOne({
         where: {
           krama_id: predana.id,
-          keluarga_id: { [Op.ne]: targetKeluargaId }
+          keluarga_id: { [Op.ne]: targetKeluargaId },
+          [Op.or]: [{ 
+            kategori_event: { [Op.in]: ["LAHIR", "PENGANGKATAN"] } 
+          },{ 
+            kategori_event: "CERAI",
+            perkawinan_id: perkawinan.id 
+          }]
         },
         order: [["awal_masuk", "DESC"]],
         transaction: t
@@ -622,9 +628,26 @@ export const prosesPerceraianBali = async ({
 
       let isKeluargaTujuan = null;
       let kedudukanBaru = "Anggota";
+      let riwayatAsalDitemukan = false;
 
-      // mencari data keluarga sesuai riwayat keluarga
-      if (!riwayatKeluargaAsal && predana.ayah_id) {
+      if (riwayatMasaLalu) {
+        const keluargaLama = await Keluarga.findByPk(riwayatMasaLalu.keluarga_id, { 
+          transaction: t 
+        });
+
+        if (keluargaLama) {
+          isKeluargaTujuan = keluargaLama.id;
+          riwayatAsalDitemukan = true;
+
+          if (keluargaLama.status_keluarga === "Non-Aktif") {
+            await keluargaLama.update({ 
+              status_keluarga: "Aktif" 
+            }, { transaction: t });
+          }
+        }
+      }
+
+      if (!isKeluargaTujuan && predana.ayah_id) {
         const keluargaAyah = await Keluarga.findOne({
           where: { 
             kepala_keluarga_id: predana.ayah_id, 
@@ -636,43 +659,67 @@ export const prosesPerceraianBali = async ({
         if (keluargaAyah) {
           isKeluargaTujuan = keluargaAyah.id;
         }
-      } else if (riwayatKeluargaAsal) {
-        const keluargaLama = await Keluarga.findByPk(riwayatKeluargaAsal.keluarga_id, { 
-          transaction: t 
+      }
+
+      if (!isKeluargaTujuan && predana.ibu_id) {
+        const keluargaIbu = await Keluarga.findOne({
+          where: { 
+            kepala_keluarga_id: predana.ibu_id, 
+            status_keluarga: "Aktif" 
+          },
+          transaction: t
         });
 
-        if (keluargaLama) {
-          isKeluargaTujuan = keluargaLama.id;
-          if (keluargaLama.status_keluarga === "Non-Aktif") {
-            await keluargaLama.update({ 
-              status_keluarga: "Aktif" 
-            }, { transaction: t });
+        if (keluargaIbu) {
+          isKeluargaTujuan = keluargaIbu.id;
+        } else {
+          const riwayatKKIbu = await RiwayatKeluarga.findOne({
+            where: {
+              krama_id: predana.ibu_id,
+              akhir_masuk: null
+            },
+            transaction: t
+          });
+          
+          if (riwayatKKIbu) {
+            isKeluargaTujuan = riwayatKKIbu.keluarga_id;
           }
         }
       }
 
-      // membuat keluarga asal baru jika keluarga asal pihak predana tidak terdaftar
       if (!isKeluargaTujuan) {
         const keluargaAsalBaru = await Keluarga.create({
           kepala_keluarga_id: predana.id,
           jenis_keluarga: "Keluarga Asal",
           status_keluarga: "Aktif"
         }, { transaction: t });
+        
         isKeluargaTujuan = keluargaAsalBaru.id;
         kedudukanBaru = "Kepala Keluarga";
       }
 
-      await simpanRiwayatKeluarga({
-        krama_id: predana.id,
-        keluarga_id: isKeluargaTujuan,
-        perkawinan_id: perkawinan.id,
-        kedudukan: kedudukanBaru,
-        kategori_event: "CERAI",
-        bobot_event: BOBOT_EVENT["CERAI"],
-        dasar_keputusan: "Kedudukan diberikan karena krama kembali ke keluarga asal setelah perceraian." + infoTambahanDasar,
-        event_date: finalTanggalCerai,
-        allow_multiple: false
-      }, t);
+      if (riwayatAsalDitemukan && riwayatMasaLalu) {
+        await riwayatMasaLalu.update({
+          awal_masuk: finalTanggalCerai, 
+          akhir_masuk: null, 
+          perkawinan_id: perkawinan.id, 
+          kategori_event: "CERAI",
+          bobot_event: BOBOT_EVENT["CERAI"],
+          dasar_keputusan: "Kedudukan sebagai anggota kembali diaktifkan karena krama kembali ke keluarga asal orang tuanya setelah perceraian." + infoTambahanDasar,
+        }, { transaction: t });
+      } else {
+        await simpanRiwayatKeluarga({
+          krama_id: predana.id,
+          keluarga_id: isKeluargaTujuan,
+          perkawinan_id: perkawinan.id,
+          kedudukan: kedudukanBaru,
+          kategori_event: "CERAI",
+          bobot_event: BOBOT_EVENT["CERAI"],
+          dasar_keputusan: "Kedudukan diberikan karena krama kembali ke keluarga asal setelah perceraian." + infoTambahanDasar,
+          event_date: finalTanggalCerai,
+          allow_multiple: false
+        }, t);
+      }
     }
 
     // mengelola data krama meninggal

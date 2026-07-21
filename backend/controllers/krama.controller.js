@@ -511,7 +511,7 @@ export const createKrama = async (req, res) => {
 
     // LOGIKA AUTO-APPROVAL DATA KRAMA BALI
     let statusVerifAwal = "Draft";
-    let catatanAdminDesa = "Data krama bali berhasil disimpan! Menunggu verifikasi dari Admin Desa.";
+    let catatanAdminDesa = "Data krama bali berhasil disimpan! Menunggu verifikasi dari Admin Desa." + (!tanggal_lahir ? " (tanggal riwayat akan disesuaikan dengan tanggal input sistem karena input tanggal lahir kosong)." : "");
 
     const isSuperAdmin = userRole === "Super Admin";
     const isAdminDesaLokal = userRole === "Admin Desa" && (final_desa_adat_id ? Number(userDesaId) === Number(final_desa_adat_id) : true);

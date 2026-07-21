@@ -223,9 +223,7 @@ const DataKramaDetail = ({ user }) => {
       const isSuperAdmin = user?.role === 'Super Admin';
       const isAdminDesa = user?.role === 'Admin Desa';
       const isKramaAdat = user?.role === 'Krama';
-      const isOwner = user && ((String(user.id) === String(kramaData.user_id) 
-        || String(user.userId) === String(kramaData.user_id))) 
-        && kramaData.user_id !== null && kramaData.user_id !== undefined;
+      const isOwner = user && ((String(user.id) === String(kramaData.user_id) || String(user.userId) === String(kramaData.user_id))) && kramaData.user_id !== null && kramaData.user_id !== undefined;
 
       let relasiQueryMode = 'public'; 
       let perkawinanQueryMode = 'public'; 
@@ -237,7 +235,7 @@ const DataKramaDetail = ({ user }) => {
         const userDesaId  = user.desa_adat_id || user.desaAdatId || user.desa_adat?.id;
         const kramaDesaId = kramaData?.desa_adat_id || kramaData?.desaAdatId || kramaData?.desa_id;
         
-        if (String(userDesaId) === String(kramaDesaId)) {
+        if (userDesaId && kramaDesaId && String(userDesaId) === String(kramaDesaId)) {
           relasiQueryMode = 'verification';
           perkawinanQueryMode = 'verification';
         } else {
@@ -259,7 +257,7 @@ const DataKramaDetail = ({ user }) => {
 
       const results = await Promise.allSettled([
         axiosInstance.get(`/relasi-krama?anak_id=${realId}&mode=${relasiQueryMode}`),
-        axiosInstance.get(`/perkawinan?krama_id=${realId}&mode=${perkawinanQueryMode}`), // 🛠️ Menggunakan parameter dinamis
+        axiosInstance.get(`/perkawinan?krama_id=${realId}&mode=${perkawinanQueryMode}`),
         axiosInstance.get('/riwayat-keluarga'),
         axiosInstance.get('/riwayat-peran-adat'),
         axiosInstance.get('/keluarga'),
@@ -275,18 +273,55 @@ const DataKramaDetail = ({ user }) => {
         resDesaAdat
       ] = results;
 
+      const tempKramaCache = {};
+
+      if (kramaData?.id && kramaData?.nama_lengkap) {
+        tempKramaCache[kramaData.id] = kramaData.nama_lengkap;
+        tempKramaCache[String(kramaData.id)] = kramaData.nama_lengkap;
+      }
+
       // setting data relasi orang tua
       if (resRelasi.status === 'fulfilled') {
         const rawRelasi = resRelasi.value.data?.data || resRelasi.value.data;
         const cleanRelasiList = Array.isArray(rawRelasi) ? rawRelasi : (rawRelasi ? [rawRelasi] : []);
+        
+        cleanRelasiList.forEach(rel => {
+          if (rel.ayah?.id && rel.ayah?.nama_lengkap) {
+            tempKramaCache[rel.ayah.id] = rel.ayah.nama_lengkap;
+            tempKramaCache[String(rel.ayah.id)] = rel.ayah.nama_lengkap;
+          }
+          if (rel.ibu?.id && rel.ibu?.nama_lengkap) {
+            tempKramaCache[rel.ibu.id] = rel.ibu.nama_lengkap;
+            tempKramaCache[String(rel.ibu.id)] = rel.ibu.nama_lengkap;
+          }
+        });
+        
         setRelasiList(cleanRelasiList);
       }
       // setting data perkawinan
       if (resPerkawinan.status === 'fulfilled') {
         const rawPerkawinan = resPerkawinan.value.data?.data || resPerkawinan.value.data;
-        setPerkawinanList(Array.isArray(rawPerkawinan) ? rawPerkawinan : (rawPerkawinan ? [rawPerkawinan] : []));
+        const cleanPerkawinanList = Array.isArray(rawPerkawinan) ? rawPerkawinan : (rawPerkawinan ? [rawPerkawinan] : []);
+        
+        cleanPerkawinanList.forEach(pkw => {
+          if (pkw.suami?.id && pkw.suami?.nama_lengkap) {
+            tempKramaCache[pkw.suami.id] = pkw.suami.nama_lengkap;
+            tempKramaCache[String(pkw.suami.id)] = pkw.suami.nama_lengkap;
+          }
+          if (pkw.istri?.id && pkw.istri?.nama_lengkap) {
+            tempKramaCache[pkw.istri.id] = pkw.istri.nama_lengkap;
+            tempKramaCache[String(pkw.istri.id)] = pkw.istri.nama_lengkap;
+          }
+        });
+        
+        setPerkawinanList(cleanPerkawinanList);
       }
-      // seeting data riwayat keluarga
+
+      if (typeof setKramaCacheMap === 'function') {
+        setKramaCacheMap(prev => ({ ...prev, ...tempKramaCache }));
+      }
+
+      // setting data riwayat keluarga
       if (resRiwayatKeluarga.status === 'fulfilled') {
         const rawRiwayatKel = resRiwayatKeluarga.value.data?.data || resRiwayatKeluarga.value.data;
         setRiwayatKeluargaList(Array.isArray(rawRiwayatKel) ? rawRiwayatKel : (rawRiwayatKel ? [rawRiwayatKel] : []));
@@ -322,7 +357,6 @@ const DataKramaDetail = ({ user }) => {
         });
         setMasterDesaMap(mappingDesa);
       }
-
     } catch (error) {
       console.error(error);
       setAlert({
@@ -438,6 +472,7 @@ const DataKramaDetail = ({ user }) => {
     }
   };
 
+  // Helper: Mengambil nama lengkap krama
   useEffect(() => {
     const resolusiNamaKrama = async () => {
       let data_perubahan_kawin = modalKawinData?.data_perubahan;
@@ -446,7 +481,6 @@ const DataKramaDetail = ({ user }) => {
       }
       if (!data_perubahan_kawin) return;
 
-      // Ambil target ID baru dari payload UPDATE_PERKAWINAN atau PERCERAIAN
       const targetPayload = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin.PERCERAIAN || data_perubahan_kawin;
       const idSuamiBaru = targetPayload.suami_id;
       const idIstriBaru = targetPayload.istri_id;
@@ -455,7 +489,6 @@ const DataKramaDetail = ({ user }) => {
       if (idSuamiBaru && !kramaCacheMap[idSuamiBaru]) idsToFetch.push(idSuamiBaru);
       if (idIstriBaru && !kramaCacheMap[idIstriBaru]) idsToFetch.push(idIstriBaru);
 
-      // Jalankan fetch jika ada ID baru yang belum terdaftar di cache map
       if (idsToFetch.length > 0) {
         try {
           const newCache = { ...kramaCacheMap };
@@ -482,7 +515,6 @@ const DataKramaDetail = ({ user }) => {
     resolusiNamaKrama();
   }, [modalKawinData, kramaCacheMap]);
 
-  // Helper: membatalkan perubahan data krama bali
   const handleCancelUpdateKrama = async () => {
     setIsProcessingAction(true);
     try {
@@ -539,7 +571,6 @@ const DataKramaDetail = ({ user }) => {
     }
   };
 
-  // Helper: membatalkan perubahan data relasi krama
   const handleCancelUpdateRelasi = async (relasiId) => {
     setIsProcessingAction(true);
     try {
@@ -596,7 +627,6 @@ const DataKramaDetail = ({ user }) => {
     }
   };
 
-  // Helper: membatalkan perubahan data perkawinan
   const handleCancelDraftPerceraian = async (perkawinanId) => {
     if (!perkawinanId) return;
     setIsProcessingAction(true);
@@ -873,7 +903,6 @@ const DataKramaDetail = ({ user }) => {
     return DEFAULT_AVATAR_URL;
   };  
 
-  // Helper: menangani filter data master
   const processedData = useMemo(() => {
     if (!krama) return null;
 
@@ -983,7 +1012,6 @@ const DataKramaDetail = ({ user }) => {
       nilaiBaru = nilaiBaru ? 'Krama Bali' : 'Krama Luar Bali';
     }
     if (type === 'desa_adat') {
-      // mengambil nama desa adat yang aktif
       if (krama?.wilayah_adat?.nama_desa_adat) {
         nilaiLamaDiformat = `Desa Adat ${krama.wilayah_adat.nama_desa_adat.trim()}`;
       } else {
@@ -993,7 +1021,6 @@ const DataKramaDetail = ({ user }) => {
       const idBaruStr = String(nilaiBaru);
       const idBaruNum = Number(nilaiBaru);
 
-      // mapping nama desa adat yang baru
       if (masterDesaMap && (masterDesaMap[idBaruStr] || masterDesaMap[idBaruNum])) {
         const namaDesaBaru = masterDesaMap[idBaruStr] || masterDesaMap[idBaruNum];
         nilaiBaru = `Desa Adat ${namaDesaBaru.trim()}`;
@@ -1007,19 +1034,17 @@ const DataKramaDetail = ({ user }) => {
     }
 
     return (
-      <tr className="hover:bg-gray-50 transition-colors">
-        <td className={styles.labelChange}>
-          {label}
-        </td>
+      <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
+        <td className={styles.labelChange}>{label}</td>
         <td className="p-3 border-r border-gray-100">
-          <span className={styles.oldValue} title={nilaiLamaDiformat}>
+          <span className={`${styles.oldValue} break-words whitespace-normal block`}>
             {nilaiLamaDiformat ?? '-'}
           </span>
         </td>
-        <td className="p-3">
+        <td className="p-3 align-middle">
           <div className="flex items-center gap-2">
             <FaArrowRight className={styles.arrows} />
-            <span className={styles.newValue} title={nilaiBaru}>
+            <span className={`${styles.newValue} break-words whitespace-normal block`}>
               {nilaiBaru ?? '-'}
             </span>
           </div>
@@ -1043,13 +1068,11 @@ const DataKramaDetail = ({ user }) => {
 
     return (
       <tr className="hover:bg-gray-50 transition-colors">
-        <td className={styles.labelChange}>
-          Foto Profil
-        </td>
+        <td className={styles.labelChange}>Foto Profil</td>
         <td className="p-3 border-r border-gray-100">
           <img src={fotoLamaUrl} alt="Foto Lama" className="w-40 h-40 rounded-lg object-cover border" />
         </td>
-        <td className="p-3">
+        <td className="p-3 align-middle">
           <div className="flex items-center gap-2">
             <FaArrowRight className={styles.arrows} />
             <img src={fotoBaruUrl} alt="Foto Baru" className="w-40 h-40 rounded-lg object-cover border-2 border-amber-500" />
@@ -1059,12 +1082,14 @@ const DataKramaDetail = ({ user }) => {
     );
   };
 
-  const renderPerubahanRelasiRow = (label, nilaiLama, namaField, type = 'text') => {
-    let data_perubahan_relasi = modalRelasiData?.data_perubahan;
+  const renderPerubahanRelasiRow = (label, nilaiLama, namaField, type = 'text', relasiObj = null) => {
+    const activeRelasi = relasiObj || modalRelasiData;
+    let data_perubahan_relasi = activeRelasi?.data_perubahan;
 
     if (data_perubahan_relasi && data_perubahan_relasi.data_perubahan) {
       data_perubahan_relasi = data_perubahan_relasi.data_perubahan;
     }
+
     if (!data_perubahan_relasi || data_perubahan_relasi[namaField] === undefined) {
       return null;
     }
@@ -1073,36 +1098,75 @@ const DataKramaDetail = ({ user }) => {
     let nilaiLamaDiformat = nilaiLama;
 
     if (type === 'date') {
-      nilaiLamaDiformat = formatDate(nilaiLama);
-      nilaiBaru = formatDate(nilaiBaru);
+      nilaiLamaDiformat = nilaiLama ? formatDate(nilaiLama) : 'Tidak Diketahui';
+      nilaiBaru = nilaiBaru ? formatDate(nilaiBaru) : 'Tidak Diketahui';
     }
+
     if (type === 'krama') {
-      nilaiLamaDiformat = nilaiLama && String(nilaiLama).trim() !== "null" ? nilaiLama : 'Tidak Diketahui';
+      if (nilaiLama && !isNaN(Number(nilaiLama))) {
+        const relasiKey = namaField === 'ayah_id' ? 'ayah' : 'ibu';
+        nilaiLamaDiformat = activeRelasi?.[relasiKey]?.nama_lengkap || (typeof kramaCacheMap !== 'undefined' ? kramaCacheMap[nilaiLama] : null) || `Krama [No.${nilaiLama}]`;
+      } else {
+        nilaiLamaDiformat = nilaiLama && String(nilaiLama).trim() !== "null" ? nilaiLama : 'Tidak Tercatat';
+      }
+      
+      const safeParseInt = (val) => {
+        if (val === null || val === undefined || val === '') return null;
+        const parsed = parseInt(val, 10);
+        return isNaN(parsed) ? null : parsed;
+      };
+
+      const idBaru = safeParseInt(data_perubahan_relasi[namaField]);
+
       if (namaField === 'ayah_id') {
-        const namaAyah = data_perubahan_relasi?.nama_ayah_baru || modalRelasiData?.ayah?.nama_lengkap;
-        nilaiBaru = (namaAyah && String(namaAyah).trim() !== "null") ? namaAyah : 'Tidak Diketahui';
-      } else if (namaField === 'ibu_id') {
-        const namaIbu = data_perubahan_relasi?.nama_ibu_baru || modalRelasiData?.ibu?.nama_lengkap;
-        nilaiBaru = (namaIbu && String(namaIbu).trim() !== "null") ? namaIbu : 'Tidak Diketahui';
+        const namaAyahUsulan = data_perubahan_relasi?.nama_ayah_baru || data_perubahan_relasi?.ayah?.nama_lengkap || data_perubahan_relasi?.nama_ayah;
+        
+        if (idBaru === null) {
+          nilaiBaru = 'Tidak Tercatat';
+        } else {
+          nilaiBaru = namaAyahUsulan && String(namaAyahUsulan).trim() !== "null"
+            ? namaAyahUsulan
+            : (typeof kramaCacheMap !== 'undefined' && kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
+        }
+      } 
+      else if (namaField === 'ibu_id') {
+        const namaIbuUsulan = data_perubahan_relasi?.nama_ibu_baru || data_perubahan_relasi?.ibu?.nama_lengkap || data_perubahan_relasi?.nama_ibu;
+        
+        if (idBaru === null) {
+          nilaiBaru = 'Tidak Tercatat';
+        } else {
+          nilaiBaru = namaIbuUsulan && String(namaIbuUsulan).trim() !== "null"
+            ? namaIbuUsulan
+            : (typeof kramaCacheMap !== 'undefined' && kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
+        }
       }
     }
 
-    if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim()) return null;
+    if (type === 'desa_adat') {
+      nilaiLamaDiformat = nilaiLama || 'Desa Asal';
+      nilaiBaru = data_perubahan_relasi?.nama_desa_tujuan || (nilaiBaru ? `Desa Adat ${nilaiBaru}` : 'Desa Asal');
+    }
+
+    if (type === 'date') {
+      if ((nilaiLama || '') === (data_perubahan_relasi[namaField] || '')) return null;
+    } else {
+      if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim() && nilaiLamaDiformat !== 'Tidak Tercatat') {
+        return null;
+      }
+    }
 
     return (
       <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
-        <td className={styles.labelChange}>
-          {label}
-        </td>
+        <td className={styles.labelChange}>{label}</td>
         <td className="p-3 border-r border-gray-100">
-          <span className={styles.oldValue}>
+          <span className={`${styles.oldValue} break-words whitespace-normal block`}>
             {nilaiLamaDiformat ?? '-'}
           </span>
         </td>
-        <td className="p-3">
+        <td className="p-3 align-middle">
           <div className="flex items-center gap-2">
             <FaArrowRight className={styles.arrows} />
-            <span className={styles.newValue}>
+            <span className={`${styles.newValue} break-words whitespace-normal block`}>
               {nilaiBaru ?? '-'}
             </span>
           </div>
@@ -1111,112 +1175,97 @@ const DataKramaDetail = ({ user }) => {
     );
   };
 
-const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text') => {
-  // Ambil data_perubahan langsung dari modalKawinData
-  const data_perubahan_kawin = modalKawinData?.data_perubahan;
-  if (!data_perubahan_kawin) return null;
+  const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text') => {
+    const data_perubahan_kawin = modalKawinData?.data_perubahan;
+    if (!data_perubahan_kawin) return null;
 
-  let nilaiBaru = undefined;
+    let nilaiBaru = undefined;
 
-  // 1. Cari nilai baru di dalam draft yang bersesuaian
-  if (data_perubahan_kawin.UPDATE_PERKAWINAN && data_perubahan_kawin.UPDATE_PERKAWINAN[namaField] !== undefined) {
-    nilaiBaru = data_perubahan_kawin.UPDATE_PERKAWINAN[namaField];
-  } else if (data_perubahan_kawin.UPDATE_PERCERAIAN && data_perubahan_kawin.UPDATE_PERCERAIAN[namaField] !== undefined) {
-    nilaiBaru = data_perubahan_kawin.UPDATE_PERCERAIAN[namaField];
-  } else if (data_perubahan_kawin.PERCERAIAN && data_perubahan_kawin.PERCERAIAN[namaField] !== undefined) {
-    nilaiBaru = data_perubahan_kawin.PERCERAIAN[namaField];
-  } else if (data_perubahan_kawin[namaField] !== undefined) {
-    nilaiBaru = data_perubahan_kawin[namaField];
-  }
-
-  // Jika field ini tidak mengalami usulan perubahan dalam draft, sembunyikan barisnya
-  if (nilaiBaru === undefined) {
-    return null;
-  }
-
-  let nilaiLamaDiformat = nilaiLama;
-  let nilaiBaruDiformat = nilaiBaru;
-
-  // 2. Format Tipe Tanggal
-  if (type === 'date') {
-    nilaiLamaDiformat = formatDate ? formatDate(nilaiLama) : nilaiLama;
-    nilaiBaruDiformat = formatDate ? formatDate(nilaiBaru) : nilaiBaru;
-  }
-
-  // ============================================================
-  // LOGIKA TRANSLASI NAMA PURUSA / PRADANA (MENGGUNAKAN API CACHE)
-  // ============================================================
-  if (namaField === 'suami_id' || namaField === 'istri_id') {
-    const relasiKey = namaField === 'suami_id' ? 'suami' : 'istri';
-    const kramaLama = modalKawinData?.[relasiKey];
-
-    // Tentukan Nilai Tampilan Lama (Data Aktif)
-    if (kramaLama?.nama_lengkap) {
-      const isLamaDraft = kramaLama?.status_verifikasi === 'Draft';
-      nilaiLamaDiformat = `${kramaLama.nama_lengkap}${isLamaDraft ? ' [DRAFT]' : ''}`;
-    } else if (nilaiLama) {
-      nilaiLamaDiformat = `Krama ID: ${nilaiLama}`;
+    if (data_perubahan_kawin.UPDATE_PERKAWINAN && data_perubahan_kawin.UPDATE_PERKAWINAN[namaField] !== undefined) {
+      nilaiBaru = data_perubahan_kawin.UPDATE_PERKAWINAN[namaField];
+    } else if (data_perubahan_kawin.UPDATE_PERCERAIAN && data_perubahan_kawin.UPDATE_PERCERAIAN[namaField] !== undefined) {
+      nilaiBaru = data_perubahan_kawin.UPDATE_PERCERAIAN[namaField];
+    } else if (data_perubahan_kawin.PERCERAIAN && data_perubahan_kawin.PERCERAIAN[namaField] !== undefined) {
+      nilaiBaru = data_perubahan_kawin.PERCERAIAN[namaField];
+    } else if (data_perubahan_kawin[namaField] !== undefined) {
+      nilaiBaru = data_perubahan_kawin[namaField];
     }
 
-    // Tentukan Nilai Tampilan Baru (Data Usulan)
-    if (String(nilaiBaru) === String(kramaLama?.id || nilaiLama)) {
-      nilaiBaruDiformat = nilaiLamaDiformat;
-    } else {
-      if (typeof kramaCacheMap !== 'undefined' && kramaCacheMap?.[nilaiBaru]) {
-        nilaiBaruDiformat = `${kramaCacheMap[nilaiBaru]} [DRAFT]`;
-      } else {
-        // Fallback cadangan: bongkar dari string json catatan_update jika ada
-        let namaDariCatatan = "";
-        try {
-          const targetSearchObj = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin.UPDATE_PERCERAIAN || data_perubahan_kawin;
-          const parsedCatatan = JSON.parse(targetSearchObj?.catatan_update || modalKawinData?.catatan_update);
-          namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
-        } catch (e) {
-          console.log("Gagal parsing catatan_update:", e);
-          namaDariCatatan = "";
-        }
+    if (nilaiBaru === undefined) {
+      return null;
+    }
 
-        if (namaDariCatatan) {
-          nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
+    let nilaiLamaDiformat = nilaiLama;
+    let nilaiBaruDiformat = nilaiBaru;
+
+    if (type === 'date') {
+      nilaiLamaDiformat = formatDate ? formatDate(nilaiLama) : nilaiLama;
+      nilaiBaruDiformat = formatDate ? formatDate(nilaiBaru) : nilaiBaru;
+    }
+
+    // ============================================================
+    // LOGIKA TRANSLASI NAMA PURUSA / PRADANA 
+    // ============================================================
+    if (namaField === 'suami_id' || namaField === 'istri_id') {
+      const relasiKey = namaField === 'suami_id' ? 'suami' : 'istri';
+      const kramaLama = modalKawinData?.[relasiKey];
+
+      if (kramaLama?.nama_lengkap) {
+        nilaiLamaDiformat = kramaLama.nama_lengkap;
+      } else if (nilaiLama) {
+        nilaiLamaDiformat = `Krama [No.${nilaiLama}]`;
+      } else {
+        nilaiLamaDiformat = 'Tidak Tercatat';
+      }
+
+      if (String(nilaiBaru) === String(kramaLama?.id || nilaiLama)) {
+        nilaiBaruDiformat = nilaiLamaDiformat;
+      } else {
+        if (typeof kramaCacheMap !== 'undefined' && kramaCacheMap?.[nilaiBaru]) {
+          nilaiBaruDiformat = kramaCacheMap[nilaiBaru];
         } else {
-          nilaiBaruDiformat = `Krama Baru (ID: ${nilaiBaru}) [DRAFT]`;
+          let namaDariCatatan = "";
+          try {
+            const targetSearchObj = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin.UPDATE_PERCERAIAN || data_perubahan_kawin;
+            const parsedCatatan = JSON.parse(targetSearchObj?.catatan_update || modalKawinData?.catatan_update);
+            namaDariCatatan = parsedCatatan?.nama_pasangan_baru || "";
+          } catch (e) {
+            console.log("Gagal melakukan parsing catatan_update:", e);
+            namaDariCatatan = "";
+          }
+
+          if (namaDariCatatan) {
+            nilaiBaruDiformat = namaDariCatatan;
+          } else {
+            nilaiBaruDiformat = `Krama Baru [No.${nilaiBaru}]`;
+          }
         }
       }
     }
-  }
 
-  // Sembunyikan baris jika tidak ada perubahan nilai nyata antara lama dan baru
-  if (String(nilaiLamaDiformat ?? '').trim() === String(nilaiBaruDiformat ?? '').trim()) {
-    return null;
-  }
+    if (String(nilaiLamaDiformat ?? '').trim() === String(nilaiBaruDiformat ?? '').trim()) {
+      return null;
+    }
 
-  return (
-    <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
-      <td className={styles.labelChange}>
-        {label}
-      </td>
-      <td className="p-3 border-r border-gray-100">
-        <span className={styles.oldValue}>
-          {nilaiLamaDiformat ?? '-'}
-        </span>
-      </td>
-      <td className="p-3">
-        <div className="flex items-center gap-2">
-          <FaArrowRight className={styles.arrows} />
-          <span className={styles.newValue}>
-            {typeof nilaiBaruDiformat === 'string' && nilaiBaruDiformat.includes('[DRAFT]') ? (
-              <>
-                {nilaiBaruDiformat.replace(' [DRAFT]', '')} 
-              </>
-            ) : (
-              nilaiBaruDiformat ?? '-'
-            )}
+    return (
+      <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
+        <td className={styles.labelChange}>{label}</td>
+        <td className="p-3 border-r border-gray-100">
+          <span className={`${styles.oldValue} break-words whitespace-normal block`}>
+            {nilaiLamaDiformat ?? '-'}
           </span>
-        </div>
-      </td>
-    </tr>
-  );
-};
+        </td>
+        <td className="p-3 align-middle">
+          <div className="flex items-center gap-2">
+            <FaArrowRight className={styles.arrows} />
+            <span className={`${styles.newValue} break-words whitespace-normal block`}>
+              {nilaiBaruDiformat ?? '-'}
+            </span>
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -1499,7 +1548,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                 )}
               </ModernCard>
             </div>
-            {/* Data Orang Tua */}
+            {/* CARD: Data Orang Tua */}
             <div className={styles.cardSection}>
               <div className={styles.headerSection}>
                 <FaUsers className="text-white" />
@@ -1598,13 +1647,14 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                             value={`Anak ke-${angkat.urutan_lahir}`} 
                           />
                         )}
-                        {angkat?.tanggal_pengangkatan && (
-                          <IconInfoRow 
-                            icon={<FaCalendarAlt className="text-orange-500" />} 
-                            label="Tanggal Pengangkatan" 
-                            value={formatDate(angkat.tanggal_pengangkatan)} 
-                          />
-                        )}
+                        <IconInfoRow 
+                          icon={<FaCalendarAlt className="text-orange-500" />} 
+                          label="Tanggal Pengangkatan" 
+                          value={angkat?.tanggal_pengangkatan 
+                            ? formatDate(angkat.tanggal_pengangkatan) 
+                            : "Tidak Diketahui"
+                          } 
+                        />
                       </div>
                     </div>
                     {hasAccess && angkat.id && (
@@ -1833,7 +1883,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
             </div>
           </div>
           <div className="space-y-6">
-            {/* Foto Profile */}
+            {/* CARD: Foto Profile */}
             <div className={styles.previewFoto}>
               <h3 className={styles.previewTitle}>
                 <FaCamera size={16} className="mb-0.5" /> Foto Profile
@@ -1850,7 +1900,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                 />
               </div>
             </div>
-            {/* Riwayat Peran Adat */}
+            {/* CARD: Riwayat Peran Adat */}
             <ModernCard title="Riwayat Peran Adat" icon={<MdHistory className="text-white" />}>
               <div className={styles.riwayatAdatSection}>
                 {filteredPeranAdat.length === 0 ? (
@@ -1870,7 +1920,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                 )}
               </div>
             </ModernCard>
-            {/* Riwayat Keluarga */}
+            {/* CARD: Riwayat Keluarga */}
             <div className={styles.riwayatSection}>
               <h3 className={styles.riwayatTitle}>
                 <MdFamilyRestroom size={16} /> Riwayat Keluarga
@@ -2037,9 +2087,9 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                       <table className={styles.table}>
                         <thead>
                           <tr className={styles.tableHeader}>
-                            <th className="p-3 w-1/4">Kategori</th>
-                            <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
-                            <th className="p-3 w-3/8">Usulan Perubahan</th>
+                            <th className="p-3 w-1/4 text-left">Kategori</th>
+                            <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                            <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                           </tr>
                         </thead>
                         <tbody className={styles.tableBody}>
@@ -2094,19 +2144,17 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
           <div className={`${styles.modalContent} max-h-[90vh] flex flex-col overflow-hidden`}>
             <div className={`${styles.headerModal} flex-shrink-0`}>
               <h3>
-                <FaUsers size={21} className="text-amber-700 mr-2" /> 
+                <FaUsers size={21} className="text-amber-700 mr-2 shrink-0" /> 
                 {!modalRelasiData ? 'Hubungan Keluarga' : 'Status & Pengelolaan Relasi'}
               </h3>
               <button onClick={() => { 
                 setIsOpenModalRelasi(false); 
                 setModalRelasiData(null); 
-                setModalRelasiData(null);
               }}>
                 <FaTimes size={15} className={styles.iconClose} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-1 pr-2 space-y-4">
-              {/* Kondisi 1: Belum ada data relasi yang tercatat */}
               {!modalRelasiData ? (
                 <>
                   <div className="p-8 text-center space-y-4">
@@ -2132,7 +2180,6 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                   )}
                 </>
               ) : (
-                /* Kondisi 2: Data relasi telah tercatat */
                 <>
                   <div className="space-y-2 text-[11px]">
                     <div className={styles.cardVerification}>
@@ -2146,11 +2193,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                         }`}>
                           {modalRelasiData.status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
                           {modalRelasiData.status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
-                          {(
-                            modalRelasiData.status_verifikasi === 'Draft' || 
-                            modalRelasiData.status_verifikasi === 'Menunggu Penerimaan' || 
-                            modalRelasiData.status_verifikasi === 'Menunggu Pelepasan'
-                          ) && <FaHourglassHalf size={10} />}
+                          {modalRelasiData.status_verifikasi === 'Draft' && <FaHourglassHalf size={10} />}
                           <span>
                             {modalRelasiData.status_verifikasi || 'Draft'}
                           </span>
@@ -2160,17 +2203,20 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                         <span className={styles.labelColumn}>
                           Status Sinkronisasi
                         </span>
-                        {modalRelasiData.is_pending_update || modalRelasiData.status_verifikasi === 'Draft' ||
-                        modalRelasiData.status_verifikasi === 'Menunggu Penerimaan' ||
-                        modalRelasiData.status_verifikasi === 'Menunggu Pelepasan' ? (
+                        {modalRelasiData.is_pending_update || modalRelasiData.status_verifikasi === "Draft" ? (
                           <span className={styles.badgePending}>
                             <FaExclamationTriangle size={11} className="mb-0.5" /> 
                             <span>Menunggu Verifikasi</span>
                           </span>
+                        ) : modalRelasiData.status_verifikasi === "Ditolak" ? (
+                          <span className={styles.badgeRejected}>
+                            <FaTimes size={11} /> 
+                            <span>Pengajuan Ditolak</span>
+                          </span>
                         ) : (
                           <span className={styles.badgeSuccess}>
-                            <FaCheck size={11} />
-                            <span>Data Aktif & Sinkron</span> 
+                            <FaCheck size={11} /> 
+                            <span>Data Aktif & Sinkron</span>
                           </span>
                         )}
                       </div>
@@ -2179,7 +2225,7 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                           <span className={styles.labelColumn}>
                             Catatan Validasi Admin Desa
                           </span>
-                          <p className="italic text-black p-1">
+                          <p className="italic text-black p-1 break-words">
                             {modalRelasiData.catatan_admin_desa}
                           </p>
                         </div>
@@ -2187,26 +2233,26 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                     </div>
                     {/* DATA PERUBAHAN */}
                     {modalRelasiData.is_pending_update && modalRelasiData.data_perubahan && (
-                      <div className={styles.cardAreaChange}>
+                      <div className={`${styles.cardAreaChange} overflow-x-auto`}>
                         <h4 className={styles.cardTitle}>
                           <FaExclamationTriangle className={styles.cardIcon} /> 
                           Draft Usulan Perubahan Data Relasi Krama Bali Anda
                         </h4>
                         <div className={styles.cardTable}>
-                          <table className={styles.table}>
+                          <table className={`${styles.table} w-full table-fixed`}>
                             <thead>
                               <tr className={styles.tableHeader}>
-                                <th className="p-3 w-1/4">Kategori</th>
-                                <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
-                                <th className="p-3 w-3/8">Usulan Perubahan</th>
+                                <th className="p-3 w-1/4 text-left">Kategori</th>
+                                <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                                <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                               </tr>
                             </thead>
                             <tbody className={styles.tableBody}>
-                              {renderPerubahanRelasiRow("Ayah Kandung/Angkat", modalRelasiData.ayah?.nama_lengkap || 'Tidak Diketahui', "ayah_id", "krama")}
-                              {renderPerubahanRelasiRow("Ibu Kandung/Angkat", modalRelasiData.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", "krama")}
-                              {renderPerubahanRelasiRow("Status Hubungan", modalRelasiData.status_hubungan, "status_hubungan")}
-                              {renderPerubahanRelasiRow("Urutan Lahir (Anak Ke)", modalRelasiData.urutan_lahir, "urutan_lahir")}
-                              {renderPerubahanRelasiRow("Tanggal Pengangkatan Anak", modalRelasiData.tanggal_pengangkatan, "tanggal_pengangkatan", "date")}
+                              {renderPerubahanRelasiRow("Ayah Kandung/Angkat", modalRelasiData.ayah?.nama_lengkap || 'Tidak Diketahui', "ayah_id", "krama", modalRelasiData)}
+                              {renderPerubahanRelasiRow("Ibu Kandung/Angkat", modalRelasiData.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", "krama", modalRelasiData)}
+                              {renderPerubahanRelasiRow("Status Hubungan", modalRelasiData.status_hubungan, "status_hubungan", "text", modalRelasiData)}
+                              {renderPerubahanRelasiRow("Urutan Lahir (Anak Ke)", modalRelasiData.urutan_lahir, "urutan_lahir", "text", modalRelasiData)}
+                              {renderPerubahanRelasiRow("Tanggal Pengangkatan Anak", modalRelasiData.tanggal_pengangkatan, "tanggal_pengangkatan", "date", modalRelasiData)}
                             </tbody>
                           </table>
                         </div>
@@ -2398,9 +2444,9 @@ const renderPerubahanPerkawinanRow = (label, nilaiLama, namaField, type = 'text'
                           <table className={styles.table}>
                             <thead>
                               <tr className={styles.tableHeader}>
-                                <th className="p-3 w-1/4">Kategori</th>
-                                <th className="p-3 w-3/8">Data Aktif Saat Ini</th>
-                                <th className="p-3 w-3/8">Usulan Perubahan</th>
+                                <th className="p-3 w-1/4 text-left">Kategori</th>
+                                <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                                <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                               </tr>
                             </thead>
                             <tbody>

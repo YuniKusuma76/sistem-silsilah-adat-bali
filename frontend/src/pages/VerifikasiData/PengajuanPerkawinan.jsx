@@ -482,8 +482,13 @@ const PengajuanPerkawinan = ({ user }) => {
                         {kawin.jenis_perkawinan}
                       </td>
                       <td className="text-center">
-                        <span className={`${styles.badge} ${getStatusClass(kawin.status_verifikasi)}`}>
-                          {kawin.status_verifikasi}
+                        <span className={`${styles.badge} ${
+                          kawin.is_pending_update ? styles.badgeWarning : getStatusClass(kawin.status_verifikasi)
+                        }`}>
+                          {kawin.is_pending_update && (kawin.status_verifikasi === 'Disetujui' || kawin.status_verifikasi === 'Ditolak') 
+                            ? 'Menunggu Perubahan' 
+                            : kawin.status_verifikasi
+                          }
                         </span>
                       </td>
                       <td className="text-center">

@@ -115,7 +115,7 @@
 }
 
 .warnUpdate {
-  @apply bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-lg border border-amber-200 animate-pulse font-bold inline-flex items-center;
+  @apply bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-lg border border-amber-200 animate-pulse font-bold inline-flex whitespace-nowrap items-center;
 }
 
 .badge {
@@ -131,7 +131,7 @@
 }
 
 .badgeWarning {
-  @apply bg-yellow-100 text-yellow-700 border-yellow-200;
+  @apply bg-yellow-100 text-yellow-700 border-yellow-200 inline-flex whitespace-nowrap;
 }
 
 .badgeGray {

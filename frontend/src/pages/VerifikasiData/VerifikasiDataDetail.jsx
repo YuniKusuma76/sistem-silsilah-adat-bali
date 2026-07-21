@@ -70,7 +70,6 @@ const formatWaktuRelatif = (dateString) => {
   });
 };
 
-// Helper: Membuat style badge status peran adat
 const getStatusBadge = (isActive) => {
   if (isActive) {
     return (
@@ -131,7 +130,6 @@ const VerifikasiDataDetail = ({ user }) => {
   const [isSubmittingRelasi, setIsSubmittingRelasi] = useState(false);
   const [selectedRelasi, setSelectedRelasi] = useState(null);
   const [modalRelasiData, setModalRelasiData] = useState(null);
-  const [konteksVerifikasiRelasi, setKonteksVerifikasiRelasi] = useState('CREATE_RELASI');
 
   const [isOpenModalKawin, setIsOpenModalKawin] = useState(false);
   const [verifyKawinAction, setVerifyKawinAction] = useState('Disetujui');
@@ -196,12 +194,10 @@ const VerifikasiDataDetail = ({ user }) => {
       const kramaDesaRaw = krama.desa_adat_id || krama.desaAdatId || krama.desa_id;
       const kramaDesaId = kramaDesaRaw ? String(kramaDesaRaw) : null;
 
-      // Menggunakan userDesaId yang sudah di-ekstrak di atas
       if (userDesaId && kramaDesaId && userDesaId === kramaDesaId) return true;
 
       if (krama.is_pending_update && krama.data_perubahan?.desa_adat_id) {
         const desaUsulanId = String(krama.data_perubahan.desa_adat_id);
-        // Jika desa usulan sama dengan desa admin yang login, beri akses verifikasi
         if (userDesaId === desaUsulanId) return true;
       }
 
@@ -271,12 +267,24 @@ const VerifikasiDataDetail = ({ user }) => {
         let rawRelasi = resRelasi.value.data?.data || resRelasi.value.data;
         let cleanRelasiList = Array.isArray(rawRelasi) ? rawRelasi : (rawRelasi ? [rawRelasi] : []);
 
-        const isRelasiVerified = cleanRelasiList.length > 0 && cleanRelasiList[0].status === 'Disetujui';
-        
-        if (isRelasiVerified) {
+        const containsActiveVerification = cleanRelasiList.some(item => 
+          item.status_verifikasi === 'Draft' || item.status_verifikasi === 'Ditolak'
+        );
+
+        const hasKandungInVerification = cleanRelasiList.some(item => 
+          item.status_hubungan === 'Anak Kandung'
+        );
+
+        if (cleanRelasiList.length === 0 || !containsActiveVerification || !hasKandungInVerification) {
           const resRelasiPublic = await axiosInstance.get(`/relasi-krama?anak_id=${realId}&mode=public`);
           const rawRelasiPub = resRelasiPublic.data?.data || resRelasiPublic.data;
-          cleanRelasiList = Array.isArray(rawRelasiPub) ? rawRelasiPub : (rawRelasiPub ? [rawRelasiPub] : []);
+          const cleanPublicList = Array.isArray(rawRelasiPub) ? rawRelasiPub : (rawRelasiPub ? [rawRelasiPub] : []);
+
+          const combinedMap = new Map();
+          
+          cleanPublicList.forEach(item => combinedMap.set(item.id, item));
+          cleanRelasiList.forEach(item => combinedMap.set(item.id, item));
+          cleanRelasiList = Array.from(combinedMap.values());
         }
         setRelasiList(cleanRelasiList);
       }
@@ -349,11 +357,16 @@ const VerifikasiDataDetail = ({ user }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realId]);
 
+  // Helper: Mengambil nama lengkap krama
   useEffect(() => {
     const resolusiNamaKramaGlobal = async () => {
-      // Kumpulkan semua sumber perkawinan (baik yang aktif di card luar maupun yang di dalam modal)
+      // mengambil semua data perkawinan
       const semuaPerkawinan = [...perkawinanList];
       if (modalKawinData) semuaPerkawinan.push(modalKawinData);
+
+      // mengambil semua data relasi krama
+      const semuaRelasi = [...relasiList];
+      if (modalRelasiData) semuaRelasi.push(modalRelasiData);
 
       const idsToFetch = [];
 
@@ -362,13 +375,10 @@ const VerifikasiDataDetail = ({ user }) => {
         if (data_perubahan_kawin && data_perubahan_kawin.data_perubahan) {
           data_perubahan_kawin = data_perubahan_kawin.data_perubahan;
         }
+
         if (!data_perubahan_kawin) return;
 
-        const targetPayload = data_perubahan_kawin.UPDATE_PERKAWINAN || 
-                              data_perubahan_kawin.UPDATE_PERCERAIAN ||
-                              data_perubahan_kawin.PERCERAIAN || 
-                              data_perubahan_kawin;
-        
+        const targetPayload = data_perubahan_kawin.UPDATE_PERKAWINAN || data_perubahan_kawin.UPDATE_PERCERAIAN ||data_perubahan_kawin.PERCERAIAN || data_perubahan_kawin;
         const idSuamiBaru = targetPayload.suami_id;
         const idIstriBaru = targetPayload.istri_id;
 
@@ -377,6 +387,24 @@ const VerifikasiDataDetail = ({ user }) => {
         }
         if (idIstriBaru && !kramaCacheMap[idIstriBaru] && !idsToFetch.includes(idIstriBaru)) {
           idsToFetch.push(idIstriBaru);
+        }
+      });
+
+      semuaRelasi.forEach(rItem => {
+        let data_perubahan_relasi = rItem?.data_perubahan;
+        if (data_perubahan_relasi && data_perubahan_relasi.data_perubahan) {
+          data_perubahan_relasi = data_perubahan_relasi.data_perubahan;
+        }
+        if (!data_perubahan_relasi) return;
+
+        const idAyahBaru = data_perubahan_relasi.ayah_id;
+        const idIbuBaru = data_perubahan_relasi.ibu_id;
+
+        if (idAyahBaru && !kramaCacheMap[idAyahBaru] && !idsToFetch.includes(idAyahBaru)) {
+          idsToFetch.push(idAyahBaru);
+        }
+        if (idIbuBaru && !kramaCacheMap[idIbuBaru] && !idsToFetch.includes(idIbuBaru)) {
+          idsToFetch.push(idIbuBaru);
         }
       });
 
@@ -394,12 +422,11 @@ const VerifikasiDataDetail = ({ user }) => {
                   newCache[id] = res.data.data.nama_lengkap;
                   hasChanges = true;
                 }
-              } catch (err) {
-                console.error(`Gagal mengambil resolusi nama krama ID ${id}:`, err);
+              } catch (error) {
+                console.error(`Gagal mengambil resolusi nama krama ID ${id}:`, error);
               }
             })
           );
-          
           if (hasChanges) {
             setKramaCacheMap(newCache);
           }
@@ -408,12 +435,11 @@ const VerifikasiDataDetail = ({ user }) => {
         }
       }
     };
-
-    if (perkawinanList.length > 0 || modalKawinData) {
+    if (perkawinanList.length > 0 || modalKawinData || relasiList.length > 0 || modalRelasiData) {
       resolusiNamaKramaGlobal();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perkawinanList, modalKawinData?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perkawinanList, modalKawinData?.id, relasiList, modalRelasiData?.id, kramaCacheMap]);
 
   // Helper: Fungsi verifikasi data
   const handleVerifyKrama = async () => {
@@ -446,7 +472,7 @@ const VerifikasiDataDetail = ({ user }) => {
       setAlert({
         show: true,
         type: 'error',
-        message: error.response?.data?.message || 'Terjadi Kesalahan saat menyimpan keputusan verifikasi data krama bali. Periksa koneksi Anda!'
+        message: error.response?.data?.message || 'Terjadi Kesalahan pada sistem saat menyimpan keputusan verifikasi data krama bali. Periksa koneksi Anda!'
       });
     } finally {
       setIsSubmittingKrama(false);
@@ -455,6 +481,16 @@ const VerifikasiDataDetail = ({ user }) => {
 
   const handleVerifyRelasi = async () => {
     if (!selectedRelasi?.id) return;
+
+    if (verifyRelasiAction !== 'Disetujui' && verifyRelasiAction !== 'Ditolak') {
+      setAlert({
+        show: true,
+        type: 'warning',
+        message: 'Silakan pilih Setujui Relasi atau Tolak Relasi!'
+      });
+      return;
+    }
+
     if (verifyRelasiAction === 'Ditolak' && !catatanRelasiValidator.trim()) {
       setAlert({
         show: true,
@@ -463,40 +499,35 @@ const VerifikasiDataDetail = ({ user }) => {
       });
       return;
     }
+
     setIsSubmittingRelasi(true);
     try {
-      let endpointUrl = "";
-      let payload = {
+      const payload = {
         status_verifikasi: verifyRelasiAction,
         catatan_admin_desa: catatanRelasiValidator 
       };
 
-      if (konteksVerifikasiRelasi === 'UPDATE_RELASI') {
-        endpointUrl = `/relasi-krama/update/verifikasi/${selectedRelasi.id}`;
-      } else {
-        endpointUrl = `/relasi-krama/create/verifikasi/${selectedRelasi.id}`;
-      }
-      
-      console.log(`🚀 Mengarahkan ke Kamar Route Adat: ${endpointUrl} (Konteks: ${konteksVerifikasiRelasi})`);
-      
+      const endpointUrl = `/relasi-krama/verifikasi/${selectedRelasi.id}`;
       await axiosInstance.patch(endpointUrl, payload);
+
       setAlert({
         show: true,
         type: 'success',
-        message: `Proses keputusan verifikasi adat berhasil disimpan dengan status: ${verifyRelasiAction}.`
+        message: `Proses verifikasi relasi krama berhasil disimpan dengan status: ${verifyRelasiAction}.`
       });
       
       setIsOpenModalRelasi(false);
       setCatatanRelasiValidator('');
       setSelectedRelasi(null);
       setModalRelasiData(null);
+      setVerifyRelasiAction('Disetujui');
       fetchAllData();
     } catch (error) {
       console.error(error);
       setAlert({
         show: true,
         type: 'error',
-        message: error.response?.data?.message || 'Gagal memproses keputusan verifikasi data relasi krama.'
+        message: error.response?.data?.message || 'Terjadi kesalahan pada sistem saat melakukan verifikasi data relasi krama.'
       });
     } finally {
       setIsSubmittingRelasi(false);
@@ -505,6 +536,7 @@ const VerifikasiDataDetail = ({ user }) => {
 
   const handleVerifyKawin = async () => {
     if (!selectedKawin?.id) return;
+
     if (verifyKawinAction === 'Ditolak' && !catatanKawinValidator.trim()) {
       setAlert({
         show: true,
@@ -518,7 +550,6 @@ const VerifikasiDataDetail = ({ user }) => {
 
     try {
       let endpointUrl = "";
-
       let payload = {
         status_verifikasi: verifyKawinAction,
         catatan_admin: catatanKawinValidator
@@ -708,7 +739,6 @@ const VerifikasiDataDetail = ({ user }) => {
     }
   }, [isOpenModalKawin]);
 
-  // Helper: Menampilkan foto krama
   const DEFAULT_AVATAR_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/default-avatar.jpg";
   const SUPABASE_STORAGE_URL = "https://kyhffdvfsionoredjbtb.supabase.co/storage/v1/object/public/photo-krama/";
 
@@ -717,10 +747,9 @@ const VerifikasiDataDetail = ({ user }) => {
       return `${SUPABASE_STORAGE_URL}${krama.foto_profile}`;
     }
     return DEFAULT_AVATAR_URL;
-  };  
+  };
 
   // Helper: menangani filter data master
-  // Helper: menangani filter data master (TERPILIH & DIPERBAIKI SINKRONISASI ID)
   const processedData = useMemo(() => {
     if (!krama) return null;
 
@@ -728,7 +757,6 @@ const VerifikasiDataDetail = ({ user }) => {
     const orangTuaKandung = anakRelasiList.find(r => r.status_hubungan === 'Anak Kandung');
     const orangTuaAngkatList = anakRelasiList.filter(r => r.status_hubungan === 'Anak Angkat');
 
-    // Penguatan pencocokan ID: memeriksa primitive ID maupun object relation ID dari backend
     const userPerkawinanList = perkawinanList.filter(p => {
       if (!p) return false;
       const idSuami = String(p.suami_id || p.suami?.id || '');
@@ -737,7 +765,6 @@ const VerifikasiDataDetail = ({ user }) => {
       return idSuami === idKrama || idIstri === idKrama;
     });
 
-    // Perbaikan Toleransi Huruf Besar/Kecil (Mencegah data terlempar ke log lampau akibat string 'KAWIN')
     const perkawinanAktifList = userPerkawinanList.filter(p => {
       const status = p.status_perkawinan ? String(p.status_perkawinan).trim().toLowerCase() : '';
       return status === 'kawin';
@@ -871,14 +898,14 @@ const VerifikasiDataDetail = ({ user }) => {
       <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
         <td className={styles.labelChange}>{label}</td>
         <td className="p-3 border-r border-gray-100">
-          <span className={styles.oldValue} title={nilaiLamaDiformat}>
+          <span className={`${styles.oldValue} break-words whitespace-normal block`}>
             {nilaiLamaDiformat ?? '-'}
           </span>
         </td>
-        <td className="p-3">
+        <td className="p-3 align-middle">
           <div className="flex items-center gap-2">
             <FaArrowRight className={styles.arrows} />
-            <span className={styles.newValue} title={nilaiBaru}>
+            <span className={`${styles.newValue} break-words whitespace-normal block`}>
               {nilaiBaru ?? '-'}
             </span>
           </div>
@@ -902,13 +929,11 @@ const VerifikasiDataDetail = ({ user }) => {
 
     return (
       <tr className="hover:bg-gray-50 transition-colors">
-        <td className={styles.labelChange}>
-          Foto Profil
-        </td>
+        <td className={styles.labelChange}>Foto Profil</td>
         <td className="p-3 border-r border-gray-100">
           <img src={fotoLamaUrl} alt="Foto Lama" className="w-40 h-40 rounded-lg object-cover border" />
         </td>
-        <td className="p-3">
+        <td className="p-3 align-middle">
           <div className="flex items-center gap-2">
             <FaArrowRight className={styles.arrows} />
             <img src={fotoBaruUrl} alt="Foto Baru" className="w-40 h-40 rounded-lg object-cover border-2 border-amber-500" />
@@ -918,12 +943,14 @@ const VerifikasiDataDetail = ({ user }) => {
     );
   };
 
-  const renderPerubahanRelasiRow = (label, nilaiLama, namaField, type = 'text') => {
-    let data_perubahan_relasi = modalRelasiData?.data_perubahan;
+  const renderPerubahanRelasiRow = (label, nilaiLama, namaField, type = 'text', relasiObj = null) => {
+    const activeRelasi = relasiObj || modalRelasiData;
+    let data_perubahan_relasi = activeRelasi?.data_perubahan;
 
     if (data_perubahan_relasi && data_perubahan_relasi.data_perubahan) {
       data_perubahan_relasi = data_perubahan_relasi.data_perubahan;
     }
+    
     if (!data_perubahan_relasi || data_perubahan_relasi[namaField] === undefined) {
       return null;
     }
@@ -932,32 +959,76 @@ const VerifikasiDataDetail = ({ user }) => {
     let nilaiLamaDiformat = nilaiLama;
 
     if (type === 'date') {
-      nilaiLamaDiformat = formatDate(nilaiLama);
-      nilaiBaru = formatDate(nilaiBaru);
+      nilaiLamaDiformat = nilaiLama ? formatDate(nilaiLama) : 'Tidak Diketahui';
+      nilaiBaru = nilaiBaru ? formatDate(nilaiBaru) : 'Tidak Diketahui';
     }
+    
     if (type === 'krama') {
-      nilaiLamaDiformat = nilaiLama && String(nilaiLama).trim() !== "null" ? nilaiLama : 'Tidak Diketahui';
+      if (nilaiLama && !isNaN(Number(nilaiLama))) {
+        const relasiKey = namaField === 'ayah_id' ? 'ayah' : 'ibu';
+        nilaiLamaDiformat = activeRelasi?.[relasiKey]?.nama_lengkap || kramaCacheMap[nilaiLama] || `Krama [No.${nilaiLama}]`;
+      } else {
+        nilaiLamaDiformat = nilaiLama && String(nilaiLama).trim() !== "null" ? nilaiLama : 'Tidak Tercatat';
+      }
+      
+      const safeParseInt = (val) => {
+        if (val === null || val === undefined || val === '') return null;
+        const parsed = parseInt(val, 10);
+        return isNaN(parsed) ? null : parsed;
+      };
+
+      const idBaru = safeParseInt(data_perubahan_relasi[namaField]);
+
       if (namaField === 'ayah_id') {
-        const namaAyah = data_perubahan_relasi?.nama_ayah_baru || modalRelasiData?.ayah?.nama_lengkap;
-        nilaiBaru = (namaAyah && String(namaAyah).trim() !== "null") ? namaAyah : 'Tidak Diketahui';
+        const namaAyahUsulan = data_perubahan_relasi?.nama_ayah_baru || data_perubahan_relasi?.ayah?.nama_lengkap || data_perubahan_relasi?.nama_ayah;
+        
+        if (idBaru === null) {
+          nilaiBaru = 'Tidak Tercatat';
+        } else {
+          nilaiBaru = namaAyahUsulan && String(namaAyahUsulan).trim() !== "null"
+            ? namaAyahUsulan
+            : (kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
+        }
       } else if (namaField === 'ibu_id') {
-        const namaIbu = data_perubahan_relasi?.nama_ibu_baru || modalRelasiData?.ibu?.nama_lengkap;
-        nilaiBaru = (namaIbu && String(namaIbu).trim() !== "null") ? namaIbu : 'Tidak Diketahui';
+        const namaIbuUsulan = data_perubahan_relasi?.nama_ibu_baru || data_perubahan_relasi?.ibu?.nama_lengkap || data_perubahan_relasi?.nama_ibu;
+        
+        if (idBaru === null) {
+          nilaiBaru = 'Tidak Tercatat';
+        } else {
+          nilaiBaru = namaIbuUsulan && String(namaIbuUsulan).trim() !== "null"
+            ? namaIbuUsulan
+            : (kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
+        }
       }
     }
 
-    if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim()) return null;
+    if (type === 'desa_adat') {
+      nilaiLamaDiformat = nilaiLama || 'Desa Asal';
+      nilaiBaru = data_perubahan_relasi?.nama_desa_tujuan || (nilaiBaru ? `Desa Adat ${nilaiBaru}` : 'Desa Asal');
+    }
+
+    if (type === 'date') {
+      if ((nilaiLama || '') === (data_perubahan_relasi[namaField] || '')) return null;
+    } else {
+      if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim() && nilaiLamaDiformat !== 'Tidak Tercatat') {
+        return null;
+      }
+    }
 
     return (
       <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
         <td className={styles.labelChange}>{label}</td>
         <td className="p-3 border-r border-gray-100">
-          <span className={styles.oldValue}>{nilaiLamaDiformat ?? '-'}</span>
+          <span className={`${styles.oldValue} break-words whitespace-normal block`}>
+            {nilaiLamaDiformat ?? '-'}
+          </span>
         </td>
-        <td className="p-3">
+        <td className="p-3 align-middle">
           <div className="flex items-center gap-2">
             <FaArrowRight className={styles.arrows} />
-            <span className={styles.newValue}>{nilaiBaru ?? '-'}</span>
+            <span className={`${styles.newValue} break-words whitespace-normal block`}>
+              {nilaiBaru ?? '-'}
+            </span>
           </div>
         </td>
       </tr>
@@ -971,8 +1042,13 @@ const VerifikasiDataDetail = ({ user }) => {
     let rawChange = targetData?.data_perubahan;
     
     if (typeof rawChange === 'string') {
-      try { rawChange = JSON.parse(rawChange); } catch (e) { console.error(e); }
+      try { 
+        rawChange = JSON.parse(rawChange); 
+      } catch (error) { 
+        console.error(error); 
+      }
     }
+
     if (rawChange && rawChange.data_perubahan) {
       rawChange = rawChange.data_perubahan;
     }
@@ -980,7 +1056,6 @@ const VerifikasiDataDetail = ({ user }) => {
     let camelField = namaField.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
     let nilaiBaru = undefined;
 
-    // Ekstraksi Objek Utama Perubahan berdasarkan draf aktif
     const searchObj = rawChange ? (rawChange.UPDATE_PERKAWINAN || rawChange.PERCERAIAN || rawChange.UPDATE_PERCERAIAN || rawChange) : null;
 
     if (searchObj) {
@@ -991,25 +1066,19 @@ const VerifikasiDataDetail = ({ user }) => {
       nilaiBaru = targetData[namaField] !== undefined ? targetData[namaField] : targetData[camelField];
     }
 
-    // Jika tidak ada perubahan nilai baru di draf manapun, sembunyikan baris
     if (nilaiBaru === undefined) return null;
 
     let nilaiLamaDiformat = type === 'date' ? formatDate(nilaiLama) : nilaiLama;
     let nilaiBaruDiformat = type === 'date' ? formatDate(nilaiBaru) : nilaiBaru;
 
-    // ============================================================
-    // RESOLUSI NAMA LENGKAP KRAMA BARU (ANTI-STUCK / DIRECT BLENDING)
-    // ============================================================
     if (namaField === 'suami_id' || namaField === 'istri_id') {
       const relasiKey = namaField === 'suami_id' ? 'suami' : 'istri';
       const kramaLama = kramaPasanganObj || targetData?.[relasiKey];
 
-      // 1. Tentukan Nilai Tampilan Lama
       if (kramaLama?.nama_lengkap) {
-        const isLamaDraft = kramaLama?.status_verifikasi === 'Draft';
-        nilaiLamaDiformat = `${kramaLama.nama_lengkap}${isLamaDraft ? ' [DRAFT]' : ''}`;
+        nilaiLamaDiformat = kramaLama.nama_lengkap;
       } else if (nilaiLama) {
-        nilaiLamaDiformat = `Krama ID: ${nilaiLama}`;
+        nilaiLamaDiformat = `Krama [No.${nilaiLama}]`;
       }
 
       if (String(nilaiBaru) === String(kramaLama?.id || nilaiLama)) {
@@ -1018,11 +1087,10 @@ const VerifikasiDataDetail = ({ user }) => {
         const kramaBaruPayload = searchObj?.[relasiKey];
         
         if (kramaBaruPayload?.nama_lengkap) {
-          nilaiBaruDiformat = `${kramaBaruPayload.nama_lengkap} [DRAFT]`;
+          nilaiBaruDiformat = kramaBaruPayload.nama_lengkap;
         }
-        // Jika data asinkronus dari useEffect langkah 1 sudah masuk, tampilkan nama lengkapnya!
         else if (cacheMap && cacheMap[nilaiBaru]) {
-          nilaiBaruDiformat = `${cacheMap[nilaiBaru]} [DRAFT]`;
+          nilaiBaruDiformat = cacheMap[nilaiBaru];
         } 
         else {
           let namaDariCatatan = "";
@@ -1035,16 +1103,14 @@ const VerifikasiDataDetail = ({ user }) => {
           }
 
           if (namaDariCatatan && namaDariCatatan.trim() !== "") {
-            nilaiBaruDiformat = `${namaDariCatatan} [DRAFT]`;
+            nilaiBaruDiformat = namaDariCatatan;
           } else {
-            // Biarkan bertuliskan Memuat Nama sebentar, karena useEffect global di atas akan langsung menimpanya dengan nama asli
-            nilaiBaruDiformat = `Memuat Nama... [DRAFT]`;
+            nilaiBaruDiformat = `Krama Baru [No.${nilaiBaru}]`;
           }
         }
       }
     }
 
-    // Sembunyikan baris jika tidak ada perubahan nilai nyata
     if (String(nilaiLamaDiformat ?? '').trim() === String(nilaiBaruDiformat ?? '').trim()) {
       return null;
     }
@@ -1053,19 +1119,15 @@ const VerifikasiDataDetail = ({ user }) => {
       <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
         <td className={styles.labelChange}>{label}</td>
         <td className="p-3 border-r border-gray-100">
-          <span className={styles.oldValue}>{nilaiLamaDiformat ?? '-'}</span>
+          <span className={`${styles.oldValue} break-words whitespace-normal block`}>
+            {nilaiLamaDiformat ?? '-'}
+          </span>
         </td>
-        <td className="p-3">
+        <td className="p-3 align-middle">
           <div className="flex items-center gap-2">
             <FaArrowRight className={styles.arrows} />
-            <span className={styles.newValue}>
-              {nilaiBaruDiformat?.includes('[DRAFT]') ? (
-                <>
-                  {nilaiBaruDiformat.replace(' [DRAFT]', '')} 
-                </>
-              ) : (
-                nilaiBaruDiformat ?? '-'
-              )}
+            <span className={`${styles.newValue} break-words whitespace-normal block`}>
+              {nilaiBaruDiformat ?? '-'}
             </span>
           </div>
         </td>
@@ -1344,9 +1406,9 @@ const VerifikasiDataDetail = ({ user }) => {
                       <table className={styles.table}>
                         <thead>
                           <tr className={styles.tableHeader}>
-                            <th className="p-3 w-1/5 text-left">Kategori</th>
-                            <th className="p-3 w-2/5 text-left">Data Aktif Saat Ini</th>
-                            <th className="p-3 w-2/5 text-left">Usulan Perubahan</th>
+                            <th className="p-3 w-1/4 text-left">Kategori</th>
+                            <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                            <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                           </tr>
                         </thead>
                         <tbody className={styles.tableBody}>
@@ -1380,7 +1442,7 @@ const VerifikasiDataDetail = ({ user }) => {
                 )}
               </ModernCard>
             </div>
-            {/* Data Orang Tua */}
+            {/* CARD: Data Orang Tua */}
             <div className={styles.cardSection}>
               <div className={styles.headerSection}>
                 <FaUsers className="text-white" />
@@ -1401,7 +1463,7 @@ const VerifikasiDataDetail = ({ user }) => {
                       <div className="md:col-span-2 flex flex-col gap-4">
                         {orangTuaKandung?.ayah?.nama_lengkap ? (
                           <IconInfoRow 
-                            icon={<FaUser className="text-blue-600" />} 
+                            icon={<FaUser className="text-blue-600 shrink-0" />} 
                             label="Ayah Kandung" 
                             value={orangTuaKandung.ayah.nama_lengkap} 
                           />
@@ -1412,7 +1474,7 @@ const VerifikasiDataDetail = ({ user }) => {
                         )}
                         {orangTuaKandung?.ibu?.nama_lengkap ? (
                           <IconInfoRow 
-                            icon={<FaUser className="text-pink-600" />} 
+                            icon={<FaUser className="text-pink-600 shrink-0" />} 
                             label="Ibu Kandung" 
                             value={orangTuaKandung.ibu.nama_lengkap} 
                           />
@@ -1425,7 +1487,7 @@ const VerifikasiDataDetail = ({ user }) => {
                       <div className="md:col-span-1 flex flex-col gap-4 justify-start">
                         {orangTuaKandung?.urutan_lahir && (
                           <IconInfoRow 
-                            icon={<FaList className="text-gray-500" />} 
+                            icon={<FaList className="text-gray-500 shrink-0" />} 
                             label="Urutan Lahir" 
                             value={`Anak ke-${orangTuaKandung.urutan_lahir}`} 
                           />
@@ -1434,25 +1496,25 @@ const VerifikasiDataDetail = ({ user }) => {
                     </div>
                     {/* Data Perubahan */}
                     {orangTuaKandung.is_pending_update && orangTuaKandung.data_perubahan && (
-                      <div className={styles.cardAreaChange}>
+                      <div className={`${styles.cardAreaChange} mt-4`}>
                         <div className={styles.cardTitle}>
                           <FaExclamationTriangle className={styles.cardIcon} />
-                          Draft Usulan Perubahan Data Relasi Krama
+                          Draft Usulan Perubahan Data Orang Tua Kandung
                         </div>
                         <div className={styles.cardTable}>
                           <table className={styles.table}>
                             <thead>
                               <tr className={styles.tableHeader}>
-                                <th className="p-3 w-1/5 text-left">Kategori</th>
-                                <th className="p-3 w-2/5 text-left">Data Aktif Saat Ini</th>
-                                <th className="p-3 w-2/5 text-left">Usulan Perubahan</th>
+                                <th className="p-3 w-1/4 text-left">Kategori</th>
+                                <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                                <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                               </tr>
                             </thead>
                             <tbody className={styles.tableBody}>
-                              {renderPerubahanRelasiRow("Ayah Kandung", orangTuaKandung.ayah?.nama_lengkap || 'Tidak Diketahui', "ayah_id", "krama")}
-                              {renderPerubahanRelasiRow("Ibu Kandung", orangTuaKandung.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", "krama")}
-                              {renderPerubahanRelasiRow("Status Hubungan", orangTuaKandung.status_hubungan, "status_hubungan")}
-                              {renderPerubahanRelasiRow("Urutan Lahir (Anak Ke)", orangTuaKandung.urutan_lahir, "urutan_lahir")}
+                              {renderPerubahanRelasiRow("Ayah Kandung", orangTuaKandung.ayah?.nama_lengkap || 'Tidak Tercatat', "ayah_id", "krama", orangTuaKandung)}
+                              {renderPerubahanRelasiRow("Ibu Kandung", orangTuaKandung.ibu?.nama_lengkap || 'Tidak Tercatat', "ibu_id", "krama", orangTuaKandung)}
+                              {renderPerubahanRelasiRow("Urutan Lahir", orangTuaKandung.urutan_lahir, "urutan_lahir", "text", orangTuaKandung)}
+                              {renderPerubahanRelasiRow("Status Hubungan", orangTuaKandung.status_hubungan, "status_hubungan", "text", orangTuaKandung)}
                             </tbody>
                           </table>
                         </div>
@@ -1464,20 +1526,7 @@ const VerifikasiDataDetail = ({ user }) => {
                           onClick={() => {
                             setSelectedRelasi(orangTuaKandung);
                             setModalRelasiData(orangTuaKandung);
-let hasChanges = false;
-        if (orangTuaKandung.data_perubahan) {
-          const rawData = orangTuaKandung.data_perubahan.data_perubahan || orangTuaKandung.data_perubahan;
-          if (rawData && typeof rawData === 'object' && Object.keys(rawData).length > 0) {
-            hasChanges = true;
-          }
-        }
-
-        if (orangTuaKandung.is_pending_update && hasChanges) {
-          setKonteksVerifikasiRelasi('UPDATE_RELASI');
-        } else {
-          setKonteksVerifikasiRelasi('CREATE_RELASI');
-        }
-                            setVerifyRelasiAction(orangTuaKandung.status_verifikasi || 'Draft');
+                            setVerifyRelasiAction('Disetujui');
                             setCatatanRelasiValidator('');
                             setIsOpenModalRelasi(true);
                           }}
@@ -1521,38 +1570,38 @@ let hasChanges = false;
                             value={`Anak ke-${angkat.urutan_lahir}`} 
                           />
                         )}
-                        {angkat?.tanggal_pengangkatan && (
-                          <IconInfoRow 
-                            icon={<FaCalendarAlt className="text-orange-500" />} 
-                            label="Tanggal Pengangkatan" 
-                            value={formatDate(angkat.tanggal_pengangkatan)} 
-                          />
-                        )}
+                        <IconInfoRow 
+                          icon={<FaCalendarAlt className="text-orange-500" />} 
+                          label="Tanggal Pengangkatan" 
+                          value={angkat?.tanggal_pengangkatan 
+                            ? formatDate(angkat.tanggal_pengangkatan) 
+                            : "Tidak Diketahui"
+                          } 
+                        />
                       </div>
                     </div>
                     {/* Data Perubahan */}
                     {angkat.is_pending_update && angkat.data_perubahan && (
-                      <div className={styles.cardAreaChange}>
+                      <div className={`${styles.cardAreaChange} mt-4`}>
                         <div className={styles.cardTitle}>
                           <FaExclamationTriangle className={styles.cardIcon} />
-                          Draft Usulan Perubahan Data Relasi Krama
+                          Draft Usulan Perubahan Data Orang Tua Angkat
                         </div>
                         <div className={styles.cardTable}>
                           <table className={styles.table}>
                             <thead>
                               <tr className={styles.tableHeader}>
-                                <th className="p-3 w-1/5 text-left">Kategori</th>
-                                <th className="p-3 w-2/5 text-left">Data Aktif Saat Ini</th>
-                                <th className="p-3 w-2/5 text-left">Usulan Perubahan</th>
+                                <th className="p-3 w-1/4 text-left">Kategori</th>
+                                <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                                <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                               </tr>
                             </thead>
                             <tbody className={styles.tableBody}>
-                              {renderPerubahanRelasiRow("Ayah Angkat", angkat.ayah?.nama_lengkap || 'Tidak Diketahui', "ayah_id", "krama")}
-                              {renderPerubahanRelasiRow("Ibu Angkat", angkat.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", "krama")}
-                              {renderPerubahanRelasiRow("Status Hubungan", angkat.status_hubungan, "status_hubungan")}
-                              {renderPerubahanRelasiRow("Urutan Lahir (Anak Ke)", angkat.urutan_lahir, "urutan_lahir")}
-                              {renderPerubahanRelasiRow("Tanggal Pengangkatan Anak", angkat.tanggal_pengangkatan, "tanggal_pengangkatan", "date")}
-                              {renderPerubahanRelasiRow("Desa Adat Tujuan", krama?.desa_adat_id, "desa_adat_id_tujuan", 'desa_adat')}
+                              {renderPerubahanRelasiRow("Ayah Angkat", angkat.ayah?.nama_lengkap || 'Tidak Tercatat', "ayah_id", "krama", angkat)}
+                              {renderPerubahanRelasiRow("Ibu Angkat", angkat.ibu?.nama_lengkap || 'Tidak Tercatat', "ibu_id", "krama", angkat)}
+                              {renderPerubahanRelasiRow("Urutan Lahir", angkat.urutan_lahir, "urutan_lahir", "text", angkat)}
+                              {renderPerubahanRelasiRow("Tanggal Pengangkatan", angkat.tanggal_pengangkatan, "tanggal_pengangkatan", "date", angkat)}
+                              {renderPerubahanRelasiRow("Desa Adat Tujuan", masterDesaMap[angkat.desa_adat_id_tujuan] || 'Desa Asal', "desa_adat_id_tujuan", "desa_adat", angkat)}
                             </tbody>
                           </table>
                         </div>
@@ -1564,20 +1613,7 @@ let hasChanges = false;
                           onClick={() => {
                             setSelectedRelasi(angkat);
                             setModalRelasiData(angkat);
-let hasChanges = false;
-        if (angkat.data_perubahan) {
-          const rawData = angkat.data_perubahan.data_perubahan || angkat.data_perubahan;
-          if (rawData && typeof rawData === 'object' && Object.keys(rawData).length > 0) {
-            hasChanges = true;
-          }
-        }
-
-        if (angkat.is_pending_update && hasChanges) {
-          setKonteksVerifikasiRelasi('UPDATE_RELASI');
-        } else {
-          setKonteksVerifikasiRelasi('CREATE_RELASI');
-        }
-                            setVerifyRelasiAction(angkat.status_verifikasi || 'Draft');
+                            setVerifyRelasiAction('Disetujui');
                             setCatatanRelasiValidator('');
                             setIsOpenModalRelasi(true);
                           }}
@@ -1679,9 +1715,9 @@ let hasChanges = false;
                                   <table className={styles.table}>
                                     <thead>
                                       <tr className={styles.tableHeader}>
-                                        <th className="p-3 w-1/5 text-left">Kategori</th>
-                                        <th className="p-3 w-1/5 text-left">Data Aktif Saat Ini</th>
-                                        <th className="p-3 w-2/5 text-left">Usulan Perubahan</th>
+                                        <th className="p-3 w-1/4 text-left">Kategori</th>
+                                        <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                                        <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                                       </tr>
                                     </thead>
                                     <tbody className={styles.tableBody}>
@@ -1909,9 +1945,9 @@ let hasChanges = false;
                                   <table className={styles.table}>
                                     <thead>
                                       <tr className={styles.tableHeader}>
-                                        <th className="p-3 w-1/5 text-left">Kategori</th>
-                                        <th className="p-3 w-2/5 text-left">Data Aktif Saat Ini</th>
-                                        <th className="p-3 w-2/5 text-left">Usulan Perubahan</th>
+                                        <th className="p-3 w-1/4 text-left">Kategori</th>
+                                        <th className="p-3 w-3/8 text-left">Data Aktif Saat Ini</th>
+                                        <th className="p-3 w-3/8 text-left">Usulan Perubahan</th>
                                       </tr>
                                     </thead>
                                     <tbody className={styles.tableBody}>
@@ -1976,9 +2012,8 @@ let hasChanges = false;
               </div>
             </div>
           </div>
-          {/* KOLOM KANAN */}
           <div className="space-y-6">
-            {/* Foto Profile */}
+            {/* CARD: Foto Profile */}
             <div className={styles.previewFoto}>
               <h3 className={styles.previewTitle}>
                 <FaCamera size={16} className="mb-0.5" /> Foto Profile
@@ -1995,7 +2030,7 @@ let hasChanges = false;
                 />
               </div>
             </div>
-            {/* Riwayat Peran Adat */}
+            {/* CARD: Riwayat Peran Adat */}
             <ModernCard title="Riwayat Peran Adat" icon={<MdHistory className="text-white" />}>
               <div className={styles.riwayatAdatSection}>
                 {filteredPeranAdat.length === 0 ? (
@@ -2017,7 +2052,7 @@ let hasChanges = false;
                 )}
               </div>
             </ModernCard>
-            {/* Riwayat Keluarga */}
+            {/* CARD: Riwayat Keluarga */}
             <div className={styles.riwayatSection}>
               <h3 className={styles.riwayatTitle}>
                 <MdFamilyRestroom size={16} /> Riwayat Keluarga
@@ -2231,7 +2266,7 @@ let hasChanges = false;
                   </button>
                   <button 
                     onClick={handleVerifyKrama} 
-                    disabled={isSubmittingKrama || (verifyKramaAction === 'Ditolak' && !catatanKramaValidator.trim())}
+                    disabled={isSubmittingKrama}
                     className={verifyKramaAction === 'Disetujui' ? styles.btnSaveModal : styles.btnRejectModal}>
                     {isSubmittingKrama ? 'Memproses...' : 'Konfirmasi Keputusan'}
                   </button>
@@ -2259,8 +2294,8 @@ let hasChanges = false;
             </div>
             <div className="flex-1 overflow-y-auto p-1 pr-2 space-y-4">
               <div className="space-y-2 text-[11px]">
-                <div className="flex items-center gap-2 text-stone-700">
-                  <h4 className="font-bold text-sm uppercase tracking-wide">
+                <div className="flex items-center gap-2 text-black">
+                  <h4 className="font-bold text-xs uppercase tracking-wide">
                     Status & Sinkronisasi Data:
                   </h4>
                 </div>
@@ -2275,8 +2310,7 @@ let hasChanges = false;
                     }`}>
                       {modalRelasiData?.status_verifikasi === 'Disetujui' && <FaCheckCircle size={10} />}
                       {modalRelasiData?.status_verifikasi === 'Ditolak' && <FaTimesCircle size={10} />}
-                      {(
-                        modalRelasiData?.status_verifikasi === 'Draft') && <FaHourglassHalf size={10} />}
+                      {modalRelasiData?.status_verifikasi === 'Draft' && <FaHourglassHalf size={10} />}
                       <span>
                         {modalRelasiData?.status_verifikasi || 'Draft'}
                       </span>
@@ -2291,10 +2325,15 @@ let hasChanges = false;
                         <FaExclamationTriangle size={11} className="mb-0.5" /> 
                         <span>Menunggu Verifikasi</span>
                       </span>
+                    ) : modalRelasiData?.status_verifikasi === "Ditolak" ? (
+                      <span className={styles.badgeRejected}>
+                        <FaTimes size={11} /> 
+                        <span>Pengajuan Ditolak</span>
+                      </span>
                     ) : (
                       <span className={styles.badgeSuccess}>
-                        <FaCheck size={11} />
-                        <span>Data Aktif & Sinkron</span> 
+                        <FaCheck size={11} /> 
+                        <span>Data Aktif & Sinkron</span>
                       </span>
                     )}
                   </div>
@@ -2313,8 +2352,8 @@ let hasChanges = false;
               {/* Verifikasi */}
               {(selectedRelasi?.is_pending_update || selectedRelasi?.status_verifikasi === "Draft") && (
                 <div>
-                  <div className="flex items-center gap-2 text-stone-700">
-                    <h4 className="font-bold text-sm uppercase tracking-wide">
+                  <div className="flex items-center gap-2 text-black">
+                    <h4 className="font-bold text-xs uppercase tracking-wide">
                       Verifikasi Data:
                     </h4>
                   </div>
@@ -2325,7 +2364,7 @@ let hasChanges = false;
                       className={`${styles.choise} ${
                         verifyRelasiAction === 'Disetujui' ? styles.choiseApproved : styles.choiseDefault
                       }`}>
-                      ✅ Setujui Relasi
+                      ✅ Setujui Data
                     </button>
                     <button 
                       type="button"
@@ -2333,12 +2372,12 @@ let hasChanges = false;
                       className={`${styles.choise} ${
                         verifyRelasiAction === 'Ditolak' ? styles.choiseReject : styles.choiseDefault
                       }`}>
-                      ❌ Tolak Relasi
+                      ❌ Tolak Data
                     </button>
                   </div>
                   <div className="space-y-1 pt-2 text-left">
                     <label className={styles.label}>
-                      Catatan Tambahan / Alasan Penolakan {verifyRelasiAction === "Ditolak" && <span className="text-red-500">*</span>}
+                      Catatan Tambahan/Alasan Penolakan {verifyRelasiAction === "Ditolak" && <span className="text-red-500">*</span>}
                     </label>
                     <textarea
                       className={styles.inputForm}
@@ -2347,21 +2386,21 @@ let hasChanges = false;
                       value={catatanRelasiValidator}
                       onChange={(e) => setCatatanRelasiValidator(e.target.value)}
                       required={verifyRelasiAction === 'Ditolak'}
-                    ></textarea>
+                    />
                   </div>
                   <div className="mt-3 flex gap-2 justify-end">
                     <button 
                       onClick={() => {
                         setIsOpenModalRelasi(false);
                         setSelectedRelasi(null);
-                      }} 
+                      }}
                       disabled={isSubmittingRelasi} 
                       className={styles.btnCancel}>
                       Kembali
                     </button>
                     <button 
                       onClick={handleVerifyRelasi} 
-                      disabled={isSubmittingRelasi || (verifyRelasiAction === 'Ditolak' && !catatanRelasiValidator.trim())}
+                      disabled={isSubmittingRelasi || !verifyRelasiAction}
                       className={verifyRelasiAction === 'Disetujui' ? styles.btnSaveModal : styles.btnRejectModal}>
                       {isSubmittingRelasi ? 'Memproses...' : 'Konfirmasi Keputusan'}
                     </button>
@@ -2631,7 +2670,7 @@ let hasChanges = false;
                         </button>
                         <button 
                           onClick={handleVerifyKawin} 
-                          disabled={isSubmittingKawin || (verifyKawinAction === 'Ditolak' && !catatanKawinValidator.trim())}
+                          disabled={isSubmittingKawin}
                           className={verifyKawinAction === 'Disetujui' ? styles.btnSaveModal : styles.btnRejectModal}>
                           {isSubmittingKawin ? 'Memproses...' : 'Konfirmasi Keputusan'}
                         </button>

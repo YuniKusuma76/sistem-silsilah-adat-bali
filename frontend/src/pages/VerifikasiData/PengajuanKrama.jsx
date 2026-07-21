@@ -552,8 +552,13 @@ const PengajuanKrama = ({ user }) => {
                         {krama.tipe_data}
                       </td>
                       <td className="text-center">
-                        <span className={`${styles.badge} ${getStatusClass(krama.status_verifikasi)}`}>
-                          {krama.status_verifikasi}
+                        <span className={`${styles.badge} ${
+                          krama.is_pending_update ? styles.badgeWarning : getStatusClass(krama.status_verifikasi)
+                        }`}>
+                          {krama.is_pending_update && (krama.status_verifikasi === 'Disetujui' || krama.status_verifikasi === 'Ditolak') 
+                            ? 'Menunggu Perubahan' 
+                            : krama.status_verifikasi
+                          }
                         </span>
                       </td>
                       <td className="text-center">

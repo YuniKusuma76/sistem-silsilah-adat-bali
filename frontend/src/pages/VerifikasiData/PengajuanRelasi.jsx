@@ -242,8 +242,6 @@ const PengajuanRelasi = ({ user }) => {
       case 'Ditolak': 
         return styles.badgeDanger;
       case 'Draft': 
-      case 'Menunggu Pelepasan': 
-      case 'Menunggu Penerimaan': 
         return styles.badgeWarning;
       case 'Dibatalkan': 
         return styles.badgeGray;
@@ -485,7 +483,7 @@ const PengajuanRelasi = ({ user }) => {
                         <span className={`${styles.badge} ${
                           relasi.is_pending_update ? styles.badgeWarning : getStatusClass(relasi.status_verifikasi)
                         }`}>
-                          {relasi.is_pending_update && relasi.status_verifikasi === 'Disetujui' 
+                          {relasi.is_pending_update && (relasi.status_verifikasi === 'Disetujui' || relasi.status_verifikasi === 'Ditolak') 
                             ? 'Menunggu Perubahan' 
                             : relasi.status_verifikasi
                           }
