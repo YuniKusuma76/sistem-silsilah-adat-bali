@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './Sidebar.module.css';
 import { Link, useLocation } from 'react-router-dom';
-import { GrDocumentConfig, GrDocumentUser } from "react-icons/gr";
+import { GrDocumentConfig } from "react-icons/gr";
 import { LuNetwork, LuUserPen } from "react-icons/lu";
 import { FaMapLocationDot } from "react-icons/fa6";
 import { 
@@ -20,7 +20,7 @@ import {
   FaUserCog,
   FaSignOutAlt
 } from 'react-icons/fa';
-import axiosInstance from '../../api/axiosInstance.js';;
+import axiosInstance from '../../api/axiosInstance.js';
 
 const SIDEBAR_MENU = {
   Guest: [

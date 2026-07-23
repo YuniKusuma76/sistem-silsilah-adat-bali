@@ -5,6 +5,7 @@ import cors from 'cors';
 import helmet from "helmet";
 import path from 'path';
 import db from './config/db.config.js';
+import { initPgTrgm } from './config/trigram.config.js';
 import './models/associations.js';
 import routes from './routes/index.js';
 import AuthRoute from './routes/auth.route.js';
@@ -39,9 +40,11 @@ app.use("/api", routes);
 const initApp = async () => {
   try {
     await db.authenticate();
-    console.log("Database connected...");
+    console.log("Database PostgreSQL terhubung.");
 
-    await db.sync({ alter: true });
+    await db.sync(); 
+    console.log("Database synced.");
+    await initPgTrgm();
     await seederSuperAdmin();
     await seederWilayahBali();
 

@@ -146,6 +146,12 @@ const VerifikasiDataDetail = ({ user }) => {
   const [listNotifikasi, setListNotifikasi] = useState([]);
   const [openDetails, setOpenDetails] = useState({});
 
+  const [duplicateWarning, setDuplicateWarning] = useState({
+    show: false,
+    list: [],
+    total: 0
+  });
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -442,7 +448,9 @@ const VerifikasiDataDetail = ({ user }) => {
   }, [perkawinanList, modalKawinData?.id, relasiList, modalRelasiData?.id, kramaCacheMap]);
 
   // Helper: Fungsi verifikasi data
-  const handleVerifyKrama = async () => {
+  const handleVerifyKrama = async (isForce = false) => {
+    const forceFlag = typeof isForce === 'boolean' ? isForce : false;
+
     if (verifyKramaAction === 'Ditolak' && !catatanKramaValidator.trim()) {
       setAlert({
         show: true,
@@ -451,11 +459,13 @@ const VerifikasiDataDetail = ({ user }) => {
       });
       return;
     }
+
     setIsSubmittingKrama(true);
     try {
       await axiosInstance.patch(`/krama-bali/verifikasi/${realId}`, {
         status_verifikasi: verifyKramaAction,
-        catatan_admin_desa: catatanKramaValidator
+        catatan_admin_desa: catatanKramaValidator,
+        force: forceFlag
       });
 
       setAlert({
@@ -463,17 +473,25 @@ const VerifikasiDataDetail = ({ user }) => {
         type: 'success',
         message: `Pengajuan data krama bali berhasil diproses dengan status: ${verifyKramaAction}.`
       });
-      
-      setIsOpenModalKrama(false); 
-      setCatatanKramaValidator(''); 
+        
+      setDuplicateWarning({ show: false, list: [], total: 0 });
+      setIsOpenModalKrama(false);
+      setCatatanKramaValidator('');
       fetchAllData();
     } catch (error) {
-      console.error(error);
-      setAlert({
-        show: true,
-        type: 'error',
-        message: error.response?.data?.message || 'Terjadi Kesalahan pada sistem saat menyimpan keputusan verifikasi data krama bali. Periksa koneksi Anda!'
-      });
+      if (error.response && error.response.status === 409 && error.response.data?.is_duplicate_warning) {
+        setDuplicateWarning({
+          show: true,
+          list: error.response.data.potensi_duplikat || [],
+          total: error.response.data.total_potensi || 0
+        });
+      } else {
+        setAlert({
+          show: true,
+          type: 'error',
+          message: error.response?.data?.message || 'Terjadi Kesalahan pada sistem saat menyimpan keputusan verifikasi data krama bali. Periksa koneksi Anda!'
+        });
+      }
     } finally {
       setIsSubmittingKrama(false);
     }
@@ -2265,7 +2283,7 @@ const VerifikasiDataDetail = ({ user }) => {
                     Kembali
                   </button>
                   <button 
-                    onClick={handleVerifyKrama} 
+                    onClick={() => handleVerifyKrama(false)} 
                     disabled={isSubmittingKrama}
                     className={verifyKramaAction === 'Disetujui' ? styles.btnSaveModal : styles.btnRejectModal}>
                     {isSubmittingKrama ? 'Memproses...' : 'Konfirmasi Keputusan'}
@@ -2273,6 +2291,92 @@ const VerifikasiDataDetail = ({ user }) => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* MODAL PERINGATAN POTENSI DUPLIKASI DATA KRAMA BALI */}
+      {duplicateWarning.show && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalWarn}>
+            <div className={styles.headerModal}>
+              <h3>
+                <FaExclamationTriangle size={20} className="mr-2 text-amber-600 animate-bounce" />
+                <span>Pemberitahuan Potensi Duplikasi Data Krama Bali</span>
+              </h3>
+              <button onClick={() => setDuplicateWarning({ show: false, list: [], total: 0 })}>
+                <FaTimes size={15} className={styles.iconClose} />
+              </button>
+            </div>
+            <div className="space-y-3 text-xs text-stone-700">
+              <div className={styles.warnDuplicate}>
+                <p className="font-medium leading-relaxed">
+                  Sistem mendeteksi adanya <strong>{duplicateWarning.total} data krama bali terverifikasi</strong> dengan kemiripan nama, jenis kelamin, dan desa adat yang mirip di dalam sistem.
+                </p>
+              </div>
+              {/* Tabel Daftar Kemiripan Data */}
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-stone-100 text-stone-700 font-bold border-b border-gray-200">
+                    <tr>
+                      <th className="p-2.5">No. Pendaftaran</th>
+                      <th className="p-2.5">Nama Lengkap</th>
+                      <th className="p-2.5">Jenis Kelamin</th>
+                      <th className="p-2.5 text-center">Tingkat Kemiripan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {duplicateWarning.list.map((item) => {
+                      const percentage = (parseFloat(item.skor_kemiripan || 0) * 100).toFixed(0);
+                      return (
+                        <tr key={item.id} className="hover:bg-amber-50/50 transition">
+                          <td className="p-2.5 font-mono font-bold text-amber-800">
+                            {item.nomor_pendaftaran || "-"}
+                          </td>
+                          <td className="p-2.5 font-semibold text-stone-900">
+                            {item.nama_lengkap}
+                          </td>
+                          <td className="p-2.5 text-stone-600">
+                            {item.jenis_kelamin || "-"}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              percentage >= 85 
+                                ? 'bg-red-100 text-red-700 border border-red-200' 
+                                : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}>
+                              {percentage}% Mirip
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="italic text-[11px] text-gray-500 pt-1">
+                * Pemberitahuan ini bertujuan membantu Admin Desa mencegah kesalahan input ganda. Jika data yang diverifikasi ini dipastikan merupakan individu yang berbeda, Anda dapat memilih <strong>"Tetap Setujui Data"</strong>.
+              </p>
+            </div>
+            <div className="mt-6 flex gap-2 justify-end pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setDuplicateWarning({ show: false, list: [], total: 0 });
+                  setIsOpenModalKrama(false);
+                  setCatatanKramaValidator('');
+                }}
+                disabled={isSubmittingKrama}
+                className={styles.btnCancel}>
+                Periksa Kembali
+              </button>
+              <button
+                type="button"
+                onClick={() => handleVerifyKrama(true)}
+                disabled={isSubmittingKrama}
+                className={styles.btnContinue}>
+                {isSubmittingKrama ? 'Memproses...' : 'Tetap Setujui Data'}
+              </button>
+            </div>
           </div>
         </div>
       )}

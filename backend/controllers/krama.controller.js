@@ -18,6 +18,7 @@ import { mappingAturanAdatBali } from "../services/decision-tree.service.js";
 import { simpanRiwayatPeranAdat } from "../services/riwayat-peran-adat.service.js";
 import { kirimNotifikasiSistem } from "../helpers/notifikasi.helper.js";
 import { supabase } from "../config/supabase.config.js";
+import { checkDuplicateKramaBali } from "../services/police-krama.service.js";
 
 const VALID_JENIS_KELAMIN = [
   "Laki-laki", 
@@ -651,13 +652,72 @@ export const verifikasiKrama = async (req, res) => {
     const userRole = req.role;
     const userDesaId = req.desaAdatId;
 
-    const { status_verifikasi, catatan_admin_desa } = req.body;
+    const { status_verifikasi, catatan_admin_desa, force = false } = req.body;
 
     const VALID_STATUS = ["Disetujui", "Ditolak"];
     if (!VALID_STATUS.includes(status_verifikasi)) {
       return res.status(400).json({ 
         message: "Status verifikasi tidak valid!" 
       });
+    }
+
+    const kramaTargetAwal = await KramaBali.findByPk(id, {
+      attributes: ["id", "nama_lengkap", "jenis_kelamin", "desa_adat_id", "is_pending_update", "data_perubahan"]
+    });
+
+    if (!kramaTargetAwal) {
+      return res.status(404).json({
+        message: "Data krama bali tidak ditemukan."
+      });
+    }
+
+    // Identifikasi mutasi lintas desa adat
+    const desaAsalId = kramaTargetAwal.desa_adat_id;
+    const desaTujuanId = kramaTargetAwal.is_pending_update && kramaTargetAwal.data_perubahan?.desa_adat_id
+      ? Number(kramaTargetAwal.data_perubahan.desa_adat_id)
+      : null;
+    const isMutasiLintasDesa = desaTujuanId && Number(desaAsalId) !== Number(desaTujuanId);
+
+    if (userRole === "Admin Desa") {
+      const desaOtoritasHak = isMutasiLintasDesa ? desaTujuanId : (desaAsalId || desaTujuanId);
+      if (Number(desaOtoritasHak) !== Number(userDesaId)) {
+        return res.status(403).json({ 
+          message: isMutasiLintasDesa 
+            ? "Otoritas mengakses data ditolak! Usulan mutasi krama bali masuk wajib diverifikasi oleh Admin Desa Adat Tujuan."
+            : "Otoritas mengakses data ditolak! Wilayah desa adat berbeda."
+        });
+      }
+    }
+
+    // CHECK POTENSI DUPLIKASI DATA
+    if (status_verifikasi === "Disetujui" && !force) {
+      const namaTarget = kramaTargetAwal.is_pending_update && kramaTargetAwal.data_perubahan?.nama_lengkap
+        ? kramaTargetAwal.data_perubahan.nama_lengkap
+        : kramaTargetAwal.nama_lengkap;
+
+      const jenisKelaminTarget = kramaTargetAwal.is_pending_update && kramaTargetAwal.data_perubahan?.jenis_kelamin
+        ? kramaTargetAwal.data_perubahan.jenis_kelamin
+        : kramaTargetAwal.jenis_kelamin;
+
+      const desaAdatTarget = kramaTargetAwal.is_pending_update && kramaTargetAwal.data_perubahan?.desa_adat_id
+        ? kramaTargetAwal.data_perubahan.desa_adat_id
+        : kramaTargetAwal.desa_adat_id;
+
+      const potensiDuplikat = await checkDuplicateKramaBali({
+        id: kramaTargetAwal.id,
+        nama_lengkap: namaTarget,
+        jenis_kelamin: jenisKelaminTarget,
+        desa_adat_id: desaAdatTarget
+      });
+
+      if (potensiDuplikat.length > 0) {
+        return res.status(409).json({
+          is_duplicate_warning: true,
+          message: "Terdeteksi potensi duplikasi data krama di desa adat yang sama.",
+          total_potensi: potensiDuplikat.length,
+          potensi_duplikat: potensiDuplikat
+        });
+      }
     }
 
     // Mulai transaksi database
@@ -693,25 +753,6 @@ export const verifikasiKrama = async (req, res) => {
         status: 400, 
         message: "Proses verifikasi dihentikan! Data ini tidak memiliki antrean pengajuan yang aktif." 
       };
-    }
-
-    // Identifikasi mutasi lintas desa adat
-    const desaAsalId = krama.desa_adat_id;
-    const desaTujuanId = krama.is_pending_update && krama.data_perubahan?.desa_adat_id
-      ? Number(krama.data_perubahan.desa_adat_id)
-      : null;
-    const isMutasiLintasDesa = desaTujuanId && Number(desaAsalId) !== Number(desaTujuanId);
-
-    if (userRole === "Admin Desa") {
-      const desaOtoritasHak = isMutasiLintasDesa ? desaTujuanId : (desaAsalId || desaTujuanId);
-      if (Number(desaOtoritasHak) !== Number(userDesaId)) {
-        throw { 
-          status: 403, 
-          message: isMutasiLintasDesa 
-            ? "Otoritas mengakses data ditolak! Usulan mutasi krama bali masuk wajib diverifikasi oleh Admin Desa Adat Tujuan."
-            : "Otoritas mengakses data ditolak! Wilayah desa adat berbeda."
-        };
-      }
     }
 
     // Mengambil status peran adat krama target

@@ -246,6 +246,10 @@
   @apply bg-white w-full max-w-3xl rounded-3xl p-8 shadow-2xl animate-fade-in border-t-4 border-amber-700;
 }
 
+.modalWarn {
+  @apply bg-white w-full max-w-2xl rounded-xl p-6 shadow-2xl animate-fade-in my-8 max-h-[90vh] overflow-y-auto border-t-4 border-rose-700;
+}
+
 .headerModal {
   @apply flex-1 flex justify-between items-center mb-6 border-b pb-4;
 }
@@ -480,6 +484,14 @@
 
 .tabTargetDisable {
   @apply opacity-70 ml-2 cursor-not-allowed bg-stone-100 text-stone-400 border border-stone-200;
+}
+
+.warnDuplicate {
+  @apply p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 mb-3;
+}
+
+.btnContinue {
+  @apply px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm;
 }
 
 .animate-fade-in {
