@@ -4,14 +4,19 @@ import { getTrehLeluhur } from "../services/silsilah-leluhur.service.js";
 export const getTrehBali = async (req, res) => {
   try {
     const { rootId } = req.params;
-    const { depth } = req.query;
 
-    const maxDepth = depth ? parseInt(depth, 10) : 10;
+    const depthParam = req.query.maxDepth || req.query.depth;
+    let maxDepth = parseInt(depthParam, 10);
+
+    if (isNaN(maxDepth) || maxDepth < 1) {
+      maxDepth = 10;
+    }
 
     if (rootId && rootId !== "akar") {
       const kramaExist = await KramaBali.findOne({
         where: {
           id: rootId,
+          tipe_data: "Leluhur",
           status_verifikasi: "Disetujui"
         }
       });
@@ -19,7 +24,7 @@ export const getTrehBali = async (req, res) => {
       if (!kramaExist) {
         return res.status(404).json({
           success: false,
-          message: "Data Krama Bali tidak ditemukan."
+          message: "Data Krama Leluhur tidak ditemukan."
         });
       }
     }

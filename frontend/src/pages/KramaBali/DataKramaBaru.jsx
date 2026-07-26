@@ -11,7 +11,9 @@ import {
   FaInfoCircle, 
   FaEraser, 
   FaExclamationTriangle,
-  FaCamera
+  FaCamera,
+  FaUpload,
+  FaCheckCircle 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -52,6 +54,8 @@ const DataKramaBaru = ({ user }) => {
   const navigate = useNavigate();
   const notifDropdownRef = useRef(null);
   const fileInputRef = useRef(null);
+  const berkasParentRef = useRef(null);
+  const berkasAnakRef = useRef(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -89,6 +93,10 @@ const DataKramaBaru = ({ user }) => {
   const [searchOrangTuaTerm, setSearchOrangTuaTerm] = useState("");
   const [searchTermAnak, setSearchTermAnak] = useState("");
   const [isDropdownAnakOpen, setIsDropdownAnakOpen] = useState(false);
+  const [berkasPengangkatanParent, setBerkasPengangkatanParent] = useState(null);
+  const [berkasPengangkatanAnak, setBerkasPengangkatanAnak] = useState(null);
+  const [previewFileNameAnak, setPreviewFileNameAnak] = useState("");
+  const [previewFileNameParent, setPreviewFileNameParent] = useState("");
 
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
@@ -761,6 +769,45 @@ const DataKramaBaru = ({ user }) => {
     }));
   };
 
+  const handleFileParentChange = (file) => {
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Ukuran file terlalu besar! Maksimal ukuran file berkas pengangkatan adalah 2MB."
+      });
+      return;
+    }
+
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Format file tidak valid! Format file wajib .jpeg/.jpg/.png/.pdf"
+      });
+      return;
+    }
+
+    setBerkasPengangkatanParent(file);
+    setPreviewFileNameParent(file.name);
+  };
+
+  const handleHapusFileParent = () => {
+    setBerkasPengangkatanParent(null);
+    setPreviewFileNameParent("");
+  };
+
+  const handleDropParent = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileParentChange(e.dataTransfer.files[0]);
+    }
+  };
+
   // HELPER PENGANGKATAN ANAK: Menangani perubahan data input pengangkatan anak
   const handleAdoptingChange = (e) => {
     const { name, value } = e.target;
@@ -806,6 +853,50 @@ const DataKramaBaru = ({ user }) => {
       
       return { ...prev, manualAnak: updatedManualAnak };
     });
+  };
+  
+  const handleFileAnakChange = (file) => {
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Ukuran file terlalu besar! Maksimal ukuran file berkas pengangkatan adalah 2MB."
+      });
+      return;
+    }
+
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Format file tidak valid! Format file wajib .jpeg/.jpg/.png/.pdf"
+      });
+      return;
+    }
+
+    setBerkasPengangkatanAnak(file);
+    setPreviewFileNameAnak(file.name);
+  };
+
+  const handleHapusFileAnak = () => {
+    setBerkasPengangkatanAnak(null);
+    setPreviewFileNameAnak("");
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDropAnak = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileAnakChange(e.dataTransfer.files[0]);
+    }
   };
   
   // HELPER PERKAWINAN: Menambah kolom input pasangan jika poligami
@@ -882,6 +973,7 @@ const DataKramaBaru = ({ user }) => {
     const defaultStatusManual = defaultTipeData === "Leluhur" ? "Meninggal" : "Hidup";
     const defaultStatusSingle = defaultTipeData === "Leluhur" ? "Tidak Diketahui" : "Hidup";
 
+    setBerkasPengangkatanParent(null);
     setParentData({
       status_diketahui: "Tidak Diketahui",
       status_hubungan: "Anak Kandung",
@@ -943,6 +1035,7 @@ const DataKramaBaru = ({ user }) => {
   const clearAdoptingData = () => {
     setSearchTermAnak("");
     setIsDropdownAnakOpen(false);
+    setBerkasPengangkatanAnak(null);
     setAdoptingData({
       status_pengangkatan: "Tidak",
       anak_angkat_id: "",
@@ -971,6 +1064,7 @@ const DataKramaBaru = ({ user }) => {
         type: 'error', 
         message: 'Nama lengkap krama utama (form I) wajib diisi!' 
       });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return false;
     }
     
@@ -981,6 +1075,7 @@ const DataKramaBaru = ({ user }) => {
           type: 'error', 
           message: 'Jenis kelamin krama keturunan wajib dipilih!' 
         });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return false;
       }
       if (kramaData.is_bali && !kramaData.desa_adat_id) {
@@ -989,6 +1084,7 @@ const DataKramaBaru = ({ user }) => {
           type: 'error', 
           message: 'Krama Bali wajib memilih desa adat asal!' 
         });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return false;
       }
       if (!kramaData.is_bali && !kramaData.alamat_luar.trim()) {
@@ -997,6 +1093,7 @@ const DataKramaBaru = ({ user }) => {
           type: 'error', 
           message: 'Krama luar Bali wajib mengisi alamat asal!' 
         });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return false;
       }
     }
@@ -1012,6 +1109,7 @@ const DataKramaBaru = ({ user }) => {
             type: 'error', 
             message: `Nama lengkap pasangan baru pada baris ke-${i + 1} wajib diisi!` 
           });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
         if (p.dataPasanganBaru.is_bali && !isLeluhur && !p.dataPasanganBaru.desa_adat_id) {
@@ -1020,6 +1118,7 @@ const DataKramaBaru = ({ user }) => {
             type: 'error', 
             message: `Desa Adat asal untuk pasangan baru pada baris ke-${i + 1} wajib dipilih!` 
           });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
       }
@@ -1031,7 +1130,9 @@ const DataKramaBaru = ({ user }) => {
           setAlert({ 
             show: true, 
             type: 'error', 
-            message: 'Nama lengkap ayah pada pendaftaran baru wajib diisi!' });
+            message: 'Nama lengkap ayah pada pendaftaran baru wajib diisi!' 
+          });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
         if (!parentData.manualIbu.nama_lengkap.trim()) {
@@ -1040,6 +1141,7 @@ const DataKramaBaru = ({ user }) => {
             type: 'error', 
             message: 'Nama lengkap Ibu pada pendaftaran baru wajib diisi!' 
           });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
       } else if (parentData.jenis_pengangkatan === "Single Parent") {
@@ -1049,8 +1151,25 @@ const DataKramaBaru = ({ user }) => {
             type: 'error', 
             message: 'Nama lengkap orang tua tunggal pada pendaftaran baru wajib diisi!' 
           });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
+      }
+    }
+
+    if (parentData.status_diketahui === "Diketahui" && parentData.status_hubungan === "Anak Angkat") {
+      if (kramaData.tipe_data === "Keturunan" && !berkasPengangkatanParent) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Dokumen pengangkatan anak wajib diunggah!' 
+        });
+
+        if (berkasParentRef.current) {
+          berkasParentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          berkasParentRef.current.focus();
+        }
+        return false;
       }
     }
 
@@ -1061,9 +1180,38 @@ const DataKramaBaru = ({ user }) => {
           type: 'error', 
           message: 'Nama lengkap anak angkat pada pendaftaran baru wajib diisi!' 
         });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return false;
       }
     }
+
+    if (adoptingData.status_pengangkatan === "Mengangkat Anak") {
+      let tipeDataAnak = "Keturunan";
+
+      if (adoptingData.isAnakManual) {
+        tipeDataAnak = adoptingData.manualAnak.tipe_data;
+      } else if (adoptingData.anak_angkat_id) {
+        const anakTerpilih = kramaList.find(k => String(k.id) === String(adoptingData.anak_angkat_id));
+        if (anakTerpilih) {
+          tipeDataAnak = anakTerpilih.tipe_data;
+        }
+      }
+
+      if (tipeDataAnak === "Keturunan" && !berkasPengangkatanAnak) {
+        setAlert({ 
+          show: true, 
+          type: 'error', 
+          message: 'Dokumen pengangkatan anak wajib diunggah!' 
+        });
+
+        if (berkasAnakRef.current) {
+          berkasAnakRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          berkasAnakRef.current.focus();
+        }
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -1391,16 +1539,18 @@ const DataKramaBaru = ({ user }) => {
       // ====================================================================
       if (processParentData) {
         let safePerkawinanId = finalPerkawinanId && !isNaN(finalPerkawinanId) ? parseInt(finalPerkawinanId) : null;
+        const formRelasiParent = new FormData();
 
-        let payloadR = { 
-          anak_id: mainId ? parseInt(mainId) : null,
-          status_hubungan: parentData.status_hubungan || "Anak Kandung", 
-          tanggal_pengangkatan: parentData.status_hubungan === "Anak Angkat" ? parentData.tanggal_pengangkatan : null,
-          perkawinan_id: safePerkawinanId,
-          urutan_lahir: parentData.urutan_lahir ? parseInt(parentData.urutan_lahir) : null,
-          status_verifikasi: "Disetujui",
-          user_id: user?.id
-        };
+        formRelasiParent.append("anak_id", String(mainId));
+        formRelasiParent.append("status_hubungan", parentData.status_hubungan || "Anak Kandung");
+
+        if (parentData.status_hubungan === "Anak Angkat" && parentData.tanggal_pengangkatan) {
+        formRelasiParent.append("tanggal_pengangkatan", parentData.tanggal_pengangkatan);
+        }
+
+        if (parentData.urutan_lahir) {
+          formRelasiParent.append("urutan_lahir", String(parentData.urutan_lahir));
+        }
 
         if (parentData.jenis_pengangkatan === "Tunggal") { 
           let genderParent = "";
@@ -1416,19 +1566,33 @@ const DataKramaBaru = ({ user }) => {
           }
 
           if (genderParent === "Perempuan") {
-            payloadR.ibu_id = finalSingleParentId ? parseInt(finalSingleParentId) : null;
-            payloadR.ayah_id = null;
+            if (finalSingleParentId) {
+              formRelasiParent.append("ibu_id", String(finalSingleParentId));
+            }
           } else {
-            payloadR.ayah_id = finalSingleParentId ? parseInt(finalSingleParentId) : null;
-            payloadR.ibu_id = null;
+            if (finalSingleParentId) {
+              formRelasiParent.append("ayah_id", String(finalSingleParentId));
+            }
           }
-          payloadR.perkawinan_id = null; 
         } else {
-          payloadR.ayah_id = ayahId ? parseInt(ayahId) : null;
-          payloadR.ibu_id = ibuId ? parseInt(ibuId) : null;
+          if (ayahId) {
+            formRelasiParent.append("ayah_id", String(ayahId));
+          }
+          if (ibuId) {
+            formRelasiParent.append("ibu_id", String(ibuId));
+          }
+          if (safePerkawinanId) {
+            formRelasiParent.append("perkawinan_id", String(safePerkawinanId));
+          }
         }
 
-        await axiosInstance.post("/relasi-krama", payloadR);
+        if (berkasPengangkatanParent) {
+          formRelasiParent.append("berkas_pengangkatan", berkasPengangkatanParent);
+        }
+
+        await axiosInstance.post("/relasi-krama", formRelasiParent, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
       }
 
       // ====================================================================
@@ -1447,32 +1611,33 @@ const DataKramaBaru = ({ user }) => {
             finalAnakId = resAnak.data.data.id;
           }
 
-          let payloadA = { 
-            anak_id: finalAnakId ? parseInt(finalAnakId) : null, 
-            status_hubungan: "Anak Angkat", 
-            tanggal_pengangkatan: adoptingData.tanggal_pengangkatan_anak || null,
-            status_verifikasi: user?.role === "Super Admin" || user?.role === "Admin Desa" ? "Disetujui" : "Draft",
-            user_id: user?.id
-          };
+          const formRelasiAnak = new FormData();
+          formRelasiAnak.append("anak_id", String(finalAnakId));
+          formRelasiAnak.append("status_hubungan", "Anak Angkat");
+
+          if (adoptingData.tanggal_pengangkatan_anak) {
+            formRelasiAnak.append("tanggal_pengangkatan", adoptingData.tanggal_pengangkatan_anak);
+          }
 
           const perkawinanKramaUtamaId = createdMarriageId || kramaData?.selected_perkawinan_id;
 
           if (perkawinanKramaUtamaId) {
-            payloadA.perkawinan_id = parseInt(perkawinanKramaUtamaId);
-            payloadA.ayah_id = null;
-            payloadA.ibu_id = null;
-          } else { 
-            payloadA.perkawinan_id = null;
+            formRelasiAnak.append("perkawinan_id", String(perkawinanKramaUtamaId));
+          } else {
             if (kramaData.jenis_kelamin === "Laki-laki") {
-              payloadA.ayah_id = mainId;
-              payloadA.ibu_id = null;
+              formRelasiAnak.append("ayah_id", String(mainId));
             } else {
-              payloadA.ibu_id = mainId;
-              payloadA.ayah_id = null;
+              formRelasiAnak.append("ibu_id", String(mainId));
             }
           }
           
-          await axiosInstance.post("/relasi-krama", payloadA);
+          if (berkasPengangkatanAnak) {
+            formRelasiAnak.append("berkas_pengangkatan", berkasPengangkatanAnak);
+          }
+
+          await axiosInstance.post("/relasi-krama", formRelasiAnak, {
+            headers: { "Content-Type": "multipart/form-data" }
+          });
         }
       }
 
@@ -1644,18 +1809,18 @@ const DataKramaBaru = ({ user }) => {
       <div className="p-8 flex-1 flex flex-col items-center">
         <div className="w-full max-w-4xl">
           <form onSubmit={saveKrama} className="w-full space-y-8">
-            {/* BANNER NOTIFIKASI KRONOLOGIS SISTEM */}
+            {/* BANNER WARNING */}
             <div className={`${styles.noteForm} animate-fade-in`}>
               <div className="flex gap-3">
                 <div className="text-blue-600 mt-0.5">
-                  <FaInfoCircle size={18} className="mb-1.5 animate-pulse" />
+                  <FaInfoCircle size={18} className="mb-1.5" />
                 </div>
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wide">
-                    Pemberitahuan Penting Penginputan Data Silsilah
+                    Pemberitahuan Penting Penginputan Silsilah Adat Bali
                   </h4>
                   <p className="text-xs text-blue-700 leading-relaxed">
-                    Untuk menjaga akurasi struktur pohon silsilah dan menghindari kegagalan relasi basis data krama, disarankan untuk menginputkan data krama secara <strong>berurutan sesuai kronologis nyata (dari generasi tertua/leluhur terlebih dahulu, baru kemudian generasi keturunan)</strong>.
+                    Untuk menjaga akurasi struktur pohon silsilah keluarga dan menghindari kegagalan relasi basis data krama, disarankan untuk menginputkan data krama secara <strong>berurutan sesuai kronologis nyata (dari generasi tertua/leluhur terlebih dahulu, baru kemudian generasi keturunan)</strong>.
                   </p>
                   <ul className="text-[11px] text-blue-600 list-disc list-inside space-y-0.5 pt-1 italic">
                     <li>Perhatikan setiap kolom input agar tidak salah memasukkan data krama dan pendukungnya.</li>
@@ -3829,19 +3994,73 @@ const DataKramaBaru = ({ user }) => {
                         </>
                       )}
                     </div>
-                    {/* Tanggal Pengangkatan (Khusus Anak Angkat) */}
+                    {/* Tanggal & Dokumen Pengangkatan (Khusus Anak Angkat) */}
                     {parentData.status_hubungan === "Anak Angkat" && (
-                      <div className="flex flex-col space-y-1.5">
-                        <label className={styles.labelInputSelect}>
-                          Tanggal Pengangkatan
-                        </label>
-                        <input
-                          type="date"
-                          name="tanggal_pengangkatan"
-                          value={parentData.tanggal_pengangkatan}
-                          onChange={handleParentChange}
-                          className={styles.inputCalendar}
-                        />
+                      <div className="space-y-6 animate-fade-in">
+                        <div className="flex flex-col space-y-1.5">
+                          <label className={styles.labelInputSelect}>
+                            Tanggal Pengangkatan
+                          </label>
+                          <input
+                            type="date"
+                            name="tanggal_pengangkatan"
+                            value={parentData.tanggal_pengangkatan}
+                            onChange={handleParentChange}
+                            className={styles.inputCalendar}
+                          />
+                        </div>
+                        {/* Berkas Pengangkatan */}
+                        {(() => {
+                          const isDokumenParentWajib = kramaData.tipe_data === "Keturunan";
+                          return (
+                            <div className="flex flex-col space-y-1.5">
+                              <label className={styles.labelInputSelect}>
+                                Dokumen Pendukung Pengangkatan Anak{" "}
+                                {isDokumenParentWajib ? (
+                                  <span className="text-red-500">*</span>
+                                ) : (
+                                  <span className="text-gray-400 font-normal">(Opsional)</span>
+                                )}
+                              </label>
+                              <div className={styles.inputTextArea} onDragOver={handleDragOver} onDrop={handleDropParent}>
+                                {previewFileNameParent ? (
+                                  <div className="flex flex-col items-center animate-fade-in p-2">
+                                    <FaCheckCircle className={styles.iconChecklist} />
+                                    <p className={styles.namaFile}>
+                                      {previewFileNameParent}
+                                    </p>
+                                    <button type="button" onClick={handleHapusFileParent} className={styles.btnHapusFile}>
+                                      Hapus File
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center p-3 text-center">
+                                    <FaUpload className={styles.iconUpload} />
+                                    <div className={styles.areaUpload}>
+                                      <label htmlFor="file-upload-parent" className={styles.upload}>
+                                        <span>Upload file</span>
+                                        <input 
+                                          id="file-upload-parent"
+                                          ref={berkasParentRef}
+                                          name="file-upload-parent" 
+                                          type="file" 
+                                          className="hidden" 
+                                          accept=".pdf,.jpg,.jpeg,.png"
+                                          onChange={(e) => handleFileParentChange(e.target.files[0])}
+                                          disabled={isLoading}
+                                        />
+                                      </label>
+                                      <p className="pl-1">atau drag and drop</p>
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-1">
+                                      PNG, JPG, JPEG, PDF, Max 2MB
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
@@ -4297,6 +4516,68 @@ const DataKramaBaru = ({ user }) => {
                         className={styles.inputCalendar}
                       />
                     </div>
+                    {/* Berkas Pengangkatan Anak */}
+                    {(() => {
+                      let isDokumenWajib = true;
+
+                      if (adoptingData.isAnakManual) {
+                        isDokumenWajib = adoptingData.manualAnak.tipe_data === "Keturunan";
+                      } else if (adoptingData.anak_angkat_id) {
+                        const anakTerpilih = kramaList.find(k => String(k.id) === String(adoptingData.anak_angkat_id));
+                        if (anakTerpilih) {
+                          isDokumenWajib = anakTerpilih.tipe_data === "Keturunan";
+                        }
+                      }
+
+                      return (
+                        <div className="flex flex-col space-y-1.5">
+                          <label className={styles.labelInputSelect}>
+                            Dokumen Pendukung Pengangkatan Anak{" "}
+                            {isDokumenWajib ? (
+                              <span className="text-red-500">*</span>
+                            ) : (
+                              <span className="text-gray-400 font-normal">(Opsional)</span>
+                            )}
+                          </label>
+                          <div className={styles.inputTextArea} onDragOver={handleDragOver} onDrop={handleDropAnak}>
+                            {previewFileNameAnak ? (
+                              <div className="flex flex-col items-center animate-fade-in p-2">
+                                <FaCheckCircle className={styles.iconChecklist} />
+                                <p className={styles.namaFile}>
+                                  {previewFileNameAnak}
+                                </p>
+                                <button type="button" onClick={handleHapusFileAnak} className={styles.btnHapusFile}>
+                                  Hapus File
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center p-3 text-center">
+                                <FaUpload className={styles.iconUpload} />
+                                <div className={styles.areaUpload}>
+                                  <label htmlFor="file-upload-anak" className={styles.upload}>
+                                    <span>Upload file</span>
+                                    <input 
+                                      id="file-upload-anak"
+                                      ref={berkasAnakRef} 
+                                      name="file-upload-anak" 
+                                      type="file" 
+                                      className="hidden" 
+                                      accept=".pdf,.jpg,.jpeg,.png"
+                                      onChange={(e) => handleFileAnakChange(e.target.files[0])}
+                                      disabled={isLoading}
+                                    />
+                                  </label>
+                                  <p className="pl-1">atau drag and drop</p>
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-1">
+                                  PNG, JPG, JPEG, PDF, Max 2MB
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

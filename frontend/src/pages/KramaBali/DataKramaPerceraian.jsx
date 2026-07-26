@@ -140,6 +140,7 @@ const DataKramaPerceraian = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
+  // Helper: eksekusi endpoint backend data
   useEffect(() => {
     const fetchAllData = async () => {
       if (!realId) return;
@@ -207,6 +208,7 @@ const DataKramaPerceraian = ({ user }) => {
             }
 
             setKramaData({
+              nomor_pendaftaran: kramaUtama.nomor_pendaftaran || "",
               nama_lengkap: kramaUtama.nama_lengkap || "",
               nama_panggilan: kramaUtama.nama_panggilan || "",
               jenis_kelamin: kramaUtama.jenis_kelamin || "",
@@ -876,17 +878,17 @@ const DataKramaPerceraian = ({ user }) => {
       <div className="p-8 flex-1 flex flex-col items-center">
         <div className="w-full max-w-4xl">
           {/* BANNER WARNING */}
-          <div className={styles.noteFormCerai}>
+          <div className={`${styles.noteFormCerai} animate-fade-in`}>
             <div className="flex items-start gap-3">
               <div className="text-rose-600 mt-0.5 text-xl">
                 <FaExclamationTriangle />
               </div>
               <div className="flex-1">
                 <h4 className="text-sm font-bold text-rose-900 uppercase tracking-wider">
-                  Pemberitahuan Penting Pengajuan Perceraian Perkawinan Adat
+                  Pemberitahuan Penting Pengajuan Data Perceraian
                 </h4>
                 <p className="text-xs text-rose-800 mt-1 leading-relaxed">
-                  Sesuai ketetapan hukum silsilah Adat Bali, relasi anak pada perkawinan ini setelah <strong>Cerai Hidup/Cerai Mati</strong> akan ikut ke relasi silsilah keluarga pihak Purusa.
+                  Sesuai ketetapan hukum silsilah Adat Bali, relasi anak pada perkawinan setelah <strong>Cerai Hidup/Cerai Mati</strong> akan ikut ke relasi silsilah keluarga pihak Purusa.
                 </p>
                 <ul className="text-[11px] text-rose-600 list-disc list-inside space-y-0.5 pt-1 italic">
                   <li>Perhatikan setiap kolom input agar tidak salah memasukkan data perceraian perkawinan adat.</li>
@@ -902,6 +904,18 @@ const DataKramaPerceraian = ({ user }) => {
                 I. Data Diri Krama Utama
               </h3>
               <div className="space-y-5">
+                <div className="flex flex-col space-y-1">
+                  <label className={styles.labelInput}>
+                    Nomor Pendaftaran
+                  </label>
+                  <input 
+                    type="text"
+                    name="nomor_pendaftaran" 
+                    value={kramaData.nomor_pendaftaran || "-"} 
+                    className={styles.disableFieldReg} 
+                    disabled={true}
+                  />
+                </div>
                 {/* Tipe Data */}
                 <div className="flex flex-col space-y-1">
                   <label className={styles.labelInput}>
@@ -1062,7 +1076,6 @@ const DataKramaPerceraian = ({ user }) => {
                 {kramaData.is_bali ? (
                   <div className="space-y-4 animate-fade-in">
                     <div className={styles.isBaliDual}>
-                      {/* Search Select Desa Adat */}
                       <div className="flex flex-col space-y-1.5 relative">
                         <label className={styles.labelInput}>
                           Desa Adat Asal {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
@@ -1654,7 +1667,7 @@ const DataKramaPerceraian = ({ user }) => {
                           {(m.status_perkawinan === "Cerai Hidup" || m.status_perkawinan === "Cerai Mati") && (
                             <div className={styles.inputContent}>
                               <h5 className="text-xs font-bold text-rose-800 uppercase tracking-wider items-center flex flex-1">
-                                Rincian Pencatatan Mutasi Perceraian Adat
+                                Rincian Pencatatan Perceraian Adat
                               </h5>
                               <div className="flex flex-col space-y-1.5">
                                 <label className={styles.labelInputSelect}>

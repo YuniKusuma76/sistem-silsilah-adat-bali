@@ -3,11 +3,11 @@ import {
   Perkawinan,
   RiwayatKeluarga,
   RiwayatPeranAdat,
+  KramaBali,
   Keluarga,
   RelasiKrama
 } from "../models/associations.js";
 
-// Helper: Membuat rentang waktu dalam satu hari
 const dapatkanRentangHari = (stringTanggal) => {
   if (!stringTanggal) return null;
   const tglMurni = stringTanggal.split(" ")[0].split("T")[0];
@@ -23,12 +23,14 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
     istri_id,
     jenis_perkawinan,
     tanggal_perkawinan,
-    tanggal_cerai
+    tanggal_cerai,
+    status_perkawinan,
+    pihak_meninggal
   } = perkawinan;
 
   const isNyentana = jenis_perkawinan === "Nyentana";
   const purusaId = isNyentana ? istri_id : suami_id;
-  const pradanaId = isNyentana ? suami_id : istri_id;
+  const predanaId = isNyentana ? suami_id : istri_id;
 
   // =====================================================================
   // SKENARIO 1: ROLLBACK DAMPAK PERCERAIAN 
@@ -40,31 +42,75 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
 
     const rentangHariCerai = dapatkanRentangHari(tanggal_cerai);
 
-    await RiwayatKeluarga.update(
-      { akhir_masuk: null },
-      {
-        where: {
-          perkawinan_id: perkawinan_id,
-          akhir_masuk: rentangHariCerai
-        },
-        transaction: t
-      }
-    );
+    await RiwayatKeluarga.update({ 
+      akhir_masuk: null 
+    },{
+      where: {
+        perkawinan_id: perkawinan_id,
+        akhir_masuk: rentangHariCerai
+      },
+      transaction: t
+    });
 
-    await RiwayatPeranAdat.update(
-      { selesai_tanggal: null },
-      {
-        where: {
-          perkawinan_id: perkawinan_id,
-          kategori_event: "KAWIN",
-          selesai_tanggal: rentangHariCerai
-        },
-        transaction: t
+    await RiwayatKeluarga.destroy({
+      where: {
+        perkawinan_id: perkawinan_id,
+        kategori_event: "CERAI"
+      },
+      transaction: t
+    });
+
+    await RiwayatPeranAdat.update({ 
+      selesai_tanggal: null 
+    },{
+      where: {
+        perkawinan_id: perkawinan_id,
+        selesai_tanggal: rentangHariCerai
+      },
+      transaction: t
+    });
+
+    await RiwayatPeranAdat.destroy({
+      where: {
+        perkawinan_id: perkawinan_id,
+        kategori_event: "CERAI"
+      },
+      transaction: t
+    });
+
+    if (status_perkawinan === "Cerai Mati" && pihak_meninggal) {
+      let targetKramaId = null;
+
+      if (pihak_meninggal === "Suami") {
+        targetKramaId = suami_id;
+      } else if (pihak_meninggal === "Istri") {
+        targetKramaId = istri_id;
+      } else if (pihak_meninggal === "Purusa") {
+        targetKramaId = purusaId;
+      } else if (pihak_meninggal === "Predana") {
+        targetKramaId = predanaId;
       }
-    );
+
+      if (targetKramaId) {
+        await KramaBali.update({ 
+          status_hidup: "Hidup" 
+        },{ 
+          where: { id: targetKramaId }, 
+          transaction: t 
+        });
+      }
+    }
+
+    await perkawinan.update({
+      status_perkawinan: "Kawin",
+      tanggal_cerai: null,
+      pihak_meninggal: null,
+      ketetapan_silsilah_suami: null,
+      ketetapan_silsilah_istri: null
+    },{ transaction: t });
 
     return { 
-      message: "Rollback dampak perceraian berhasil dieksekusi." 
+      message: "Dampak perceraian berhasil dibatalkan. Status perkawinan kembali menjadi Kawin." 
     };
   }
 
@@ -78,19 +124,26 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
 
     const rentangHariKawin = dapatkanRentangHari(tanggal_perkawinan);
 
-    // mengamankan relasi anak agar tidak hilang
-    await RelasiKrama.update(
-      { catatan_admin_desa: `Relasi anak diamankan sementara karena ada proses perubahan data perkawinan orang tua.` },
-      {
-        where: { 
-          ayah_id: suami_id,
-          ibu_id: istri_id
-        },
-        transaction: t
-      }
-    );
+    await RelasiKrama.update({ 
+      catatan_admin_desa: `Relasi anak diamankan sementara karena ada proses pembatalan/penghapusan data perkawinan orang tua.` 
+    },{
+      where: { 
+        ayah_id: suami_id,
+        ibu_id: istri_id
+      },
+      transaction: t
+    });
 
-    // menghapus riwayat keluarga yang terbentuk karena perkawinan ini
+    await RiwayatKeluarga.update({ 
+      akhir_masuk: null 
+    },{
+      where: {
+        krama_id: [suami_id, istri_id],
+        akhir_masuk: rentangHariKawin
+      },
+      transaction: t
+    });
+
     await RiwayatKeluarga.destroy({
       where: {
         perkawinan_id: perkawinan_id,
@@ -99,17 +152,15 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
       transaction: t
     });
 
-    // membuka kembali linimasa keluarga lama
-    await RiwayatKeluarga.update(
-      { akhir_masuk: null },
-      {
-        where: {
-          krama_id: [suami_id, istri_id],
-          akhir_masuk: rentangHariKawin
-        },
-        transaction: t
-      }
-    );
+    await RiwayatPeranAdat.update({ 
+      selesai_tanggal: null 
+    },{
+      where: {
+        krama_id: [suami_id, istri_id],
+        selesai_tanggal: rentangHariKawin
+      },
+      transaction: t
+    });
 
     await RiwayatPeranAdat.destroy({
       where: {
@@ -120,23 +171,8 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
       transaction: t
     });
 
-    // membuka kembali riwayat peran adat sebelumnya
-    await RiwayatPeranAdat.update(
-      { selesai_tanggal: null },
-      {
-        where: {
-          krama_id: [suami_id, istri_id],
-          selesai_tanggal: rentangHariKawin
-        },
-        transaction: t
-      }
-    );
-
-    // menghapus keluarga yang terbentuk karena perkawinan ini
     const keluargaTerbentuk = await Keluarga.findOne({
-      where: {
-        kepala_keluarga_id: purusaId
-      },
+      where: { kepala_keluarga_id: purusaId },
       transaction: t
     });
 

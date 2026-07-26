@@ -1,5 +1,6 @@
 import { Op } from "sequelize";
 import db from "../config/db.config.js";
+import path from "path";
 import {
   KramaBali, 
   RelasiKrama, 
@@ -7,12 +8,14 @@ import {
   Keluarga,
   RiwayatPeranAdat
 } from "../models/associations.js";
+import { supabase } from "../config/supabase.config.js";
 import { mappingAturanAdatBali } from "./decision-tree.service.js";
 import { simpanRiwayatPeranAdat } from "./riwayat-peran-adat.service.js";
 import { bentukKeluargaAngkat } from "./keluarga-angkat.service.js";
 import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 import { hitungJumlahPengangkatan } from "../helpers/pengangkatan.helper.js";
 import { hitungTanggalKeluarAnak } from "../helpers/tanggal-keluar.helper.js";
+import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
 
 const BOBOT_EVENT = {
   "LAHIR": 1, 
@@ -21,15 +24,39 @@ const BOBOT_EVENT = {
   "CERAI": 4
 };
 
+// Helper: upload berkas ke Storage Supabase
+const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
+  if (!file) return null;
+
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+  const fileName = `pengangkatan_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const filePath = `relasi-krama-angkat/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false
+    });
+
+  if (error) {
+    throw new Error(`Gagal mengunggah berkas ke Cloud Storage: ${error.message}`);
+  }
+
+  return data.path;
+};
+
 export const buatAnakAngkat = async ({
   anak_id,
   ayah_id,
   ibu_id,
   tanggal_pengangkatan,
+  berkas_pengangkatan = null,
   user_id,             
   status_verifikasi,   
   catatan_admin_desa,
-  is_verifikasi = false
+  is_verifikasi = false,
+  file = null
 }, passedTransaction = null) => {
   // Menggunakan transaksi yang dilewatkan atau buat baru
   const t = passedTransaction || await db.transaction();
@@ -49,22 +76,26 @@ export const buatAnakAngkat = async ({
       throw new Error("Data anak angkat tidak ditemukan.");
     }
 
-    let tglAngkatDateOnly;
+    // LOGIKA MENENTUKAN TANGGAL RIWAYAT
+    const isTanggalAngkatKosong = !tanggal_pengangkatan || String(tanggal_pengangkatan).trim() === "";
+    let dbTanggalPengangkatan = null;
+
+    let tglRiwayatDateOnly = "";
     let infoTambahanDasar = "";
 
-    const isTanggalAngkatKosong = !tanggal_pengangkatan || String(tanggal_pengangkatan).trim() === "";
 
-    // LOGIKA PENENTUAN TANGGAL
     if (isTanggalAngkatKosong) {
-      tglAngkatDateOnly = new Date().toISOString().split('T')[0];
+      tglRiwayatDateOnly = new Date().toISOString().split('T')[0];
       infoTambahanDasar = " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal pengangkatan kosong).";
+      dbTanggalPengangkatan = null;
     } else {
-      tglAngkatDateOnly = tanggal_pengangkatan.includes('T') 
+      tglRiwayatDateOnly = tanggal_pengangkatan.includes('T') 
         ? tanggal_pengangkatan.split('T')[0] 
         : tanggal_pengangkatan.split(' ')[0];
+      dbTanggalPengangkatan = tglRiwayatDateOnly;
     }
 
-    let tglAngkatTimestamp = `${tglAngkatDateOnly}T00:00:00.000Z`;
+    let tglAngkatTimestamp = `${tglRiwayatDateOnly}T00:00:00.000Z`;
 
     const ortuAngkat = await KramaBali.findByPk(kepala_keluarga_id, {
       attributes: ["desa_adat_id"],
@@ -92,8 +123,17 @@ export const buatAnakAngkat = async ({
       if (new Date(tglAngkatTimestamp) <= new Date(riwayatAktif.awal_masuk)) {
         const d = new Date(`${tglAwalAktifStr}T00:00:00.000Z`);
         d.setDate(d.getDate() + 1);
-        tglAngkatDateOnly = d.toISOString().split('T')[0];
-        tglAngkatTimestamp = `${tglAngkatDateOnly}T00:00:00.000Z`;
+        tglRiwayatDateOnly = d.toISOString().split('T')[0];
+        tglAngkatTimestamp = `${tglRiwayatDateOnly}T00:00:00.000Z`;
+      }
+    }
+
+    let berkasPath = berkas_pengangkatan;
+
+    if (file) {
+      const pathUploaded = await uploadBerkasPengangkatan(file);
+      if (pathUploaded) {
+        berkasPath = pathUploaded;
       }
     }
 
@@ -105,7 +145,8 @@ export const buatAnakAngkat = async ({
         ayah_id: ayah_id || null, 
         ibu_id: ibu_id || null, 
         status_hubungan: "Anak Angkat", 
-        tanggal_pengangkatan: tglAngkatDateOnly,
+        tanggal_pengangkatan: dbTanggalPengangkatan,
+        berkas_pengangkatan: berkasPath,
         user_id,             
         status_verifikasi,   
         catatan_admin_desa,
@@ -122,17 +163,28 @@ export const buatAnakAngkat = async ({
       });
 
       if (relasi) {
-        const tglFix = tanggal_pengangkatan || relasi.tanggal_pengangkatan;
-        const tglFixClean = tglFix.includes('T') ? tglFix.split('T')[0] : tglFix.split(' ')[0];
+        const tglInputFix = tanggal_pengangkatan || relasi.tanggal_pengangkatan;
+        let tglFixClean = null;
 
-        await relasi.update({
+        if (tglInputFix) {
+          tglFixClean = tglInputFix.includes('T') ? tglInputFix.split('T')[0] : tglInputFix.split(' ')[0];
+          tglRiwayatDateOnly = tglFixClean;
+        } else {
+          tglRiwayatDateOnly = new Date().toISOString().split('T')[0];
+        }
+
+        const updatePayload = {
           status_verifikasi: "Disetujui",
           catatan_admin_desa,
           tanggal_pengangkatan: tglFixClean
-        }, { transaction: t });
+        };
 
-        tglAngkatDateOnly = tglFixClean;
-        tglAngkatTimestamp = `${tglFixClean}T00:00:00.000Z`;
+        if (berkasPath) {
+          updatePayload.berkas_pengangkatan = berkasPath;
+        }
+
+        await relasi.update(updatePayload, { transaction: t });
+        tglAngkatTimestamp = `${tglRiwayatDateOnly}T00:00:00.000Z`;
       }
     }
 
@@ -145,7 +197,7 @@ export const buatAnakAngkat = async ({
 
     // EKSEKUSI RELASI KRAMA
     const objekWaktuEfektif = new Date(tglAngkatTimestamp);
-    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tglAngkatDateOnly, t);
+    let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tglRiwayatDateOnly, t);
 
     let akhirMasukAnakAngkat = tanggal_keluar 
       ? new Date(`${tanggal_keluar}T00:00:00.000Z`)
@@ -291,6 +343,7 @@ export const buatAnakAngkat = async ({
       });
     }
 
+    await rekonsiliasiKronologiKeluarga(anak_id, t);
     if (!passedTransaction) {
       await t.commit();
     }

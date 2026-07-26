@@ -845,7 +845,9 @@ export const verifikasiKrama = async (req, res) => {
 
     // BONGKAR BUFFER JSONB: jika ada data di buffer, pindahkan ke kolom utama
     if (isPendingUpdateData && krama.data_perubahan) {
-      const dataBaru = krama.data_perubahan;
+      const dataBaru = { ...krama.data_perubahan };
+      delete dataBaru.catatan_update;
+
       finalUpdate = { 
         ...finalUpdate, 
         ...dataBaru 
@@ -882,7 +884,7 @@ export const verifikasiKrama = async (req, res) => {
     }
 
     await krama.update(finalUpdate, { transaction: t });
-    const kramaRefreshed = krama
+    const kramaRefreshed = krama;
 
     // ===========================================================
     // LOGIKA EVALUASI DECISION TREE UNTUK DATA BARU
@@ -1020,6 +1022,9 @@ export const updateKramaById = async (req, res) => {
 
     const payload = { ...req.body };
     
+    const catatanUpdate = payload.catatan_update || null;
+    delete payload.catatan_update;
+    
     delete payload.nomor_pendaftaran;
     delete payload.foto_profile;
 
@@ -1130,10 +1135,15 @@ export const updateKramaById = async (req, res) => {
         payload.foto_profile = fileFotoBaruPath;
       }
 
+      const draftDataPerubahan = {
+        ...payload,
+        catatan_update: catatanUpdate
+      };
+
       await krama.update({
         status_sebelum_draft: krama.status_verifikasi,
         is_pending_update: true,
-        data_perubahan: payload,
+        data_perubahan: draftDataPerubahan,
         catatan_admin_desa: `Adanya usulan perubahan data krama bali oleh ${userRole}. Menunggu verifikasi dari Admin Desa Bersangkutan.`
       }, { transaction: t });
 

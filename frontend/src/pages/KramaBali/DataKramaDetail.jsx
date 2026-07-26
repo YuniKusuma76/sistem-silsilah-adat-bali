@@ -33,7 +33,10 @@ import {
   FaEye,
   FaEyeSlash,
   FaIdCardAlt,
-  FaCamera
+  FaCamera,
+  FaFilePdf,
+  FaFileImage,
+  FaDownload 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -181,7 +184,6 @@ const DataKramaDetail = ({ user }) => {
     message: ''
   });
 
-  // Helper: melihat detail riwayat keluarga
   const toggleRowDetail = (index) => {
     setOpenDetails((prev) => ({
       ...prev,
@@ -203,6 +205,7 @@ const DataKramaDetail = ({ user }) => {
     }
   }, [slugParam]);
 
+  // Helper: eksekusi endpoint backend data
   const fetchAllData = async () => {
     if (!realId) { 
       setIsLoading(false); 
@@ -515,27 +518,51 @@ const DataKramaDetail = ({ user }) => {
     resolusiNamaKrama();
   }, [modalKawinData, kramaCacheMap]);
 
-  const handleCancelUpdateKrama = async () => {
-    setIsProcessingAction(true);
-    try {
-      await axiosInstance.patch(`/krama-bali/cancel-update/${realId}`);
-      setAlert({ 
-        show: true, 
-        type: 'success', 
-        message: 'Draft usulan perubahan data krama bali berhasil dibatalkan!' 
-      });
-      setIsOpenModalKrama(false);
-      fetchAllData();
-    } catch (error) {
-      setAlert({ 
-        show: true, 
-        type: 'error', 
-        message: error.response?.data?.message || 'Gagal membatalkan draft usulan perubahan data krama bali.' 
-      });
-    } finally {
-      setIsProcessingAction(false);
-    }
-  };
+  useEffect(() => {
+    const resolusiNamaRelasi = async () => {
+      let data_perubahan_relasi = modalRelasiData?.data_perubahan;
+
+      if (data_perubahan_relasi && data_perubahan_relasi.data_perubahan) {
+        data_perubahan_relasi = data_perubahan_relasi.data_perubahan;
+      }
+
+      if (!data_perubahan_relasi) return;
+
+      const idAyahBaru = data_perubahan_relasi.ayah_id;
+      const idIbuBaru = data_perubahan_relasi.ibu_id;
+
+      const idsToFetch = [];
+      if (idAyahBaru && !isNaN(Number(idAyahBaru)) && !kramaCacheMap[idAyahBaru]) {
+        idsToFetch.push(idAyahBaru);
+      }
+      if (idIbuBaru && !isNaN(Number(idIbuBaru)) && !kramaCacheMap[idIbuBaru]) {
+        idsToFetch.push(idIbuBaru);
+      }
+
+      if (idsToFetch.length > 0) {
+        try {
+          const newCache = { ...kramaCacheMap };
+          await Promise.all(
+            idsToFetch.map(async (id) => {
+              try {
+                const res = await axiosInstance.get(`/krama-bali/${id}`);
+                if (res.data?.data?.nama_lengkap) {
+                  newCache[id] = res.data.data.nama_lengkap;
+                }
+              } catch (err) {
+                console.error(`Gagal mengambil resolusi nama krama ID ${id}:`, err);
+              }
+            })
+          );
+          setKramaCacheMap(newCache);
+        } catch (error) {
+          console.error("Gagal memproses batch resolusi nama krama relasi:", error);
+        }
+      }
+    };
+
+    resolusiNamaRelasi();
+  }, [modalRelasiData, kramaCacheMap]);
 
   // Helper: mengambil detail data relasi krama
   const fetchDetailRelasi = async (relasiId) => {
@@ -569,6 +596,63 @@ const DataKramaDetail = ({ user }) => {
     } finally {
       setIsProcessingAction(false);
     }
+  };
+
+  const handleCancelUpdateKrama = async () => {
+    setIsProcessingAction(true);
+    try {
+      await axiosInstance.patch(`/krama-bali/cancel-update/${realId}`);
+      setAlert({ 
+        show: true, 
+        type: 'success', 
+        message: 'Draft usulan perubahan data krama bali berhasil dibatalkan!' 
+      });
+      setIsOpenModalKrama(false);
+      fetchAllData();
+    } catch (error) {
+      setAlert({ 
+        show: true, 
+        type: 'error', 
+        message: error.response?.data?.message || 'Gagal membatalkan draft usulan perubahan data krama bali.' 
+      });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  // Helper: melihat atau mengunduh dokumen pengangkatan
+  const handleBerkasPengangkatan = async (relasiId) => {
+    if (!relasiId) return;
+    try {
+      setIsProcessingAction(true);
+      const response = await axiosInstance.get(`/relasi-krama/document/${relasiId}`);
+      const signedUrl = response.data?.url;
+
+      if (signedUrl) {
+        window.open(signedUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        setAlert({
+          show: true,
+          type: 'error',
+          message: 'Tautan dokumen tidak ditemukan.'
+        });
+      }
+    } catch (error) {
+      console.error("Gagal mengambil dokumen pengangkatan:", error);
+      setAlert({
+        show: true,
+        type: 'error',
+        message: error.response?.data?.message || 'Gagal mengambil tautan dokumen pengangkatan.'
+      });
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  const isImageFile = (filePath) => {
+    if (!filePath || typeof filePath !== 'string') return false;
+    const cleanPath = filePath.split('?')[0].toLowerCase();
+    return cleanPath.endsWith('.jpg') || cleanPath.endsWith('.jpeg') || cleanPath.endsWith('.png') || cleanPath.endsWith('.webp');
   };
 
   const handleCancelUpdateRelasi = async (relasiId) => {
@@ -1097,62 +1181,120 @@ const DataKramaDetail = ({ user }) => {
     let nilaiBaru = data_perubahan_relasi[namaField];
     let nilaiLamaDiformat = nilaiLama;
 
-    if (type === 'date') {
-      nilaiLamaDiformat = nilaiLama ? formatDate(nilaiLama) : 'Tidak Diketahui';
-      nilaiBaru = nilaiBaru ? formatDate(nilaiBaru) : 'Tidak Diketahui';
-    }
+    const cleanVal = (value) => {
+      if (value === null || value === undefined || value === 'null' || value === 'undefined' || String(value).trim() === '') {
+        return null;
+      }
+      return String(value).trim();
+    };
 
     if (type === 'krama') {
-      if (nilaiLama && !isNaN(Number(nilaiLama))) {
+      const rawIdLama = cleanVal(relasiObj?.[namaField] || nilaiLama);
+      const rawIdBaru = cleanVal(data_perubahan_relasi[namaField]);
+
+      if (rawIdLama === null && rawIdBaru === null) return null;
+      if (rawIdLama === rawIdBaru) return null;
+
+      if (rawIdLama && !isNaN(Number(rawIdLama))) {
         const relasiKey = namaField === 'ayah_id' ? 'ayah' : 'ibu';
-        nilaiLamaDiformat = activeRelasi?.[relasiKey]?.nama_lengkap || (typeof kramaCacheMap !== 'undefined' ? kramaCacheMap[nilaiLama] : null) || `Krama [No.${nilaiLama}]`;
+        nilaiLamaDiformat = activeRelasi?.[relasiKey]?.nama_lengkap || (typeof kramaCacheMap !== 'undefined' ? kramaCacheMap[rawIdLama] : null) || `Krama [No.${rawIdLama}]`;
       } else {
-        nilaiLamaDiformat = nilaiLama && String(nilaiLama).trim() !== "null" ? nilaiLama : 'Tidak Tercatat';
+        nilaiLamaDiformat = 'Tidak Tercatat';
       }
-      
-      const safeParseInt = (val) => {
-        if (val === null || val === undefined || val === '') return null;
-        const parsed = parseInt(val, 10);
-        return isNaN(parsed) ? null : parsed;
-      };
 
-      const idBaru = safeParseInt(data_perubahan_relasi[namaField]);
+      if (rawIdBaru === null) {
+        nilaiBaru = 'Tidak Tercatat';
+      } else {
+        const isAyah = namaField === 'ayah_id';
+        const namaUsulanEksplisit = isAyah 
+          ? (data_perubahan_relasi?.nama_ayah_baru || data_perubahan_relasi?.ayah?.nama_lengkap || data_perubahan_relasi?.nama_ayah)
+          : (data_perubahan_relasi?.nama_ibu_baru || data_perubahan_relasi?.ibu?.nama_lengkap || data_perubahan_relasi?.nama_ibu);
+        const namaDariCache = typeof kramaCacheMap !== 'undefined' ? kramaCacheMap[rawIdBaru] : null;
+        const namaDariList = typeof kramaList !== 'undefined' ? krama.find(k => String(k.id) === String(rawIdBaru))?.nama_lengkap : null;
 
-      if (namaField === 'ayah_id') {
-        const namaAyahUsulan = data_perubahan_relasi?.nama_ayah_baru || data_perubahan_relasi?.ayah?.nama_lengkap || data_perubahan_relasi?.nama_ayah;
-        
-        if (idBaru === null) {
-          nilaiBaru = 'Tidak Tercatat';
-        } else {
-          nilaiBaru = namaAyahUsulan && String(namaAyahUsulan).trim() !== "null"
-            ? namaAyahUsulan
-            : (typeof kramaCacheMap !== 'undefined' && kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
-        }
-      } 
-      else if (namaField === 'ibu_id') {
-        const namaIbuUsulan = data_perubahan_relasi?.nama_ibu_baru || data_perubahan_relasi?.ibu?.nama_lengkap || data_perubahan_relasi?.nama_ibu;
-        
-        if (idBaru === null) {
-          nilaiBaru = 'Tidak Tercatat';
-        } else {
-          nilaiBaru = namaIbuUsulan && String(namaIbuUsulan).trim() !== "null"
-            ? namaIbuUsulan
-            : (typeof kramaCacheMap !== 'undefined' && kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
-        }
+        nilaiBaru = namaDariCache || namaUsulanEksplisit || namaDariList || `Krama Baru [No.${rawIdBaru}]`;
       }
     }
 
-    if (type === 'desa_adat') {
+    else if (type === 'file') {
+      const isLamaAda = Boolean(cleanVal(nilaiLama));
+      const isBaruAda = Boolean(cleanVal(nilaiBaru));
+      if (!isLamaAda && !isBaruAda) return null;
+
+      const namaFileLama = isLamaAda ? (String(nilaiLama).split('/').pop().split('?')[0]) : 'Tidak Ada File';
+      const namaFileBaru = isBaruAda ? (String(nilaiBaru).split('/').pop().split('?')[0]) : 'Tidak Ada File';
+      if (namaFileLama === namaFileBaru) return null;
+
+      const isGambarLama = isLamaAda && typeof isImageFile === 'function' ? isImageFile(nilaiLama) : false;
+      const isGambarBaru = isBaruAda && typeof isImageFile === 'function' ? isImageFile(nilaiBaru) : false;
+
+      return (
+        <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
+          <td className={styles.labelChange}>{label}</td>
+          <td className="p-3 border-r border-gray-100">
+            <div className="flex flex-col gap-1.5">
+              <div className={styles.oldDoc}>
+                {isLamaAda ? (
+                  isGambarLama ? (
+                    <FaFileImage className="text-emerald-600 text-sm flex-shrink-0" />
+                  ) : (
+                    <FaFilePdf className="text-red-500 text-sm flex-shrink-0" />
+                  )
+                ) : null}
+                <span className="font-medium break-all">{namaFileLama}</span>
+              </div>
+            </div>
+          </td>
+          <td className="p-3 align-middle">
+            <div className="flex items-center gap-2">
+              <FaArrowRight className={styles.arrows} />
+              <div className="flex flex-col gap-1.5">
+                <div className={styles.newDoc}>
+                  {isBaruAda ? (
+                    isGambarBaru ? (
+                      <FaFileImage className="text-emerald-600 text-sm flex-shrink-0" />
+                    ) : (
+                      <FaFilePdf className="text-red-500 text-sm flex-shrink-0" />
+                    )
+                  ) : null}
+                  <span className="break-all">{namaFileBaru}</span>
+                </div>
+                {isBaruAda && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof handleBerkasPengangkatan === 'function') {
+                        handleBerkasPengangkatan(activeRelasi.id);
+                      }
+                    }}
+                    className={styles.pratinjauDoc}>
+                    <FaDownload className="text-[10px]" />
+                    <span>Pratinjau Berkas</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      );
+    }
+
+    else if (type === 'date') {
+      const rawDateLama = cleanVal(nilaiLama) ? String(nilaiLama).split('T')[0] : null;
+      const rawDateBaru = cleanVal(data_perubahan_relasi[namaField]) ? String(data_perubahan_relasi[namaField]).split('T')[0] : null;
+      if (rawDateLama === rawDateBaru) return null;
+
+      nilaiLamaDiformat = rawDateLama ? formatDate(nilaiLama) : 'Tidak Diketahui';
+      nilaiBaru = rawDateBaru ? formatDate(nilaiBaru) : 'Tidak Diketahui';
+    }
+
+    else if (type === 'desa_adat') {
       nilaiLamaDiformat = nilaiLama || 'Desa Asal';
       nilaiBaru = data_perubahan_relasi?.nama_desa_tujuan || (nilaiBaru ? `Desa Adat ${nilaiBaru}` : 'Desa Asal');
     }
 
-    if (type === 'date') {
-      if ((nilaiLama || '') === (data_perubahan_relasi[namaField] || '')) return null;
-    } else {
-      if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim() && nilaiLamaDiformat !== 'Tidak Tercatat') {
-        return null;
-      }
+    if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim()) {
+      return null;
     }
 
     return (
@@ -1657,6 +1799,35 @@ const DataKramaDetail = ({ user }) => {
                         />
                       </div>
                     </div>
+                    {/* Berkas Pengangkatan */}
+                    {(() => {
+                      const berkasPath = angkat?.berkas_pengangkatan
+                      if (!berkasPath) return null;
+                      const isGambar = isImageFile(berkasPath);
+                      return (
+                        <div className={styles.fieldBerkas}>
+                          <div className="flex items-center gap-2">
+                            {isGambar ? (
+                              <FaFileImage className="text-emerald-600 text-xl flex-shrink-0 mb-1" />
+                            ) : (
+                              <FaFilePdf className="text-red-500 text-xl flex-shrink-0 mb-1" />
+                            )}
+                            <div>
+                              <p className="text-xs font-bold text-gray-800">
+                                Dokumen Pengangkatan Anak
+                              </p>
+                              <p className="text-[11px] text-gray-500">
+                                {isGambar ? "File Gambar" : "File PDF"}
+                              </p>
+                            </div>
+                          </div>
+                          <button type="button" disabled={isProcessingAction} onClick={() => handleBerkasPengangkatan(angkat.id)} className={styles.btnLihatBerkas}>
+                            <FaEye className="text-xs" />
+                            <span>Lihat</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
                     {hasAccess && angkat.id && (
                       <div className="flex justify-end mt-3 border-t border-gray-100/50 pt-2">
                         <button 
@@ -1714,7 +1885,6 @@ const DataKramaDetail = ({ user }) => {
                   {perkawinanAktifList && perkawinanAktifList.length > 0 ? (
                     <div className="space-y-4">
                       {perkawinanAktifList.map((pAktif, index) => {
-                        console.log("DEBUG DATA PERKAWINAN CARD:", pAktif);
                         const namaPasanganAktif = String(pAktif.suami_id) === String(krama.id)
                           ? pAktif.istri?.nama_lengkap || "Istri"
                           : pAktif.suami?.nama_lengkap || "Suami";
@@ -2252,14 +2422,15 @@ const DataKramaDetail = ({ user }) => {
                               {renderPerubahanRelasiRow("Ibu Kandung/Angkat", modalRelasiData.ibu?.nama_lengkap || 'Tidak Diketahui', "ibu_id", "krama", modalRelasiData)}
                               {renderPerubahanRelasiRow("Status Hubungan", modalRelasiData.status_hubungan, "status_hubungan", "text", modalRelasiData)}
                               {renderPerubahanRelasiRow("Urutan Lahir (Anak Ke)", modalRelasiData.urutan_lahir, "urutan_lahir", "text", modalRelasiData)}
-                              {renderPerubahanRelasiRow("Tanggal Pengangkatan Anak", modalRelasiData.tanggal_pengangkatan, "tanggal_pengangkatan", "date", modalRelasiData)}
+                              {renderPerubahanRelasiRow("Tanggal Pengangkatan", modalRelasiData.tanggal_pengangkatan, "tanggal_pengangkatan", "date", modalRelasiData)}
+                              {renderPerubahanRelasiRow("Dokumen Pengangkatan", modalRelasiData.berkas_pengangkatan, "berkas_pengangkatan", "file", modalRelasiData)}
                             </tbody>
                           </table>
                         </div>
                         <div className={styles.noteBtnGroup}>
-                          <span>💡</span>
+                          <span >💡</span>
                           <p className="italic font-medium">
-                            Fitur modifikasi dan penghapusan hubungan dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan.
+                            Fitur modifikasi dan penghapusan data dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan di atas. Anda dapat membatalkan usulan ini jika ingin mengunci kembali data aktif.
                           </p>
                         </div>
                       </div>
@@ -2462,9 +2633,9 @@ const DataKramaDetail = ({ user }) => {
                           </table>
                         </div>
                         <div className={styles.noteBtnGroup}>
-                          <span>💡</span>
+                          <span >💡</span>
                           <p className="italic font-medium">
-                            Fitur modifikasi hubungan perkawinan dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan ini.
+                            Fitur modifikasi dan penghapusan data dikunci sementara waktu hingga Admin Desa memeriksa dan mengesahkan draft perubahan di atas. Anda dapat membatalkan usulan ini jika ingin mengunci kembali data aktif.
                           </p>
                         </div>
                       </div>

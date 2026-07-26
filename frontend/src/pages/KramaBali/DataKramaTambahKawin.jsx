@@ -141,6 +141,7 @@ const DataKramaTambahKawin = ({ user }) => {
     }
   }, [alert.show, alert.type]);
   
+  // Helper: eksekusi endpoint backend data
   useEffect(() => {
     const fetchAllData = async () => {
       if (!realId) return;
@@ -179,6 +180,7 @@ const DataKramaTambahKawin = ({ user }) => {
 
         if (resKrama) {
           setKramaData({
+            nomor_pendaftaran: resKrama.nomor_pendaftaran || "",
             nama_lengkap: resKrama.nama_lengkap || "",
             nama_panggilan: resKrama.nama_panggilan || "",
             jenis_kelamin: resKrama.jenis_kelamin || "",
@@ -982,7 +984,7 @@ const DataKramaTambahKawin = ({ user }) => {
                   </p>
                   <ul className="text-[11px] text-blue-600 list-disc list-inside space-y-0.5 pt-1 italic">
                     <li>Perhatikan setiap kolom input agar tidak salah memasukkan data perkawinan adat.</li>
-                    <li>Pembatalan atau perubahan data perkawinan yang belum memiliki relasi anak akan memicu prosedur <em>rollback</em> sistem secara permanen.</li>
+                    <li>Pembatalan atau perubahan data perkawinan yang belum memiliki relasi anak akan memicu prosedur <em>rollback riwayat</em> sistem secara permanen.</li>
                   </ul>
                 </div>
               </div>
@@ -994,6 +996,18 @@ const DataKramaTambahKawin = ({ user }) => {
                   I. Data Diri Krama Utama
                 </h3>
                 <div className="space-y-5">
+                  <div className="flex flex-col space-y-1">
+                    <label className={styles.labelInput}>
+                      Nomor Pendaftaran
+                    </label>
+                    <input 
+                      type="text"
+                      name="nomor_pendaftaran" 
+                      value={kramaData.nomor_pendaftaran || "-"} 
+                      className={styles.disableFieldReg} 
+                      disabled={true}
+                    />
+                  </div>
                   {/* Tipe Data */}
                   <div className="flex flex-col space-y-1">
                     <label className={styles.labelInput}>
@@ -1154,7 +1168,6 @@ const DataKramaTambahKawin = ({ user }) => {
                   {kramaData.is_bali ? (
                     <div className="space-y-4 animate-fade-in">
                       <div className={styles.isBaliDual}>
-                        {/* Search Select Desa Adat */}
                         <div className="flex flex-col space-y-1.5 relative">
                           <label className={styles.labelInput}>
                             Desa Adat Asal {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}

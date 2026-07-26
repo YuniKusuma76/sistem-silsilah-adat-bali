@@ -1,19 +1,44 @@
 import { Op } from "sequelize";
 import db from "../config/db.config.js";
+import path from "path";
 import {
   RelasiKrama,
   Keluarga,
   Perkawinan,
   RiwayatKeluarga
 } from "../models/associations.js";
+import { supabase } from "../config/supabase.config.js";
 import { buatKeluargaLeluhur } from "./keluarga.service.js";
 import { simpanRiwayatKeluarga } from "./riwayat-keluarga.service.js";
+import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
 
 const BOBOT_EVENT = {
   "LAHIR": 1, 
   "PENGANGKATAN": 2, 
   "KAWIN": 3, 
   "CERAI": 4
+};
+
+// Helper: upload berkas ke Storage Supabase
+const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
+  if (!file) return null;
+
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+  const fileName = `pengangkatan_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const filePath = `relasi-krama-angkat/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false
+    });
+
+  if (error) {
+    throw new Error(`Gagal mengunggah berkas ke Cloud Storage: ${error.message}`);
+  }
+
+  return data.path;
 };
 
 export const integrasiRelasiLeluhur = async ({
@@ -23,6 +48,7 @@ export const integrasiRelasiLeluhur = async ({
   status_hubungan = "Anak Kandung",
   urutan_lahir,
   tanggal_pengangkatan,
+  berkas_pengangkatan = null,
   ayah,
   ibu,
   anak,
@@ -30,7 +56,8 @@ export const integrasiRelasiLeluhur = async ({
   user_id,             
   status_verifikasi,   
   catatan_admin_desa,
-  is_verifikasi = false
+  is_verifikasi = false,
+  file = null
 }, passedTransaction = null) => {
   // Menggunakan transaksi yang dilewatkan atau buat baru
   const t = passedTransaction || await db.transaction();
@@ -39,22 +66,25 @@ export const integrasiRelasiLeluhur = async ({
     const tanggalHariIniDateOnly = new Date().toISOString().split('T')[0];
     const fallbackTimestampISO = `${tanggalHariIniDateOnly}T00:00:00.000Z`;
 
-    let tglAngkatDateOnly = null;
+    // STANDARDISASI TANGGAL KRONOLOGIS LELUHUR
+    let dbTanggalPengangkatan = null;
+    let tglRiwayatDateOnly = null;
     let tglAngkatTimestamp = null;
 
-    // STANDARDISASI TANGGAL KRONOLOGIS LELUHUR
     if (status_hubungan === "Anak Angkat") {
-      const targetTanggal = tanggal_pengangkatan || anak?.tanggal_lahir;
-      if (targetTanggal) {
-        const stringDateOnly = targetTanggal.includes('T') 
-          ? targetTanggal.split('T')[0] 
-          : targetTanggal.split(' ')[0];
+      const isTanggalAngkatKosong = !tanggal_pengangkatan || String(tanggal_pengangkatan).trim() === "";
 
-        tglAngkatDateOnly = stringDateOnly;
-        tglAngkatTimestamp = `${stringDateOnly}T00:00:00.000Z`;
-      } else {
-        tglAngkatDateOnly = tanggalHariIniDateOnly;
+      if (isTanggalAngkatKosong) {
+        dbTanggalPengangkatan = null;
+        tglRiwayatDateOnly = tanggalHariIniDateOnly;
         tglAngkatTimestamp = fallbackTimestampISO;
+      } else {
+        const stringDateOnly = tanggal_pengangkatan.includes('T') 
+          ? tanggal_pengangkatan.split('T')[0] 
+          : tanggal_pengangkatan.split(' ')[0];
+        dbTanggalPengangkatan = stringDateOnly;
+        tglRiwayatDateOnly = stringDateOnly;
+        tglAngkatTimestamp = `${stringDateOnly}T00:00:00.000Z`;
       }
     }
 
@@ -64,8 +94,16 @@ export const integrasiRelasiLeluhur = async ({
       const cleanDate = anak.tanggal_lahir.includes('T') 
         ? anak.tanggal_lahir.split('T')[0] 
         : anak.tanggal_lahir.split(' ')[0];
-
       jangkarTanggalAnakTimestamp = `${cleanDate}T00:00:00.000Z`;
+    }
+
+    let berkasPath = berkas_pengangkatan;
+
+    if (file) {
+      const pathUploaded = await uploadBerkasPengangkatan(file);
+      if (pathUploaded) {
+        berkasPath = pathUploaded;
+      }
     }
 
     let relasi;
@@ -77,7 +115,8 @@ export const integrasiRelasiLeluhur = async ({
         ibu_id: ibu_id || null,
         status_hubungan,
         urutan_lahir: urutan_lahir || null,
-        tanggal_pengangkatan: tglAngkatDateOnly,
+        tanggal_pengangkatan: dbTanggalPengangkatan,
+        berkas_pengangkatan: berkasPath,
         user_id,             
         status_verifikasi,   
         catatan_admin_desa
@@ -93,19 +132,30 @@ export const integrasiRelasiLeluhur = async ({
       });
 
       if (relasi) {
-        const tglFix = tanggal_pengangkatan || relasi.tanggal_pengangkatan;
-        const tglFixClean = tglFix ? (tglFix.includes('T') ? tglFix.split('T')[0] : tglFix.split(' ')[0]) : tanggalHariIniDateOnly;
+        const tglInputFix = tanggal_pengangkatan || relasi.tanggal_pengangkatan;
+        let tglFixClean = null;
 
-        await relasi.update({
+        if (tglInputFix) {
+          tglFixClean = tglInputFix.includes('T') ? tglInputFix.split('T')[0] : tglInputFix.split(' ')[0];
+          tglRiwayatDateOnly = tglFixClean;
+        } else {
+          tglRiwayatDateOnly = tanggalHariIniDateOnly;
+        }
+
+        const updatePayload = {
           status_verifikasi: "Disetujui",
           catatan_admin_desa,
           tanggal_pengangkatan: status_hubungan === "Anak Angkat" ? tglFixClean : null,
           urutan_lahir: urutan_lahir || relasi.urutan_lahir
-        }, { transaction: t });
+        };
 
+        if (berkasPath) {
+          updatePayload.berkas_pengangkatan = berkasPath;
+        }
+
+        await relasi.update(updatePayload, { transaction: t });
         if (status_hubungan === "Anak Angkat") {
-          tglAngkatDateOnly = tglFixClean;
-          tglAngkatTimestamp = `${tglFixClean}T00:00:00.000Z`;
+          tglAngkatTimestamp = `${tglRiwayatDateOnly}T00:00:00.000Z`;
         }
       }
     }
@@ -311,6 +361,7 @@ export const integrasiRelasiLeluhur = async ({
       }
     }
 
+    await rekonsiliasiKronologiKeluarga(anak_id, t);
     if (!passedTransaction) {
       await t.commit();
     }

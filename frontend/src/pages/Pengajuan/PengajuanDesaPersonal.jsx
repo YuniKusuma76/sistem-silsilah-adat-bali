@@ -531,7 +531,7 @@ const PengajuanDesaPersonal = ({ user }) => {
             />
           </div>
           {user?.role !== 'Super Admin' && user?.role !== 'Pakar' && (
-            <button className={styles.btnAddData} onClick={() => navigate('/pengajuan-desa-adat/my-data/add')}>
+            <button className={styles.btnAddData} onClick={() => navigate('/pengajuan-mutasi/desa-adat/my-data/add')}>
               <FaPlus size={12} />
               <span>Pengajuan Baru</span>
             </button>
@@ -615,7 +615,7 @@ const PengajuanDesaPersonal = ({ user }) => {
                             className={styles.btnDetail} 
                             onClick={() => {
                               const slug = createSlug(namaDesa, item.createdAt, item.id);
-                              navigate(`/pengajuan-desa-adat/my-data/detail/${slug}`);
+                              navigate(`/pengajuan-mutasi/desa-adat/my-data/detail/${slug}`);
                             }}>
                             <FaInfoCircle /> Detail
                           </button>

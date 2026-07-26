@@ -236,7 +236,7 @@ const PengajuanDesaDetail = ({ user }) => {
           id: null, 
           action: '' 
         });
-        navigate('/pengajuan-desa-adat/my-data', {
+        navigate('/pengajuan-mutasi/desa-adat/my-data', {
           state: { successMessage: 'Riwayat permohonan mutasi desa adat berhasil dihapus secara permanen.' }
         });
       }
@@ -766,7 +766,7 @@ const PengajuanDesaDetail = ({ user }) => {
                 </button>
               )}
               <button 
-                onClick={() => navigate((isAdminDesa || isSuperAdmin) ? '/verifikasi-data/pengajuan-desa-adat' : '/pengajuan-desa-adat/my-data')} 
+                onClick={() => navigate((isAdminDesa || isSuperAdmin) ? '/verifikasi-data/pengajuan-mutasi/desa-adat' : '/pengajuan-mutasi/desa-adat/my-data')} 
                 className={styles.btnBackNetral}>
                 <FaArrowLeft /> Kembali
               </button>

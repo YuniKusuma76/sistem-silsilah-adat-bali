@@ -310,7 +310,7 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
           </div>
         )}
       </div>
-      <span className={styles.nodeDisplayName} title={data.nama_lengkap}>
+      <span className={`${styles.nodeDisplayName} break-words whitespace-normal block`} title={data.nama_lengkap}>
         {getDisplayName()}
       </span>
       <span className={styles.nodeTipeData}>
@@ -476,6 +476,7 @@ const TrehPuncak = () => {
     }
   }, [slugParam, actualId, initialSlug]);
 
+  // Helper: mengambil data pohon silsilah puncak
   useEffect(() => {
     const fetchTree = async () => {
       const targetId = actualId;
@@ -485,7 +486,7 @@ const TrehPuncak = () => {
       }
       setIsLoading(true);
       try {
-        const response = await axiosInstance.get(`/silsilah/puncak/${targetId}?depth=10`);
+        const response = await axiosInstance.get(`/silsilah/puncak/${targetId}?maxDepth=10`);
         if (response.data?.data) {
           setTreeData(response.data.data);
         }

@@ -285,7 +285,7 @@ const PengajuanDesaBaru = ({ user }) => {
       await axiosInstance.post('/permohonan-desa', dataKirim, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      navigate('/pengajuan-desa-adat/my-data', { 
+      navigate('/pengajuan-mutasi/desa-adat/my-data', { 
         state: { successMessage: 'Permohonan mutasi desa adat berhasil dikirim! Menunggu verifikasi dari Admin Terkait.' } 
       });
     } catch (error) {
@@ -656,7 +656,7 @@ const PengajuanDesaBaru = ({ user }) => {
             </div>
             {/* Button Actions */}
             <div className={styles.buttonGroup}>
-              <button type="button" onClick={() => navigate('/pengajuan-desa-adat/my-data')} className={styles.btnBackRed} disabled={isLoading}>
+              <button type="button" onClick={() => navigate('/pengajuan-mutasi/desa-adat/my-data')} className={styles.btnBackRed} disabled={isLoading}>
                 <FaArrowLeft /> Kembali
               </button>
               <button type="submit" className={styles.btnSubmit} disabled={isLoading}>

@@ -301,7 +301,7 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
           </div>
         )}
       </div>
-      <span className={styles.nodeDisplayName} title={data.nama_lengkap}>
+      <span className={`${styles.nodeDisplayName} break-words whitespace-normal block`} title={data.nama_lengkap}>
         {getDisplayName()}
       </span>
       <span className={styles.nodeTipeData}>
@@ -469,7 +469,7 @@ const SilsilahBali = () => {
 
   const actualId = useMemo(() => decodeId(slugParam), [slugParam]);
 
-  // Helper: mengambil data pohon silsilah
+  // Helper: mengambil data pohon silsilah krama
   useEffect(() => {
     const fetchTree = async () => {
       if (!actualId) {
@@ -478,7 +478,7 @@ const SilsilahBali = () => {
       }
       setIsLoading(true);
       try {
-        const response = await axiosInstance.get(`/silsilah/krama/${actualId}`);
+        const response = await axiosInstance.get(`/silsilah/krama/${actualId}?maxDepth=4`);
         if (response.data?.success && response.data?.data) {
           setTreeData(response.data.data);
           if (!initialTargetId) {

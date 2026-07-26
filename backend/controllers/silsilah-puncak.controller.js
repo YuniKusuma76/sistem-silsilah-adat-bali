@@ -3,9 +3,12 @@ import { getPuncakSilsilahService } from "../services/silsilah-puncak.service.js
 export const getTrehBaliPuncak = async (req, res) => {
   try {
     const { rootId } = req.params;
-    const { depth } = req.query;
+    const depthParam = req.query.maxDepth || req.query.depth;
+    let maxDepth = parseInt(depthParam, 10);
 
-    const maxDepth = depth ? parseInt(depth, 10) : 10;
+    if (isNaN(maxDepth) || maxDepth < 1) {
+      maxDepth = 10;
+    }
     
     const result = await getPuncakSilsilahService(rootId, maxDepth);
 

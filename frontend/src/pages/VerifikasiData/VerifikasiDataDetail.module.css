@@ -234,12 +234,24 @@
   @apply bg-red-50 text-red-700 px-2.5 py-1 rounded border border-red-100/50 line-through font-medium inline-block max-w-[180px] truncate align-middle;
 }
 
+.oldDoc {
+  @apply flex items-center gap-1.5 text-xs bg-red-50 text-red-700 px-2.5 py-1 rounded border border-red-100/50;
+}
+
 .arrows {
   @apply text-amber-500 text-[9px] flex-shrink-0;
 }
 
 .newValue {
   @apply bg-green-50 text-green-700 px-2.5 py-1 rounded border border-green-100/50 font-bold inline-block max-w-[180px] truncate align-middle;
+}
+
+.newDoc {
+  @apply flex items-center gap-1.5 text-xs font-semibold bg-green-50 text-green-700 px-2.5 py-1 rounded border border-green-100/50;
+}
+
+.pratinjauDoc {
+  @apply inline-flex items-center gap-1 text-[11px] font-semibold justify-end text-blue-600 hover:text-blue-800 underline mt-0.5;
 }
 
 .modalContent {
@@ -447,7 +459,7 @@
 }
 
 .noteChange {
-  @apply mt-2.5 p-3 bg-amber-50/40 border border-amber-100/70 rounded-md shadow-inner flex flex-col gap-1 mx-3 mb-3;
+  @apply mt-2.5 p-3 bg-amber-50/40 border border-amber-100/70 rounded-md shadow-inner flex flex-col gap-1 mb-3;
 }
 
 .fieldReg {
@@ -599,4 +611,12 @@
 
 .verifUpdateCerai {
   @apply !bg-indigo-50 !text-indigo-700 !border-indigo-200 !px-1 !py-0.5 !rounded-sm;
+}
+
+.fieldBerkas {
+  @apply mt-3 pt-3 border-t border-dashed border-gray-200 flex items-center justify-between bg-blue-50/50 p-3 rounded-lg animate-fade-in;
+}
+
+.btnLihatBerkas {
+  @apply flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 hover:bg-blue-100 px-3 py-1.5 rounded-md shadow-sm transition-all;
 }

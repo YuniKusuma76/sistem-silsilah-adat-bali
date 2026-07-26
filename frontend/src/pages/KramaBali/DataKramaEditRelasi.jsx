@@ -8,7 +8,9 @@ import {
   FaInfoCircle, 
   FaEraser, 
   FaExclamationTriangle,
-  FaCamera
+  FaCamera,
+  FaUpload,
+  FaCheckCircle
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -70,8 +72,10 @@ const createSlug = (namaLengkap, tipeData, id) => {
 
 const DataKramaEditRelasi = ({ user }) => {
   const { id: slugParam } = useParams();
-  const notifDropdownRef = useRef(null);
   const navigate = useNavigate();
+  const notifDropdownRef = useRef(null);
+  const berkasParentRef = useRef(null);
+  const berkasAnakRef = useRef(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -103,6 +107,11 @@ const DataKramaEditRelasi = ({ user }) => {
   const [isDropdownOrangTuaOpen, setIsDropdownOrangTuaOpen] = useState(false);
   const [searchTermAnak, setSearchTermAnak] = useState("");
   const [isDropdownAnakOpen, setIsDropdownAnakOpen] = useState(false);
+  const [berkasPengangkatanParent, setBerkasPengangkatanParent] = useState(null);
+  const [berkasPengangkatanAnak, setBerkasPengangkatanAnak] = useState(null);
+  const [previewFileNameAnak, setPreviewFileNameAnak] = useState("");
+  const [previewFileNameParent, setPreviewFileNameParent] = useState("");
+  const [existingBerkasPath, setExistingBerkasPath] = useState(null);
 
   const [jumlahNotif, setJumlahNotif] = useState(0);
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
@@ -138,6 +147,7 @@ const DataKramaEditRelasi = ({ user }) => {
     selected_ayah_id: "",
     selected_ibu_id: "",
     urutan_lahir: "",
+    catatan_update: "",
     isManual: false,
     manualAyah: { 
       nama_lengkap: "", 
@@ -253,7 +263,7 @@ const DataKramaEditRelasi = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
-  // Helper: mengeksekusi endpoint backend yang diperlukan
+  // Helper: eksekusi endpoint backend data
   useEffect(() => {
     const fetchAllData = async () => {
       if (!realId) return;
@@ -322,7 +332,7 @@ const DataKramaEditRelasi = ({ user }) => {
             const namaPanggilanFinal = entitasKrama.nama_panggilan || 
               entitasKrama.krama?.nama_panggilan || 
               profilLengkapKrama?.nama_panggilan || "";
-            
+              
             setKramaData({
               nomor_pendaftaran: profilLengkapKrama?.nomor_pendaftaran || entitasKrama.nomor_pendaftaran || "",
               nama_lengkap: entitasKrama.nama_lengkap || entitasKrama.krama?.nama_lengkap || "",
@@ -354,6 +364,29 @@ const DataKramaEditRelasi = ({ user }) => {
           const apakahModeAdopsi = resRelasi.status_hubungan === "Anak Angkat" && !resRelasi.perkawinan_id && (
             resRelasi.custom_ayah_id === kramaJangkarId || resRelasi.ayah_id === kramaJangkarId || resRelasi.ibu_id === kramaJangkarId
           );
+
+          let dataPerubahanRaw = resRelasi.data_perubahan;
+
+          if (dataPerubahanRaw && dataPerubahanRaw.data_perubahan) {
+            dataPerubahanRaw = dataPerubahanRaw.data_perubahan;
+          }
+
+          const berkasTersimpan = dataPerubahanRaw?.berkas_pengangkatan || resRelasi.berkas_pengangkatan;
+          const catatanDraftRelasi = dataPerubahanRaw?.catatan_update || "";
+
+          if (berkasTersimpan) {
+            setExistingBerkasPath(berkasTersimpan);
+            const namaFileAsli = berkasTersimpan.split('/').pop().split('?')[0];
+            const namaBersih = namaFileAsli.includes('-') 
+              ? namaFileAsli.substring(namaFileAsli.indexOf('-') + 1) 
+              : namaFileAsli;
+
+            if (apakahModeAdopsi) {
+              setPreviewFileNameAnak(namaBersih);
+            } else if (resRelasi.status_hubungan === "Anak Angkat") {
+              setPreviewFileNameParent(namaBersih);
+            }
+          }
 
           if (apakahModeAdopsi) {
             setActualAnakId(idAnakKrama ? parseInt(idAnakKrama) : null);
@@ -409,6 +442,7 @@ const DataKramaEditRelasi = ({ user }) => {
               jenis_pengangkatan: jenisPengangkatanLama,
               tanggal_pengangkatan: resRelasi.tanggal_pengangkatan ? resRelasi.tanggal_pengangkatan.substring(0, 10) : "",
               urutan_lahir: resRelasi.urutan_lahir || "",
+              catatan_update: catatanDraftRelasi,
               selected_perkawinan_id: perkawinanIdFinal, 
               selected_ayah_id: resRelasi.ayah_id || "",
               selected_ibu_id: resRelasi.ibu_id || "",
@@ -784,6 +818,45 @@ const DataKramaEditRelasi = ({ user }) => {
     }));
   };
 
+  const handleFileParentChange = (file) => {
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Ukuran file terlalu besar! Maksimal ukuran file berkas pengangkatan adalah 2MB."
+      });
+      return;
+    }
+
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Format file tidak valid! Format file wajib .jpeg/.jpg/.png/.pdf"
+      });
+      return;
+    }
+
+    setBerkasPengangkatanParent(file);
+    setPreviewFileNameParent(file.name);
+  };
+
+  const handleHapusFileParent = () => {
+    setBerkasPengangkatanParent(null);
+    setPreviewFileNameParent("");
+  };
+
+  const handleDropParent = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileParentChange(e.dataTransfer.files[0]);
+    }
+  };
+
   // HELPER PENGANGKATAN ANAK: Menangani perubahan data input pengangkatan anak
   const handleAdoptingChange = (e) => {
     const { name, value } = e.target;
@@ -831,12 +904,57 @@ const DataKramaEditRelasi = ({ user }) => {
     });
   };
 
+  const handleFileAnakChange = (file) => {
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Ukuran file terlalu besar! Maksimal ukuran file berkas pengangkatan adalah 2MB."
+      });
+      return;
+    }
+
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
+    if (!allowedTypes.includes(file.type)) {
+      setAlert({
+        show: true,
+        type: "error",
+        message: "Format file tidak valid! Format file wajib .jpeg/.jpg/.png/.pdf"
+      });
+      return;
+    }
+
+    setBerkasPengangkatanAnak(file);
+    setPreviewFileNameAnak(file.name);
+  };
+
+  const handleHapusFileAnak = () => {
+    setBerkasPengangkatanAnak(null);
+    setPreviewFileNameAnak("");
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDropAnak = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileAnakChange(e.dataTransfer.files[0]);
+    }
+  };
+
   // HELPER RELASI ORANG TUA: Membersihkan form input orang tua
   const clearParentData = () => {
     const defaultTipeData = kramaData.tipe_data;
     const defaultStatusManual = defaultTipeData === "Leluhur" ? "Meninggal" : "Hidup";
     const defaultStatusSingle = defaultTipeData === "Leluhur" ? "Tidak Diketahui" : "Hidup";
 
+    setBerkasPengangkatanParent(null);
     setParentData({
       status_diketahui: "Tidak Diketahui",
       status_hubungan: "Anak Kandung",
@@ -898,6 +1016,7 @@ const DataKramaEditRelasi = ({ user }) => {
   const clearAdoptingData = () => {
     setSearchTermAnak("");
     setIsDropdownAnakOpen(false);
+    setBerkasPengangkatanAnak(null);
     setAdoptingData({
       status_pengangkatan: "Tidak",
       anak_angkat_id: "",
@@ -950,6 +1069,7 @@ const DataKramaEditRelasi = ({ user }) => {
             type: 'error', 
             message: 'Nama lengkap ayah pada pendaftaran baru wajib diisi!' 
           });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
         if (!parentData.manualIbu.nama_lengkap.trim()) {
@@ -958,6 +1078,7 @@ const DataKramaEditRelasi = ({ user }) => {
             type: 'error', 
             message: 'Nama lengkap Ibu pada pendaftaran baru wajib diisi!' 
           });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
       } else if (parentData.jenis_pengangkatan === "Tunggal") {
@@ -967,6 +1088,7 @@ const DataKramaEditRelasi = ({ user }) => {
             type: 'error', 
             message: 'Nama lengkap orang tua tunggal pada pendaftaran baru wajib diisi!' 
           });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           return false;
         }
       }
@@ -979,9 +1101,11 @@ const DataKramaEditRelasi = ({ user }) => {
           type: 'error', 
           message: 'Nama lengkap anak angkat pada pendaftaran baru wajib diisi!' 
         });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return false;
       }
     }
+
     return true;
   };
 
@@ -1046,6 +1170,7 @@ const DataKramaEditRelasi = ({ user }) => {
             anak_id: safeInt(finalAnakId), 
             status_hubungan: "Anak Angkat", 
             tanggal_pengangkatan: safeDate(adoptingData.tanggal_pengangkatan_anak),
+            berkas_pengangkatan: existingBerkasPath,
             perkawinan_id: perkawinanAktifKrama ? safeInt(perkawinanAktifKrama.id) : null,
             ayah_id: !perkawinanAktifKrama && kramaData.jenis_kelamin === "Laki-laki" ? safeInt(anchorKramaId) : null,
             ibu_id: !perkawinanAktifKrama && kramaData.jenis_kelamin === "Perempuan" ? safeInt(anchorKramaId) : null,
@@ -1186,8 +1311,10 @@ const DataKramaEditRelasi = ({ user }) => {
           anak_id: safeInt(anchorKramaId), 
           status_hubungan: parentData.status_hubungan || "Anak Kandung", 
           tanggal_pengangkatan: parentData.status_hubungan === "Anak Angkat" ? safeDate(parentData.tanggal_pengangkatan) : null,
+          berkas_pengangkatan: parentData.status_hubungan === "Anak Angkat" ? existingBerkasPath : null,
           perkawinan_id: parentData.jenis_pengangkatan === "Tunggal" ? null : safePerkawinanId,
           urutan_lahir: parentData.urutan_lahir ? parseInt(parentData.urutan_lahir, 10) : null,
+          catatan_update: parentData.catatan_update || null,
           ayah_id: null,
           ibu_id: null,
           status_verifikasi: "Disetujui",
@@ -1217,6 +1344,9 @@ const DataKramaEditRelasi = ({ user }) => {
         }
       }
 
+      // ====================================================================
+      // PROSES EKSEKUSI PENYIMPANAN KE BACKEND
+      // ====================================================================
       if (payloadR) {
         let idRelasiTarget = currentRelasiRaw?.id;
 
@@ -1226,11 +1356,37 @@ const DataKramaEditRelasi = ({ user }) => {
           idRelasiTarget = relasiAmbil?.id;
         }
 
-        const response = await axiosInstance.put(`/relasi-krama/${idRelasiTarget}`, payloadR);
+        // Bikin FormData
+        const formDataR = new FormData();
+
+        // 1. Masukkan semua field objek payloadR dengan penanganan nilai null secara tegas
+        Object.keys(payloadR).forEach((key) => {
+          const val = payloadR[key];
+          if (val === null || val === undefined) {
+            // Kirim string "null" secara eksplisit agar Backend mengetahui bahwa field ini dikosongkan/dihapus
+            formDataR.append(key, "null");
+          } else {
+            formDataR.append(key, val);
+          }
+        });
+
+        // 2. Ambil objek File baru dari state (Parent atau Anak)
+        const fileToUpload = berkasPengangkatanParent || berkasPengangkatanAnak;
+
+        // Pastikan file baru di-append ke field "berkas_pengangkatan"
+        if (fileToUpload && fileToUpload instanceof File) {
+          formDataR.append("berkas_pengangkatan", fileToUpload);
+        }
+
+        // 3. Kirim request multipart/form-data
+        const response = await axiosInstance.put(`/relasi-krama/${idRelasiTarget}`, formDataR, {
+          headers: { 
+            "Content-Type": "multipart/form-data" 
+          }
+        });
+
         const successMsg = response.data?.message || 'Data perubahan silsilah keluarga berhasil diproses!';
         navigate(-1, { state: { successMessage: successMsg } });
-      } else {
-        setIsLoading(false);
       }
     } catch (error) {
       console.error(error);
@@ -1406,13 +1562,16 @@ const DataKramaEditRelasi = ({ user }) => {
                 <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wider">
                   Pemberitahuan Perubahan Data Relasi Krama
                 </h4>
-                <p className="text-[11px] text-amber-900 mt-1 leading-relaxed">
+                <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
                   Perubahan atau pergantian orang tua dilakukan dari sudut pandang <strong>Anak</strong>. Setiap pencatatan relasi krama baru secara otomatis akan membentuk garis hubungan anak dengan orang tua pihak Purusa serta memperbarui linimasa keluarga aktif anak bersangkutan di sistem.
                 </p>
                 <ul className="text-[11px] text-amber-700 list-disc list-inside space-y-0.5 pt-1 italic">
                   <li>Perhatikan setiap kolom input agar tidak salah memasukkan data relasi krama.</li>
-                  <li>Pembatalan atau perubahan data relasi yang telah disetujui akan memicu prosedur <em>rollback</em> sistem secara permanen.</li>
+                  <li>Pembatalan atau perubahan data relasi yang telah disetujui akan memicu prosedur <em>rollback riwayat</em> sistem secara permanen.</li>
                 </ul>
+                <p className="text-[11px] text-amber-700 mt-2 font-semibold">
+                  <strong>PENTING:</strong> <i>Disarankan mengajukan penghapusan data relasi krama kepada Admin Desa, jika adanya kesalahan pada input data struktural, seperti nama orang tua, status hubungan, dan struktur orang tua.</i>
+                </p>
               </div>
             </div>
           </div>
@@ -2962,21 +3121,93 @@ const DataKramaEditRelasi = ({ user }) => {
                         </>
                       )}
                     </div>
-                    {/* Tanggal Pengangkatan (Khusus Anak Angkat) */}
                     {parentData.status_hubungan === "Anak Angkat" && (
-                      <div className="flex flex-col space-y-1.5">
-                        <label className={styles.labelInputSelect}>
-                          Tanggal Pengangkatan
-                        </label>
-                        <input
-                          type="date"
-                          name="tanggal_pengangkatan"
-                          value={parentData.tanggal_pengangkatan}
-                          onChange={handleParentChange}
-                          className={styles.inputCalendar}
-                        />
+                      <div className="space-y-6 animate-fade-in">
+                        <div className="flex flex-col space-y-1.5">
+                          <label className={styles.labelInputSelect}>
+                            Tanggal Pengangkatan
+                          </label>
+                          <input
+                            type="date"
+                            name="tanggal_pengangkatan"
+                            value={parentData.tanggal_pengangkatan}
+                            onChange={handleParentChange}
+                            className={styles.inputCalendar}
+                          />
+                        </div>
+                        {(() => {
+                          const isDokumenParentWajib = kramaData.tipe_data === "Keturunan";
+                          const isInputParentRequired = isDokumenParentWajib && !berkasPengangkatanParent && !previewFileNameParent;
+                          return (
+                            <div className="flex flex-col space-y-1.5">
+                              <label className={styles.labelInputSelect}>
+                                Dokumen Pendukung Pengangkatan Anak{" "}
+                                {isDokumenParentWajib ? (
+                                  <span className="text-red-500">*</span>
+                                ) : (
+                                  <span className="text-gray-400 font-normal">(Opsional)</span>
+                                )}
+                              </label>
+
+                              <div className={styles.inputTextArea} onDragOver={handleDragOver} onDrop={handleDropParent}>
+                                {previewFileNameParent ? (
+                                  <div className="flex flex-col items-center animate-fade-in p-2">
+                                    <FaCheckCircle className={styles.iconChecklist} />
+                                    <p className={styles.namaFile}>
+                                      {previewFileNameParent}
+                                    </p>
+                                    <button type="button" onClick={handleHapusFileParent} className={styles.btnHapusFile}>
+                                      Hapus File
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center p-3 text-center">
+                                    <FaUpload className={styles.iconUpload} />
+                                    <div className={styles.areaUpload}>
+                                      <label htmlFor="file-upload-parent" className={styles.upload}>
+                                        <span>Upload file</span>
+                                        <input 
+                                          id="file-upload-parent"
+                                          ref={berkasParentRef}
+                                          name="file-upload-parent" 
+                                          type="file" 
+                                          className="hidden" 
+                                          accept=".pdf,.jpg,.jpeg,.png"
+                                          onChange={(e) => handleFileParentChange(e.target.files[0])}
+                                          disabled={isLoading}
+                                          required={isInputParentRequired}
+                                        />
+                                      </label>
+                                      <p className="pl-1">atau drag and drop</p>
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-1">
+                                      PNG, JPG, JPEG, PDF, Max 2MB
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
+                    <div className="flex flex-col space-y-1.5 text-sm">
+                      <label className={styles.labelInputSelect}>
+                        Catatan Usulan Perubahan Data <span className="text-red-500">*</span>
+                      </label>
+                      <textarea 
+                        name="catatan_update" 
+                        value={parentData.catatan_update || ""}
+                        onChange={handleParentChange} 
+                        rows={3}
+                        className={styles.inputText}
+                        placeholder="Berikan catatan alasan/keterangan perubahan data..." 
+                        required={true}
+                      />
+                      <p className="text-[10px] text-gray-400 italic">
+                        * Alasan atau catatan ini akan dikirimkan kepada Admin Desa Adat sebagai pertimbangan verifikasi.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -3431,6 +3662,72 @@ const DataKramaEditRelasi = ({ user }) => {
                         className={styles.inputCalendar}
                       />
                     </div>
+                    {/* Berkas Pengangkatan */}
+                    {(() => {
+                      let isDokumenWajib = true;
+
+                      if (adoptingData.isAnakManual) {
+                        isDokumenWajib = adoptingData.manualAnak.tipe_data === "Keturunan";
+                      } else if (adoptingData.anak_angkat_id) {
+                        const anakTerpilih = kramaList.find(k => String(k.id) === String(adoptingData.anak_angkat_id));
+                        if (anakTerpilih) {
+                          isDokumenWajib = anakTerpilih.tipe_data === "Keturunan";
+                        }
+                      }
+
+                      const isInputAnakRequired = isDokumenWajib && !berkasPengangkatanAnak && !previewFileNameAnak;
+
+                      return (
+                        <div className="flex flex-col space-y-1.5">
+                          <label className={styles.labelInputSelect}>
+                            Dokumen Pendukung Pengangkatan Anak{" "}
+                            {isDokumenWajib ? (
+                              <span className="text-red-500">*</span>
+                            ) : (
+                              <span className="text-gray-400 font-normal">(Opsional)</span>
+                            )}
+                          </label>
+
+                          <div className={styles.inputTextArea} onDragOver={handleDragOver} onDrop={handleDropAnak}>
+                            {previewFileNameAnak ? (
+                              <div className="flex flex-col items-center animate-fade-in p-2">
+                                <FaCheckCircle className={styles.iconChecklist} />
+                                <p className={styles.namaFile}>
+                                  {previewFileNameAnak}
+                                </p>
+                                <button type="button" onClick={handleHapusFileAnak} className={styles.btnHapusFile}>
+                                  Hapus File
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center p-3 text-center">
+                                <FaUpload className={styles.iconUpload} />
+                                <div className={styles.areaUpload}>
+                                  <label htmlFor="file-upload-anak" className={styles.upload}>
+                                    <span>Upload file</span>
+                                    <input 
+                                      id="file-upload-anak"
+                                      ref={berkasAnakRef} 
+                                      name="file-upload-anak" 
+                                      type="file" 
+                                      className="hidden" 
+                                      accept=".pdf,.jpg,.jpeg,.png"
+                                      onChange={(e) => handleFileAnakChange(e.target.files[0])}
+                                      disabled={isLoading}
+                                      required={isInputAnakRequired}
+                                    />
+                                  </label>
+                                  <p className="pl-1">atau drag and drop</p>
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-1">
+                                  PNG, JPG, JPEG, PDF, Max 2MB
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

@@ -140,6 +140,7 @@ const DataKramaEditKawin = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
+  // Helper: eksekusi endpoint backend data
   useEffect(() => {
     const fetchAllData = async () => {
       if (!realId) return;
@@ -207,6 +208,7 @@ const DataKramaEditKawin = ({ user }) => {
             }
 
             setKramaData({
+              nomor_pendaftaran: kramaUtama.nomor_pendaftaran || "",
               nama_lengkap: kramaUtama.nama_lengkap || "",
               nama_panggilan: kramaUtama.nama_panggilan || "",
               jenis_kelamin: kramaUtama.jenis_kelamin || "",
@@ -932,19 +934,22 @@ const DataKramaEditKawin = ({ user }) => {
             {/* BANNER WARNING */}
             <div className={`${styles.noteFormEdit} animate-fade-in`}>
               <div className="flex items-start gap-3">
-                <div className="text-amber-600 text-xl animate-pulse">
+                <div className="text-amber-600 mt-0.5 text-xl">
                   <FaExclamationTriangle />
                 </div>
                 <div className="flex-1">
                   <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wider">
-                    Pemberitahuan Pembaruan Data Perkawinan/Perceraian
+                    Pemberitahuan Penting Perbarui Perkawinan/Perceraian
                   </h4>
-                  <ul className="text-[11px] text-amber-800 list-disc list-inside space-y-0.5 pt-1 italic">
-                    <li>Perubahan atau pergantian pasangan dilakukan dari sisi <strong>Laki-laki/Suami</strong>.</li>
-                    <li>Untuk perubahan tanggal perkawinan/tanggal perceraian, lakukan secara bertahap agar sistem dapat memproses pembaruan dengan baik.</li>
+                  <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                    Perubahan atau pergantian pasangan dilakukan dari sisi <strong>Laki-laki/Suami</strong>. Perubahan ini akan memicu pembuatan riwayat baru sesuai dengan perubahan struktural yang dilakukan.
+                  </p>
+                  <ul className="text-[11px] text-amber-700 list-disc list-inside space-y-0.5 pt-1 italic">
+                    <li>Perhatikan setiap kolom input agar tidak salah memasukkan perubahan data perkawinan atau perceraian.</li>
+                    <li>Perubahan tanggal perkawinan/tanggal cerai, harus dilakukan secara bertahap agar sistem dapat memproses pembaruan tanggal dengan baik.</li>
                   </ul>
                   <p className="text-[11px] text-amber-700 mt-2 font-semibold">
-                    <strong>PENTING:</strong> <i>Jika perkawinan lama telah memiliki relasi anak (keturunan). pastikan Anda telah memindahkan/mengamankan relasi silsilah anak-anak dari pasangan lama terlebih dahulu di modul manajemen relasi orang tua sebelum mengganti data pasangan di form ini!</i>
+                    <strong>PENTING:</strong> <i>Disarankan mengajukan penghapusan data perkawinan atau data perceraian kepada Admin Desa, jika adanya kesalahan pada input data struktural, seperti nama pasangan, status perkawinan, jenis perkawinan, ketetapan silsilah predana, dan pihak meninggal.</i>
                   </p>
                 </div>
               </div>
@@ -956,6 +961,18 @@ const DataKramaEditKawin = ({ user }) => {
                   I. Data Diri Krama Utama
                 </h3>
                 <div className="space-y-5">
+                  <div className="flex flex-col space-y-1">
+                    <label className={styles.labelInput}>
+                      Nomor Pendaftaran
+                    </label>
+                    <input 
+                      type="text"
+                      name="nomor_pendaftaran" 
+                      value={kramaData.nomor_pendaftaran || "-"} 
+                      className={styles.disableFieldReg} 
+                      disabled={true}
+                    />
+                  </div>
                   {/* Tipe Data */}
                   <div className="flex flex-col space-y-1">
                     <label className={styles.labelInput}>
@@ -1116,7 +1133,6 @@ const DataKramaEditKawin = ({ user }) => {
                   {kramaData.is_bali ? (
                     <div className="space-y-4 animate-fade-in">
                       <div className={styles.isBaliDual}>
-                        {/* Search Select Desa Adat */}
                         <div className="flex flex-col space-y-1.5 relative">
                           <label className={styles.labelInput}>
                             Desa Adat Asal {kramaData.tipe_data !== "Leluhur" && <span className="text-red-500">*</span>}
@@ -1256,7 +1272,7 @@ const DataKramaEditKawin = ({ user }) => {
                                 value={m.status_perkawinan} 
                                 onChange={(e) => handlePerkawinanChange(index, "status_perkawinan", e.target.value)} 
                                 className={`${styles.inputPilihan} ${m.isDataLamaTerunci ? 'bg-gray-100 cursor-not-allowed text-gray-600' : ''}`}
-                                disabled={m.isDataLamaTerunci}>
+                                disabled={true}>
                                 <option value="Kawin">Kawin</option>
                                 <option value="Cerai Hidup">Cerai Hidup</option>
                                 <option value="Cerai Mati">Cerai Mati</option>
@@ -1711,7 +1727,7 @@ const DataKramaEditKawin = ({ user }) => {
                             {(m.status_perkawinan === "Cerai Hidup" || m.status_perkawinan === "Cerai Mati") && (
                               <div className={styles.inputContent}>
                                 <h5 className="text-xs font-bold text-rose-800 uppercase tracking-wider items-center flex flex-1">
-                                  Rincian Pencatatan Mutasi Perceraian Adat
+                                  Rincian Pencatatan Perceraian Adat
                                 </h5>
                                 <div className="flex flex-col space-y-1.5">
                                   <label className={styles.labelInputSelect}>
@@ -1737,7 +1753,7 @@ const DataKramaEditKawin = ({ user }) => {
                                             value={m.pihak_meninggal || ""} 
                                             onChange={(e) => handlePerkawinanChange(index, "pihak_meninggal", e.target.value)} 
                                             className={`${styles.inputPilihan} ${m.isDataLamaTerunci ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                            disabled={m.isDataLamaTerunci}
+                                            disabled={true}
                                             required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
                                             <option value="Pasangan">Pasangan</option>
                                             <option value="Krama Utama">Krama Utama (Form I)</option>
@@ -1756,7 +1772,7 @@ const DataKramaEditKawin = ({ user }) => {
                                             value={m.pilihan_predana || ""} 
                                             onChange={(e) => handlePerkawinanChange(index, "pilihan_predana", e.target.value)} 
                                             className={`${styles.inputPilihan} ${m.isDataLamaTerunci ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                            disabled={m.isDataLamaTerunci}
+                                            disabled={true}
                                             required={m.status_perkawinan === "Cerai Mati" && kramaData.tipe_data !== "Leluhur"}>
                                             <option value="Tetap">Tetap di Purusa</option>
                                             <option value="Kembali ke Asal">Kembali ke Asal</option>
@@ -1779,21 +1795,21 @@ const DataKramaEditKawin = ({ user }) => {
                                 )}
                               </div>
                             )}
-                            <div className="flex flex-col space-y-1.5">
+                            <div className="flex flex-col space-y-1.5 text-sm">
                               <label className={styles.labelInputSelect}>
-                                Alasan/Keterangan Perubahan Data <span className="text-red-500">*</span>
+                                Catatan Usulan Perubahan Data <span className="text-red-500">*</span>
                               </label>
-                              <textarea
-                                rows="2"
-                                className={styles.inputText}
-                                placeholder="Contoh: Perubahan kesalahan pengetikan nama pasangan pada draft verifikasi awal/menyesuaikan dokumen sah."
+                              <textarea 
                                 value={m.catatan_update || ""}
-                                onChange={(e) => handlePerkawinanChange(index, "catatan_update", e.target.value)}
+                                onChange={(e) => handlePerkawinanChange(index, "catatan_update", e.target.value)} 
+                                rows={3}
+                                className={styles.inputText}
+                                placeholder="Berikan catatan alasan/keterangan perubahan data..." 
                                 disabled={m.isDataLamaTerunci}
                                 required={!m.isDataLamaTerunci}
                               />
                               <p className="text-[10px] text-gray-400 italic">
-                                * Berikan alasan yang jelas dan valid sebagai dokumen pendukung mengapa data perkawinan adat ini diubah.
+                                * Alasan atau catatan ini akan dikirimkan kepada Admin Desa Adat sebagai pertimbangan verifikasi.
                               </p>
                             </div>
                           </div>

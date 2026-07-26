@@ -320,19 +320,19 @@ const App = () => {
           />
           {/* Pengajuan Desa Adat Routes */}
           <Route 
-            path="/pengajuan-desa-adat/my-data" 
+            path="/pengajuan-mutasi/desa-adat/my-data" 
             element={<PengajuanDesaPersonal user={user} />} 
           />
           <Route 
-            path="/pengajuan-desa-adat/my-data/add" 
+            path="/pengajuan-mutasi/desa-adat/my-data/add" 
             element={<PengajuanDesaBaru user={user} />} 
           />
           <Route 
-            path="/pengajuan-desa-adat/my-data/detail/:id" 
+            path="/pengajuan-mutasi/desa-adat/my-data/detail/:id" 
             element={<PengajuanDesaDetail user={user} />} 
           />
           <Route 
-            path="/verifikasi-data/pengajuan-desa-adat" 
+            path="/verifikasi-data/pengajuan-mutasi/desa-adat" 
             element={
               <ProtectedRoute user={user} allowedRoles={['Super Admin', 'Admin Desa']}>
                 <PengajuanDesa user={user} />
@@ -340,7 +340,7 @@ const App = () => {
             } 
           />
           <Route 
-            path="/verifikasi-data/pengajuan-desa-adat/detail/:id" 
+            path="/verifikasi-data/pengajuan-mutasi/desa-adat/detail/:id" 
             element={<PengajuanDesaDetail user={user} />} 
           />
           {/* Krama Bali Routes */}

@@ -3,7 +3,12 @@ import { getSilsilahPurusaTree } from "../services/silsilah-adat-bali.service.js
 export const getSilsilahTree = async (req, res) => {
   try {
     const { kramaId } = req.params;
-    const maxDepth = req.query.maxDepth ? parseInt(req.query.maxDepth) : 4;
+    const depthParam = req.query.maxDepth || req.query.depth;
+    let maxDepth = parseInt(depthParam, 10);
+
+    if (isNaN(maxDepth) || maxDepth < 1) {
+      maxDepth = 4;
+    }
 
     const currentUser = req.userId ? {
       id: req.userId,
@@ -18,6 +23,13 @@ export const getSilsilahTree = async (req, res) => {
     }
 
     const result = await getSilsilahPurusaTree(kramaId, currentUser, maxDepth);
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Data krama tidak ditemukan."
+      });
+    }
 
     return res.status(200).json({
       success: true,

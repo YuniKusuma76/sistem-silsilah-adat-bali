@@ -5,9 +5,11 @@ import {
   RiwayatKeluarga,
   RiwayatPeranAdat,
   Keluarga,
-  KramaBali
+  KramaBali,
+  Perkawinan
 } from "../models/associations.js";
 import { hitungUrutanLahir } from "./urutan-lahir.service.js";
+import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
 
 const BOBOT_EVENT = {
   "LAHIR": 1, 
@@ -87,8 +89,6 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
 
   // KONDISI 1: ROLLBACK DAMPAK ANAK KANDUNG
   if (status_hubungan === "Anak Kandung") {
-    const waktuLahir = dapatkanWaktuMurniObj(anak.tanggal_lahir);
-    
     await RiwayatKeluarga.destroy({
       where: {
         krama_id: anak_id,
@@ -110,7 +110,6 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
   // KONDISI 2: ROLLBACK DAMPAK ANAK ANGKAT
   if (status_hubungan === "Anak Angkat") {
     const waktuAdopsi = tanggal_pengangkatan ? dapatkanWaktuMurniObj(tanggal_pengangkatan) : null;
-
     let riwayatSebelumAdopsi = null;
     
     // mengambil riwayat sebelum pengangkatan
@@ -246,21 +245,6 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       mode: "ANGKAT"
     }, t);
 
-    // memulihkan Mutasi Wilayah Desa Adat Anak
-    if (riwayatSebelumAdopsi && riwayatSebelumAdopsi.detail_keluarga) {
-      const idDesaAsal = riwayatSebelumAdopsi.detail_keluarga.desa_adat_id;
-
-      if (idDesaAsal) {
-        await KramaBali.update(
-          { desa_adat_id: idDesaAsal },
-          { 
-            where: { id: anak_id }, 
-            transaction: t 
-          }
-        );
-      }
-    }
-
     // membuka kembali riwayat keluar keluarga kandung
     if (waktuAdopsi) {
       await RiwayatKeluarga.update(
@@ -292,15 +276,178 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       );
     }
   }
+
+  // KONDISI KHUSUS: ROLLBACK RELASI LELUHUR
+  if (kepala_keluarga_lama_id) {
+    const keluargaLeluhur = await Keluarga.findOne({
+      where: {
+        kepala_keluarga_id: kepala_keluarga_lama_id,
+        jenis_keluarga: "Leluhur"
+      },
+      transaction: t
+    });
+
+    if (keluargaLeluhur) {
+      await RiwayatKeluarga.destroy({
+        where: {
+          krama_id: anak_id,
+          keluarga_id: keluargaLeluhur.id,
+          kedudukan: "Anggota"
+        },
+        transaction: t
+      });
+
+      const sisaAnggotaLeluhur = await RiwayatKeluarga.count({
+        where: {
+          keluarga_id: keluargaLeluhur.id,
+          kedudukan: "Anggota"
+        },
+        transaction: t
+      });
+
+      if (sisaAnggotaLeluhur === 0) {
+        await RiwayatKeluarga.destroy({
+          where: {
+            keluarga_id: keluargaLeluhur.id,
+            krama_id: kepala_keluarga_lama_id
+          },
+          transaction: t
+        });
+
+        await keluargaLeluhur.destroy({ transaction: t });
+
+        const riwayatOrangTuaYangDitutup = await RiwayatKeluarga.findOne({
+          where: {
+            krama_id: kepala_keluarga_lama_id,
+            akhir_masuk: { [Op.ne]: null }
+          },
+          order: [["akhir_masuk", "DESC"]],
+          transaction: t
+        });
+
+        if (riwayatOrangTuaYangDitutup) {
+          await riwayatOrangTuaYangDitutup.update(
+            { akhir_masuk: null },
+            { transaction: t }
+          );
+        }
+
+        if (ayah_id && ibu_id) {
+          const sisaRelasiLeluhurLain = await RelasiKrama.count({
+            where: {
+              id: { [Op.ne]: relasi_id },
+              ayah_id: ayah_id,
+              ibu_id: ibu_id
+            },
+            transaction: t
+          });
+
+          if (sisaRelasiLeluhurLain === 0) {
+            await Perkawinan.destroy({
+              where: {
+                suami_id: ayah_id,
+                istri_id: ibu_id,
+                status_perkawinan: "Tidak Diketahui"
+              },
+              transaction: t
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // PEMULIHAN MUTASI DESA ADAT
+  const relasiSisaAktif = await RelasiKrama.findOne({
+    where: {
+      id: { [Op.ne]: relasi_id },
+      anak_id: anak_id,
+      status_verifikasi: "Disetujui"
+    },
+    transaction: t
+  });
+
+  let targetDesaIdMandiri = null;
+
+  if (relasiSisaAktif) {
+    const ortuMandiriId = relasiSisaAktif.ayah_id || relasiSisaAktif.ibu_id;
+    if (ortuMandiriId) {
+      const ortuAktif = await KramaBali.findByPk(ortuMandiriId, {
+        attributes: ["desa_adat_id"],
+        transaction: t
+      });
+
+      if (ortuAktif?.desa_adat_id) {
+        targetDesaIdMandiri = ortuAktif.desa_adat_id;
+      }
+    }
+  }
+
+  if (!targetDesaIdMandiri) {
+    const riwayatKeluargaAktif = await RiwayatKeluarga.findOne({
+      where: {
+        krama_id: anak_id,
+        akhir_masuk: null
+      },
+      include: [{
+        model: Keluarga,
+        as: "detail_keluarga",
+        required: false
+      }],
+      order: [["awal_masuk", "DESC"]],
+      transaction: t
+    });
+
+    if (riwayatKeluargaAktif?.detail_keluarga?.desa_adat_id) {
+      targetDesaIdMandiri = riwayatKeluargaAktif.detail_keluarga.desa_adat_id;
+    } else if (riwayatKeluargaAktif?.detail_keluarga?.kepala_keluarga_id) {
+      const kepalaAktif = await KramaBali.findByPk(riwayatKeluargaAktif.detail_keluarga.kepala_keluarga_id, {
+        attributes: ["desa_adat_id"],
+        transaction: t
+      });
+      if (kepalaAktif?.desa_adat_id) {
+        targetDesaIdMandiri = kepalaAktif.desa_adat_id;
+      }
+    }
+  }
+
+  if (targetDesaIdMandiri && targetDesaIdMandiri !== anak.desa_adat_id) {
+    await KramaBali.update(
+      { desa_adat_id: targetDesaIdMandiri },
+      { 
+        where: { id: anak_id }, 
+        transaction: t 
+      }
+    );
+  }
+
+  // REKONSILIASI KRONOLOGIS
+  const entitasTerdampak = new Set();
+
+  if (anak_id) {
+    entitasTerdampak.add(parseInt(anak_id));
+  }
+
+  if (ayah_id) {
+    entitasTerdampak.add(parseInt(ayah_id));
+  }
+
+  if (ibu_id) {
+    entitasTerdampak.add(parseInt(ibu_id));
+  }
+
+  for (const kramaId of entitasTerdampak) {
+    if (kramaId) {
+      await rekonsiliasiKronologiKeluarga(kramaId, t);
+    }
+  }
 };
 
 export const batalkanRelasiKrama = async (relasiId) => {
-  // Mulai transaksi database
   const t = await db.transaction();
   let transactionCommittedOrRolledBack = false;
 
   try {
-    // Validasi ketersediaan data relasi krama
     const relasi = await RelasiKrama.findByPk(relasiId, {
       transaction: t
     });

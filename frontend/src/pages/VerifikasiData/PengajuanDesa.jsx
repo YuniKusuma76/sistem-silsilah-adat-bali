@@ -548,7 +548,7 @@ const PengajuanDesa = ({ user }) => {
                             className={styles.btnDetail} 
                             onClick={() => {
                               const slug = createSlug(namaDesaTujuan, item.createdAt, item.id);
-                              navigate(`/verifikasi-data/pengajuan-desa-adat/detail/${slug}`);
+                              navigate(`/verifikasi-data/pengajuan-mutasi/desa-adat/detail/${slug}`);
                             }}>
                             <FaInfoCircle /> Detail
                           </button>

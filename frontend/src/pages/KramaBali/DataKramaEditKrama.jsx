@@ -88,7 +88,8 @@ const DataKramaEditKrama = ({ user }) => {
     desa_adat_id: "",
     tempat_asal_khusus: "",
     alamat_luar: "",
-    tipe_data: "Keturunan"
+    tipe_data: "Keturunan",
+    catatan_update: ""
   });
 
   // Helper: enkripsi slug url menjadi id asli
@@ -123,6 +124,7 @@ const DataKramaEditKrama = ({ user }) => {
     }
   }, [alert.show, alert.type]);
 
+  // Helper: eksekusi endpoint backend data
   useEffect(() => {
     const fetchDataKrama = async () => {
       if (!realId) return;
@@ -156,6 +158,10 @@ const DataKramaEditKrama = ({ user }) => {
         setProvinsiList(dataProv || []);
 
         if (resKrama) {
+          const catatanDraft = resKrama.is_pending_update && resKrama.data_perubahan?.catatan_update
+            ? resKrama.data_perubahan.catatan_update
+            : "";
+
           setKramaData({
             nomor_pendaftaran: resKrama.nomor_pendaftaran || "",
             nama_lengkap: resKrama.nama_lengkap || "",
@@ -167,7 +173,8 @@ const DataKramaEditKrama = ({ user }) => {
             desa_adat_id: resKrama.desa_adat_id || "",
             tempat_asal_khusus: resKrama.tempat_asal_khusus || "",
             alamat_luar: resKrama.alamat_luar || "",
-            tipe_data: resKrama.tipe_data || "Keturunan"
+            tipe_data: resKrama.tipe_data || "Keturunan",
+            catatan_update: catatanDraft
           });
 
           if (resKrama.foto_profile) {
@@ -646,6 +653,7 @@ const DataKramaEditKrama = ({ user }) => {
       <div className="p-8 flex-1 flex flex-col items-center">
         <div className="w-full max-w-4xl">
           <form onSubmit={saveKrama} className="w-full space-y-8">
+            {/* BAGIAN 1: DATA DIRI KRAMA BALI */}
             <section className={styles.section}>
               <h3 className={styles.sectionTitle}>
                 Data Diri Krama Bali
@@ -882,8 +890,7 @@ const DataKramaEditKrama = ({ user }) => {
                                         setKramaData(prev => ({ ...prev, desa_adat_id: d.id })); 
                                         setSearchDesaUtama(d.nama_desa_adat); 
                                         setIsDropdownOpen(false); 
-                                      }}
-                                    >
+                                      }}>
                                       <p className="text-sm font-bold text-gray-800">
                                         {d.nama_desa_adat}
                                       </p>
@@ -974,6 +981,23 @@ const DataKramaEditKrama = ({ user }) => {
                     </div>
                   </div>
                 )}
+                <div className="flex flex-col space-y-1.5">
+                  <label className={styles.labelInputSelect}>
+                    Catatan Usulan Perubahan Data <span className="text-red-500">*</span>
+                  </label>
+                  <textarea 
+                    name="catatan_update" 
+                    value={kramaData.catatan_update} 
+                    onChange={handleChange} 
+                    rows={3}
+                    className={styles.inputText}
+                    placeholder="Berikan catatan alasan/keterangan perubahan data..." 
+                    required={true}
+                  />
+                  <p className="text-[10px] text-gray-400 italic">
+                    * Alasan atau catatan ini akan dikirimkan kepada Admin Desa Adat sebagai pertimbangan verifikasi.
+                  </p>
+                </div>
               </div>
             </section>
             {/* ACTION BUTTONS */}

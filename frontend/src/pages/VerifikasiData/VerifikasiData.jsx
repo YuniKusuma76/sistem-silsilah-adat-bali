@@ -106,7 +106,7 @@ const VerifikasiData = ({ user }) => {
       endpoint: isAdminDesa 
         ? '/permohonan-desa/berkas-desa' 
         : '/permohonan-desa/berkas-pusat',
-      path: '/verifikasi-data/pengajuan-desa-adat',
+      path: '/verifikasi-data/pengajuan-mutasi/desa-adat',
       statusMap: {
         pending: ['Menunggu Validasi Berkas', 'Menunggu Verifikasi', 'Menunggu'],
         approved: ['Berkas Valid', 'Disetujui'],

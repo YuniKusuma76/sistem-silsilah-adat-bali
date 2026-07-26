@@ -1,5 +1,6 @@
 import { Op } from "sequelize";
 import db from "../config/db.config.js";
+import path from "path";
 import {
   KramaBali,
   RelasiKrama,
@@ -7,12 +8,43 @@ import {
   Keluarga,
   RiwayatPeranAdat
 } from "../models/associations.js";
+import { supabase } from "../config/supabase.config.js";
 import { buatAnakKandung } from "./anak-kandung.service.js";
 import { buatAnakAngkat } from "./anak-angkat.service.js";
 import { anakAngkatPasangan } from "./anak-angkat-perkawinan.service.js";
 import { integrasiRelasiLeluhur } from "./anak-relasi-leluhur.service.js";
 import { eksekusiRollbackRelasi } from "./batal-relasi-krama.service.js";
 import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
+
+// Helper: upload berkas ke Storage Supabase
+const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
+  if (!file) return null;
+
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+  const fileName = `pengangkatan_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const filePath = `relasi-krama-angkat/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false
+    });
+
+  if (error) {
+    throw new Error(`Gagal mengunggah berkas ke Cloud Storage: ${error.message}`);
+  }
+
+  return data.path;
+};
+
+// Helper: konversi nilai ke number atau null
+const toSafeIntOrNull = (value) => {
+  if (value === null || value === undefined || value === 'null' || value === 'undefined' || String(value).trim() === '' || isNaN(Number(value))) {
+    return null;
+  }
+  return Number(value);
+};
 
 export const prosesUpdateRelasiKrama = async ({
   relasi,
@@ -26,19 +58,36 @@ export const prosesUpdateRelasiKrama = async ({
   anak,
   ayah,
   ibu,
-  commonParams
+  commonParams,
+  file = null
 }, t) => {
   let relasiBaru = null;
+  const catatanUpdate = dataUpdate?.catatan_update || null;
+
+  if (dataUpdate && 'catatan_update' in dataUpdate) {
+    delete dataUpdate.catatan_update;
+  }
 
   const anakIdAktif = relasi.anak_id;
   const userIdAsli = relasi.user_id;
   const teksHapusOtomatis = " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal pengangkatan kosong).";
 
+  let berkasPathFinal = relasi.berkas_pengangkatan || null;
+
+  if (file) {
+    const pathUploaded = await uploadBerkasPengangkatan(file);
+    if (pathUploaded) {
+      berkasPathFinal = pathUploaded;
+    }
+  }
+
   // EVALUASI PERUBAHAN STRUKTURAL
-  const isPerubahanStruktural = 
-    (dataUpdate.hasOwnProperty('ayah_id') && dataUpdate.ayah_id !== relasi.ayah_id) || 
-    (dataUpdate.hasOwnProperty('ibu_id') && dataUpdate.ibu_id !== relasi.ibu_id) || 
-    (dataUpdate.hasOwnProperty('status_hubungan') && dataUpdate.status_hubungan !== relasi.status_hubungan);
+  const ayahLama = toSafeIntOrNull(relasi.ayah_id);
+  const ibuLama = toSafeIntOrNull(relasi.ibu_id);
+  const ayahBaru = toSafeIntOrNull(targetAyahId);
+  const ibuBaru = toSafeIntOrNull(targetIbuId);
+
+  const isPerubahanStruktural = ayahBaru !== ayahLama || ibuBaru !== ibuLama || targetStatusHubungan !== relasi.status_hubungan;
 
   if (isPerubahanStruktural) {
     await eksekusiRollbackRelasi(relasi, t);
@@ -48,13 +97,16 @@ export const prosesUpdateRelasiKrama = async ({
 
     const servicePayload = { 
       anak_id: anakIdAktif,
-      ayah_id: targetAyahId,
-      ibu_id: targetIbuId,
+      ayah_id: ayahBaru,
+      ibu_id: ibuBaru,
       status_hubungan: targetStatusHubungan,
       tanggal_pengangkatan: tglAngkatDateOnly,
+      berkas_pengangkatan: berkasPathFinal,
       urutan_lahir: dataUpdate.urutan_lahir || relasi.urutan_lahir || null,
       perkawinan_id: targetPerkawinanId,
       is_verifikasi: false,
+      file,
+      catatan_update: catatanUpdate,
       ...commonParams,
       user_id: userIdAsli
     };
@@ -86,6 +138,7 @@ export const prosesUpdateRelasiKrama = async ({
   } else {
     await relasi.update({
       tanggal_pengangkatan: tglAngkatDateOnly,
+      berkas_pengangkatan: berkasPathFinal,
       ...commonParams,
       user_id: userIdAsli
     }, { transaction: t });
@@ -126,8 +179,8 @@ export const prosesUpdateRelasiKrama = async ({
             }, { transaction: t });
           }
 
-        // JALUR A: ORANG TUA TUNGGAL
-        if (!isAdopsiPasangan) {
+          // JALUR A: ORANG TUA TUNGGAL
+          if (!isAdopsiPasangan) {
             if (keluargaTarget) {
               await RiwayatKeluarga.update({ 
                 awal_masuk: new Date(tglAngkatTimestamp),

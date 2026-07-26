@@ -10,6 +10,7 @@ import {
 import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 import { simpanRiwayatKeluarga } from "./riwayat-keluarga.service.js";
 import { hitungTanggalKeluarAnak } from "../helpers/tanggal-keluar.helper.js";
+import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
 
 const BOBOT_EVENT = {
   "LAHIR": 1, 
@@ -70,6 +71,7 @@ export const buatAnakKandung = async ({
       ayah_id: suami_id,
       ibu_id: istri_id,
       status_hubungan: "Anak Kandung",
+      tanggal_pengangkatan: null,
       user_id,             
       status_verifikasi,   
       catatan_admin_desa
@@ -86,7 +88,7 @@ export const buatAnakKandung = async ({
     let tanggal_keluar = await hitungTanggalKeluarAnak(anak_id, tglLahirMurni, t);
 
     const finalTanggalKeluar = tanggal_keluar 
-      ? new Date(`${tanggal_keluar}T23:59:59.999Z`)
+      ? new Date(`${tanggal_keluar}T00:00:00.000Z`)
       : null;
 
     await hitungUrutanLahir({ 
@@ -245,7 +247,7 @@ export const buatAnakKandung = async ({
             keluarga_id: keluargaSuamiTarget.id,
             perkawinan_id: perkawinanIdDarurat || perkawinan_id,
             kedudukan: "Anggota",
-            dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ibu setelah data relasi orang tua berhasil terdaftar ke dalam sistem.",
+            dasar_keputusan: "Krama dikembalikan ke keluarga kandung pihak ayah setelah data relasi orang tua berhasil terdaftar ke dalam sistem.", // Perbaikan typo 'ibu' -> 'ayah'
             event_date: tanggalMasukAsal,
             kategori_event: "CERAI",
             bobot_event: BOBOT_EVENT["CERAI"],
@@ -306,6 +308,7 @@ export const buatAnakKandung = async ({
         }
       }
 
+      // nonaktifkan riwayat keluarga asal
       if (idKeluargaLamaDarurat) {
         await Keluarga.update({ 
           status_keluarga: "Non-Aktif" 
@@ -328,6 +331,7 @@ export const buatAnakKandung = async ({
       );
     }
 
+    await rekonsiliasiKronologiKeluarga(anak_id, t);
     if (!passedTransaction) {
       await t.commit();
     }

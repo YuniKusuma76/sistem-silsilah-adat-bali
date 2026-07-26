@@ -33,6 +33,10 @@ const RelasiKrama = db.define("tb_relasi_krama", {
     type: DataTypes.DATEONLY,
     allowNull: true
   },
+  berkas_pengangkatan: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: false

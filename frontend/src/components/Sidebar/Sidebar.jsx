@@ -53,8 +53,8 @@ const SIDEBAR_MENU = {
       label: "Pengajuan Role", 
       icon: <LuUserPen size={18} /> 
     },{ 
-      path: "/pengajuan-desa-adat/my-data", 
-      label: "Pengajuan Desa Adat", 
+      path: "/pengajuan-mutasi/desa-adat/my-data", 
+      label: "Pengajuan Mutasi", 
       icon: <MdOutlineEditLocationAlt size={18} /> 
     },{ 
       path: "/pusat-bantuan", 
@@ -101,8 +101,8 @@ const SIDEBAR_MENU = {
       label: "Pengajuan Role", 
       icon: <LuUserPen size={18} /> 
     },{ 
-      path: "/pengajuan-desa-adat/my-data", 
-      label: "Pengajuan Desa Adat", 
+      path: "/pengajuan-mutasi/desa-adat/my-data", 
+      label: "Pengajuan Mutasi", 
       icon: <MdOutlineEditLocationAlt size={18} /> 
     },{ 
       path: "/pusat-bantuan", 

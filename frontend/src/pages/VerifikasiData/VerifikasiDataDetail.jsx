@@ -33,7 +33,10 @@ import {
   FaEye,
   FaEyeSlash,
   FaIdCardAlt,
-  FaCamera 
+  FaCamera,
+  FaFilePdf,
+  FaFileImage,
+  FaDownload 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -161,7 +164,6 @@ const VerifikasiDataDetail = ({ user }) => {
     message: ''
   });
 
-  // Helper: melihat detail riwayat keluarga
   const toggleRowDetail = (index) => {
     setOpenDetails((prev) => ({
       ...prev,
@@ -234,6 +236,7 @@ const VerifikasiDataDetail = ({ user }) => {
     return false;
   }, [user, krama, relasiList, modalRelasiData, modalKawinData, userDesaId]);
 
+  // Helper: eksekusi endpoint backend data
   const fetchAllData = async () => {
     if (!realId) { 
       setIsLoading(false); 
@@ -356,6 +359,38 @@ const VerifikasiDataDetail = ({ user }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Helper: melihat atau mengunduh dokumen pengangkatan
+  const handleBerkasPengangkatan = async (relasiId) => {
+    if (!relasiId) return;
+    try {
+      const response = await axiosInstance.get(`/relasi-krama/document/${relasiId}`);
+      const signedUrl = response.data?.url;
+
+      if (signedUrl) {
+        window.open(signedUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        setAlert({
+          show: true,
+          type: 'error',
+          message: 'Tautan dokumen tidak ditemukan.'
+        });
+      }
+    } catch (error) {
+      console.error("Gagal mengambil dokumen pengangkatan:", error);
+      setAlert({
+        show: true,
+        type: 'error',
+        message: error.response?.data?.message || 'Gagal mengambil tautan dokumen pengangkatan.'
+      });
+    }
+  };
+
+  const isImageFile = (filePath) => {
+    if (!filePath || typeof filePath !== 'string') return false;
+    const cleanPath = filePath.split('?')[0].toLowerCase();
+    return cleanPath.endsWith('.jpg') || cleanPath.endsWith('.jpeg') || cleanPath.endsWith('.png') || cleanPath.endsWith('.webp');
   };
 
   useEffect(() => {
@@ -968,7 +1003,7 @@ const VerifikasiDataDetail = ({ user }) => {
     if (data_perubahan_relasi && data_perubahan_relasi.data_perubahan) {
       data_perubahan_relasi = data_perubahan_relasi.data_perubahan;
     }
-    
+
     if (!data_perubahan_relasi || data_perubahan_relasi[namaField] === undefined) {
       return null;
     }
@@ -976,61 +1011,129 @@ const VerifikasiDataDetail = ({ user }) => {
     let nilaiBaru = data_perubahan_relasi[namaField];
     let nilaiLamaDiformat = nilaiLama;
 
-    if (type === 'date') {
-      nilaiLamaDiformat = nilaiLama ? formatDate(nilaiLama) : 'Tidak Diketahui';
-      nilaiBaru = nilaiBaru ? formatDate(nilaiBaru) : 'Tidak Diketahui';
-    }
-    
-    if (type === 'krama') {
-      if (nilaiLama && !isNaN(Number(nilaiLama))) {
-        const relasiKey = namaField === 'ayah_id' ? 'ayah' : 'ibu';
-        nilaiLamaDiformat = activeRelasi?.[relasiKey]?.nama_lengkap || kramaCacheMap[nilaiLama] || `Krama [No.${nilaiLama}]`;
-      } else {
-        nilaiLamaDiformat = nilaiLama && String(nilaiLama).trim() !== "null" ? nilaiLama : 'Tidak Tercatat';
-      }
-      
-      const safeParseInt = (val) => {
-        if (val === null || val === undefined || val === '') return null;
-        const parsed = parseInt(val, 10);
-        return isNaN(parsed) ? null : parsed;
-      };
-
-      const idBaru = safeParseInt(data_perubahan_relasi[namaField]);
-
-      if (namaField === 'ayah_id') {
-        const namaAyahUsulan = data_perubahan_relasi?.nama_ayah_baru || data_perubahan_relasi?.ayah?.nama_lengkap || data_perubahan_relasi?.nama_ayah;
-        
-        if (idBaru === null) {
-          nilaiBaru = 'Tidak Tercatat';
-        } else {
-          nilaiBaru = namaAyahUsulan && String(namaAyahUsulan).trim() !== "null"
-            ? namaAyahUsulan
-            : (kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
-        }
-      } else if (namaField === 'ibu_id') {
-        const namaIbuUsulan = data_perubahan_relasi?.nama_ibu_baru || data_perubahan_relasi?.ibu?.nama_lengkap || data_perubahan_relasi?.nama_ibu;
-        
-        if (idBaru === null) {
-          nilaiBaru = 'Tidak Tercatat';
-        } else {
-          nilaiBaru = namaIbuUsulan && String(namaIbuUsulan).trim() !== "null"
-            ? namaIbuUsulan
-            : (kramaCacheMap[idBaru] ? kramaCacheMap[idBaru] : `Krama Baru [No.${idBaru}]`);
-        }
-      }
-    }
-
-    if (type === 'desa_adat') {
-      nilaiLamaDiformat = nilaiLama || 'Desa Asal';
-      nilaiBaru = data_perubahan_relasi?.nama_desa_tujuan || (nilaiBaru ? `Desa Adat ${nilaiBaru}` : 'Desa Asal');
-    }
-
-    if (type === 'date') {
-      if ((nilaiLama || '') === (data_perubahan_relasi[namaField] || '')) return null;
-    } else {
-      if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim() && nilaiLamaDiformat !== 'Tidak Tercatat') {
+    const cleanVal = (value) => {
+      if (value === null || value === undefined || value === 'null' || value === 'undefined' || String(value).trim() === '' || String(value).trim().toLowerCase() === 'tidak tercatat' || String(value).trim().toLowerCase() === 'tidak diketahui') {
         return null;
       }
+      return String(value).trim();
+    };
+
+    if (type === 'krama') {
+      const rawIdLama = cleanVal(relasiObj?.[namaField] || nilaiLama);
+      const rawIdBaru = cleanVal(data_perubahan_relasi[namaField]);
+      if (rawIdLama === null && rawIdBaru === null) return null;
+      if (rawIdLama === rawIdBaru) return null;
+
+      if (rawIdLama && !isNaN(Number(rawIdLama))) {
+        const relasiKey = namaField === 'ayah_id' ? 'ayah' : 'ibu';
+        nilaiLamaDiformat = activeRelasi?.[relasiKey]?.nama_lengkap || (typeof kramaCacheMap !== 'undefined' ? kramaCacheMap[rawIdLama] : null) || `Krama [No.${rawIdLama}]`;
+      } else {
+        nilaiLamaDiformat = 'Tidak Tercatat';
+      }
+
+      if (rawIdBaru === null) {
+        nilaiBaru = 'Tidak Tercatat';
+      } else {
+        const isAyah = namaField === 'ayah_id';
+        const namaUsulanEksplisit = isAyah 
+          ? (data_perubahan_relasi?.nama_ayah_baru || data_perubahan_relasi?.ayah?.nama_lengkap || data_perubahan_relasi?.nama_ayah)
+          : (data_perubahan_relasi?.nama_ibu_baru || data_perubahan_relasi?.ibu?.nama_lengkap || data_perubahan_relasi?.nama_ibu);
+        const namaDariCache = typeof kramaCacheMap !== 'undefined' ? kramaCacheMap[rawIdBaru] : null;
+        const namaDariList = typeof kramaList !== 'undefined' ? krama.find(k => String(k.id) === String(rawIdBaru))?.nama_lengkap : null;
+
+        nilaiBaru = (namaUsulanEksplisit && String(namaUsulanEksplisit).trim() !== "null")
+          ? namaUsulanEksplisit
+          : (namaDariCache || namaDariList || `Krama Baru [No.${rawIdBaru}]`);
+      }
+    }
+
+    else if (type === 'file') {
+      const isLamaAda = Boolean(cleanVal(nilaiLama));
+      const isBaruAda = Boolean(cleanVal(nilaiBaru));
+      if (!isLamaAda && !isBaruAda) return null;
+
+      const namaFileLama = isLamaAda ? (String(nilaiLama).split('/').pop().split('?')[0]) : 'Tidak Ada File';
+      const namaFileBaru = isBaruAda ? (String(nilaiBaru).split('/').pop().split('?')[0]) : 'Tidak Ada File';
+      if (namaFileLama === namaFileBaru) return null;
+
+      const isGambarLama = isLamaAda && typeof isImageFile === 'function' ? isImageFile(nilaiLama) : false;
+      const isGambarBaru = isBaruAda && typeof isImageFile === 'function' ? isImageFile(nilaiBaru) : false;
+
+      return (
+        <tr className="hover:bg-gray-50 transition-colors" key={namaField}>
+          <td className={styles.labelChange}>{label}</td>
+          <td className="p-3 border-r border-gray-100">
+            <div className="flex flex-col gap-1.5">
+              <div className={styles.oldDoc}>
+                {isLamaAda ? (
+                  isGambarLama ? (
+                    <FaFileImage className="text-emerald-600 text-sm flex-shrink-0" />
+                  ) : (
+                    <FaFilePdf className="text-red-500 text-sm flex-shrink-0" />
+                  )
+                ) : null}
+                <span className="font-medium break-all">{namaFileLama}</span>
+              </div>
+            </div>
+          </td>
+          <td className="p-3 align-middle">
+            <div className="flex items-center gap-2">
+              <FaArrowRight className={styles.arrows} />
+              <div className="flex flex-col gap-1.5">
+                <div className={styles.newDoc}>
+                  {isBaruAda ? (
+                    isGambarBaru ? (
+                      <FaFileImage className="text-emerald-600 text-sm flex-shrink-0" />
+                    ) : (
+                      <FaFilePdf className="text-red-500 text-sm flex-shrink-0" />
+                    )
+                  ) : null}
+                  <span className="break-all">{namaFileBaru}</span>
+                </div>
+                {isBaruAda && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof handleBerkasPengangkatan === 'function') {
+                        handleBerkasPengangkatan(activeRelasi.id);
+                      }
+                    }}
+                    className={styles.pratinjauDoc}>
+                    <FaDownload className="text-[10px]" />
+                    <span>Pratinjau Berkas</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </td>
+        </tr>
+      );
+    }
+
+    else if (type === 'date') {
+      const rawDateLama = cleanVal(nilaiLama) ? String(nilaiLama).split('T')[0] : null;
+      const rawDateBaru = cleanVal(data_perubahan_relasi[namaField]) ? String(data_perubahan_relasi[namaField]).split('T')[0] : null;
+      if (rawDateLama === rawDateBaru) return null;
+
+      nilaiLamaDiformat = rawDateLama ? formatDate(nilaiLama) : 'Tidak Diketahui';
+      nilaiBaru = rawDateBaru ? formatDate(nilaiBaru) : 'Tidak Diketahui';
+    }
+
+    else if (type === 'desa_adat') {
+      const rawDesaLama = cleanVal(nilaiLama);
+      const rawDesaBaru = cleanVal(data_perubahan_relasi[namaField]);
+      if (rawDesaLama === rawDesaBaru) return null;
+
+      nilaiLamaDiformat = nilaiLama || 'Desa Asal';
+      nilaiBaru = data_perubahan_relasi?.nama_desa_tujuan || (nilaiBaru ? `Desa Adat ${nilaiBaru}` : 'Desa Asal');
+    } else {
+      const rawTextLama = cleanVal(nilaiLama);
+      const rawTextBaru = cleanVal(nilaiBaru);
+      if (rawTextLama === rawTextBaru) return null;
+    }
+
+    if (String(nilaiLamaDiformat).trim() === String(nilaiBaru).trim()) {
+      return null;
     }
 
     return (
@@ -1413,7 +1516,7 @@ const VerifikasiDataDetail = ({ user }) => {
                     )}
                   </div>
                 </div>
-                {/* Data Perubahan */}
+                {/* Data Perubahan Krama Bali*/}
                 {is_pending_update && data_perubahan && (
                   <div className={styles.cardAreaChange}>
                     <div className={styles.cardTitle}>
@@ -1446,6 +1549,40 @@ const VerifikasiDataDetail = ({ user }) => {
                     </div>
                   </div>
                 )}
+                {/* Catatan Update */}
+                {(() => {
+                  const targetCatatan = data_perubahan?.catatan_update;
+                  if (!targetCatatan || String(targetCatatan).trim() === "" || String(targetCatatan) === "undefined" || String(targetCatatan) === "null") {
+                    return null;
+                  }
+
+                  let teksKeterangan = "";
+                  const isJsonString = typeof targetCatatan === "string" && (targetCatatan.trim().startsWith("{") || targetCatatan.trim().startsWith("["));
+
+                  if (isJsonString) {
+                    try {
+                      const parsed = JSON.parse(targetCatatan);
+                      teksKeterangan = parsed?.keterangan || targetCatatan;
+                    } catch (error) { 
+                      console.log(error);
+                      teksKeterangan = targetCatatan;
+                    }
+                  } else {
+                    teksKeterangan = String(targetCatatan);
+                  }
+                  
+                  if (!teksKeterangan || teksKeterangan === "undefined" || teksKeterangan === "null") return null;
+                  return (
+                    <div className={styles.noteChange}>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                        Catatan Usulan Perubahan Data:
+                      </span>
+                      <p className="text-[11px] text-black italic">
+                        {teksKeterangan}
+                      </p>
+                    </div>
+                  );
+                })()}
                 {hasAccess && (status_verifikasi === "Draft" || ((status_verifikasi === "Disetujui" || status_verifikasi === "Ditolak") && is_pending_update)) && (
                   <div className="flex justify-end mt-4 pt-3 border-t border-gray-100">
                     <button 
@@ -1512,7 +1649,7 @@ const VerifikasiDataDetail = ({ user }) => {
                         )}
                       </div>
                     </div>
-                    {/* Data Perubahan */}
+                    {/* Data Perubahan Orang Tua Kandung*/}
                     {orangTuaKandung.is_pending_update && orangTuaKandung.data_perubahan && (
                       <div className={`${styles.cardAreaChange} mt-4`}>
                         <div className={styles.cardTitle}>
@@ -1538,6 +1675,40 @@ const VerifikasiDataDetail = ({ user }) => {
                         </div>
                       </div>
                     )}
+                    {/* Catatan Update */}
+                    {(() => {
+                      const targetCatatan = orangTuaKandung?.data_perubahan?.catatan_update;
+                      if (!targetCatatan || String(targetCatatan).trim() === "" || String(targetCatatan) === "undefined" || String(targetCatatan) === "null") {
+                        return null;
+                      }
+
+                      let teksKeterangan = "";
+                      const isJsonString = typeof targetCatatan === "string" && (targetCatatan.trim().startsWith("{") || targetCatatan.trim().startsWith("["));
+
+                      if (isJsonString) {
+                        try {
+                          const parsed = JSON.parse(targetCatatan);
+                          teksKeterangan = parsed?.keterangan || targetCatatan;
+                        } catch (error) { 
+                          console.log(error);
+                          teksKeterangan = targetCatatan;
+                        }
+                      } else {
+                        teksKeterangan = String(targetCatatan);
+                      }
+                      
+                      if (!teksKeterangan || teksKeterangan === "undefined" || teksKeterangan === "null") return null;
+                      return (
+                        <div className={styles.noteChange}>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                            Catatan Usulan Perubahan Data:
+                          </span>
+                          <p className="text-[11px] text-black italic">
+                            {teksKeterangan}
+                          </p>
+                        </div>
+                      );
+                    })()}
                     {hasAccess && orangTuaKandung.id && (orangTuaKandung.status_verifikasi === 'Draft' || orangTuaKandung.is_pending_update) && (
                       <div className="flex justify-end mt-3 border-t border-gray-100/50 pt-2">
                         <button 
@@ -1598,7 +1769,36 @@ const VerifikasiDataDetail = ({ user }) => {
                         />
                       </div>
                     </div>
-                    {/* Data Perubahan */}
+                    {/* Berkas Pengangkatan */}
+                    {(() => {
+                      const berkasPath = angkat?.berkas_pengangkatan
+                      if (!berkasPath) return null;
+                      const isGambar = isImageFile(berkasPath);
+                      return (
+                        <div className={styles.fieldBerkas}>
+                          <div className="flex items-center gap-2">
+                            {isGambar ? (
+                              <FaFileImage className="text-emerald-600 text-xl flex-shrink-0 mb-1" />
+                            ) : (
+                              <FaFilePdf className="text-red-500 text-xl flex-shrink-0 mb-1" />
+                            )}
+                            <div>
+                              <p className="text-xs font-bold text-gray-800">
+                                Dokumen Pengangkatan Anak
+                              </p>
+                              <p className="text-[11px] text-gray-500">
+                                {isGambar ? "File Gambar" : "File PDF"}
+                              </p>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => handleBerkasPengangkatan(angkat.id)} className={styles.btnLihatBerkas}>
+                            <FaEye className="text-xs" />
+                            <span>Lihat</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
+                    {/* Data Perubahan Orang Tua Angkat*/}
                     {angkat.is_pending_update && angkat.data_perubahan && (
                       <div className={`${styles.cardAreaChange} mt-4`}>
                         <div className={styles.cardTitle}>
@@ -1620,11 +1820,46 @@ const VerifikasiDataDetail = ({ user }) => {
                               {renderPerubahanRelasiRow("Urutan Lahir", angkat.urutan_lahir, "urutan_lahir", "text", angkat)}
                               {renderPerubahanRelasiRow("Tanggal Pengangkatan", angkat.tanggal_pengangkatan, "tanggal_pengangkatan", "date", angkat)}
                               {renderPerubahanRelasiRow("Desa Adat Tujuan", masterDesaMap[angkat.desa_adat_id_tujuan] || 'Desa Asal', "desa_adat_id_tujuan", "desa_adat", angkat)}
+                              {renderPerubahanRelasiRow("Dokumen Pengangkatan", angkat.berkas_pengangkatan, "berkas_pengangkatan", "file", angkat)}
                             </tbody>
                           </table>
                         </div>
                       </div>
                     )}
+                    {/* Catatan Update */}
+                    {(() => {
+                      const targetCatatan = angkat?.data_perubahan?.catatan_update;
+                      if (!targetCatatan || String(targetCatatan).trim() === "" || String(targetCatatan) === "undefined" || String(targetCatatan) === "null") {
+                        return null;
+                      }
+
+                      let teksKeterangan = "";
+                      const isJsonString = typeof targetCatatan === "string" && (targetCatatan.trim().startsWith("{") || targetCatatan.trim().startsWith("["));
+
+                      if (isJsonString) {
+                        try {
+                          const parsed = JSON.parse(targetCatatan);
+                          teksKeterangan = parsed?.keterangan || targetCatatan;
+                        } catch (error) { 
+                          console.log(error);
+                          teksKeterangan = targetCatatan;
+                        }
+                      } else {
+                        teksKeterangan = String(targetCatatan);
+                      }
+                      
+                      if (!teksKeterangan || teksKeterangan === "undefined" || teksKeterangan === "null") return null;
+                      return (
+                        <div className={styles.noteChange}>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                            Catatan Usulan Perubahan Data:
+                          </span>
+                          <p className="text-[11px] text-black italic">
+                            {teksKeterangan}
+                          </p>
+                        </div>
+                      );
+                    })()}
                     {hasAccess && angkat.id && (angkat.status_verifikasi === 'Draft' || angkat.is_pending_update) && (
                       <div className="flex justify-end mt-3 border-t border-gray-100/50 pt-2">
                         <button 
@@ -1749,48 +1984,43 @@ const VerifikasiDataDetail = ({ user }) => {
                                       {renderPerubahanPerkawinanRow("Ketetapan Silsilah Predana", pAktif?.pilihan_predana, "pilihan_predana", "text", pAktif)}
                                     </tbody>
                                   </table>
-                                  {(() => {
-                                  const targetCatatan = 
-                                    pAktif?.data_perubahan?.UPDATE_PERKAWINAN?.catatan_update || 
-                                    pAktif?.data_perubahan?.UPDATE_PERCERAIAN?.catatan_update || 
-                                    pAktif?.data_perubahan?.catatan_update || 
-                                    pAktif?.catatan_update;
-
-                                  if (!targetCatatan || String(targetCatatan).trim() === "" || String(targetCatatan) === "undefined" || String(targetCatatan) === "null") {
-                                    return null;
-                                  }
-
-                                  let teksKeterangan = "";
-                                  const isJsonString = typeof targetCatatan === "string" && (targetCatatan.trim().startsWith("{") || targetCatatan.trim().startsWith("["));
-
-                                  if (isJsonString) {
-                                    try {
-                                      const parsed = JSON.parse(targetCatatan);
-                                      teksKeterangan = parsed?.keterangan || targetCatatan;
-                                    } catch (error) { 
-                                      console.log(error);
-                                      teksKeterangan = targetCatatan;
-                                    }
-                                  } else {
-                                    teksKeterangan = String(targetCatatan);
-                                  }
-                                  
-                                  if (!teksKeterangan || teksKeterangan === "undefined" || teksKeterangan === "null") return null;
-
-                                  return (
-                                    <div className={styles.noteChange}>
-                                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                                        Catatan/Alasan Perubahan:
-                                      </span>
-                                      <p className="text-[11px] text-black italic">
-                                        {teksKeterangan}
-                                      </p>
-                                    </div>
-                                  );
-                                })()}
                                 </div>
                               </div>
                             )}
+                            {/* Catatan update */}
+                            {(() => {
+                              const targetCatatan = pAktif?.data_perubahan?.UPDATE_PERKAWINAN?.catatan_update || pAktif?.data_perubahan?.UPDATE_PERCERAIAN?.catatan_update || pAktif?.data_perubahan?.catatan_update || pAktif?.catatan_update;
+                              if (!targetCatatan || String(targetCatatan).trim() === "" || String(targetCatatan) === "undefined" || String(targetCatatan) === "null") {
+                                return null;
+                              }
+
+                              let teksKeterangan = "";
+                              const isJsonString = typeof targetCatatan === "string" && (targetCatatan.trim().startsWith("{") || targetCatatan.trim().startsWith("["));
+
+                              if (isJsonString) {
+                                try {
+                                  const parsed = JSON.parse(targetCatatan);
+                                  teksKeterangan = parsed?.keterangan || targetCatatan;
+                                } catch (error) { 
+                                  console.log(error);
+                                  teksKeterangan = targetCatatan;
+                                }
+                              } else {
+                                teksKeterangan = String(targetCatatan);
+                              }
+                              
+                              if (!teksKeterangan || teksKeterangan === "undefined" || teksKeterangan === "null") return null;
+                              return (
+                                <div className={styles.noteChange}>
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                                    Catatan Usulan Perubahan Data:
+                                  </span>
+                                  <p className="text-[11px] text-black italic">
+                                    {teksKeterangan}
+                                  </p>
+                                </div>
+                              );
+                            })()}
                             {/* VERIFIKASI UNTUK PERKAWINAN AKTIF */}
                             {(() => {
                               const desaSuamiId = pAktif.suami?.desa_adat_id || pAktif.suami?.desaAdatId || pAktif.desa_pria_id || pAktif.suami_desa_id;
@@ -1911,45 +2141,45 @@ const VerifikasiDataDetail = ({ user }) => {
                                   {pLama.status_perkawinan}
                                 </span>
                                 {/* VERIFIKASI UNTUK RIWAYAT KOREKSI LAMPAU */}
-                              {(() => {
-                                const desaSuamiId = pLama.suami?.desa_adat_id || pLama.suami?.desaAdatId || pLama.desa_pria_id || pLama.suami_desa_id;
-                                const desaIstriId = pLama.istri?.desa_adat_id || pLama.istri?.desaAdatId || pLama.desa_wanita_id || pLama.istri_desa_id;
-                                const currentAdminDesaId = String(userDesaId || user?.desa_adat_id || user?.desaAdatId || "");
-                                const isAdminTerlibat = user?.role === 'Super Admin' || 
-                                  (user?.role === 'Admin Desa' && currentAdminDesaId !== "" && 
-                                  (String(desaSuamiId) === currentAdminDesaId || String(desaIstriId) === currentAdminDesaId));
-                                const sudahVerifikasiParsial = pLama.riwayat_verifikasi?.some(v => String(v.desa_adat_id) === currentAdminDesaId);
-                                const isKonteksVerifikasi = pLama.is_pending_update && !sudahVerifikasiParsial;
+                                {(() => {
+                                  const desaSuamiId = pLama.suami?.desa_adat_id || pLama.suami?.desaAdatId || pLama.desa_pria_id || pLama.suami_desa_id;
+                                  const desaIstriId = pLama.istri?.desa_adat_id || pLama.istri?.desaAdatId || pLama.desa_wanita_id || pLama.istri_desa_id;
+                                  const currentAdminDesaId = String(userDesaId || user?.desa_adat_id || user?.desaAdatId || "");
+                                  const isAdminTerlibat = user?.role === 'Super Admin' || 
+                                    (user?.role === 'Admin Desa' && currentAdminDesaId !== "" && 
+                                    (String(desaSuamiId) === currentAdminDesaId || String(desaIstriId) === currentAdminDesaId));
+                                  const sudahVerifikasiParsial = pLama.riwayat_verifikasi?.some(v => String(v.desa_adat_id) === currentAdminDesaId);
+                                  const isKonteksVerifikasi = pLama.is_pending_update && !sudahVerifikasiParsial;
 
-                                if (hasAccess || isAdminTerlibat) {
-                                  return (
-                                    <button 
-                                      className={`${styles.eyeLog} ${isKonteksVerifikasi ? styles.verifUpdateCerai : ''}`}
-                                      onClick={() => { 
-                                        setSelectedKawin(pLama);
-                                        setModalKawinData(pLama);
-                                        
-                                        if (pLama.data_perubahan?.UPDATE_PERCERAIAN) {
-                                          setTabVerifikasiAktif('UPDATE_CERAI');
-                                          setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
-                                        } else if (pLama.data_perubahan?.UPDATE_PERKAWINAN) {
-                                          setTabVerifikasiAktif('UPDATE_KAWIN');
-                                          setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
-                                        } else {
-                                          setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
-                                        }
-                                        
-                                        setVerifyKawinAction('Disetujui');
-                                        setCatatanKawinValidator('');
-                                        setIsOpenModalKawin(true); 
-                                      }}>
-                                      <FaEye className="text-xs" />
-                                      <span>{isKonteksVerifikasi ? 'Verifikasi Update' : 'Detail Log'}</span>
-                                    </button>
-                                  );
-                                }
-                                return null;
-                              })()}
+                                  if (hasAccess || isAdminTerlibat) {
+                                    return (
+                                      <button 
+                                        className={`${styles.eyeLog} ${isKonteksVerifikasi ? styles.verifUpdateCerai : ''}`}
+                                        onClick={() => { 
+                                          setSelectedKawin(pLama);
+                                          setModalKawinData(pLama);
+                                          
+                                          if (pLama.data_perubahan?.UPDATE_PERCERAIAN) {
+                                            setTabVerifikasiAktif('UPDATE_CERAI');
+                                            setKonteksVerifikasiKawin('UPDATE_PERCERAIAN');
+                                          } else if (pLama.data_perubahan?.UPDATE_PERKAWINAN) {
+                                            setTabVerifikasiAktif('UPDATE_KAWIN');
+                                            setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
+                                          } else {
+                                            setKonteksVerifikasiKawin('UPDATE_PERKAWINAN');
+                                          }
+                                          
+                                          setVerifyKawinAction('Disetujui');
+                                          setCatatanKawinValidator('');
+                                          setIsOpenModalKawin(true); 
+                                        }}>
+                                        <FaEye className="text-xs" />
+                                        <span>{isKonteksVerifikasi ? 'Verifikasi Update' : 'Detail Log'}</span>
+                                      </button>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
                             </div>
                             {/* DATA PERUBAHAN */}
@@ -1979,48 +2209,43 @@ const VerifikasiDataDetail = ({ user }) => {
                                       {renderPerubahanPerkawinanRow("Ketetapan Silsilah Predana", pLama?.pilihan_predana, "pilihan_predana", "text", pLama)}
                                     </tbody>
                                   </table>
-                                  {(() => {
-                                    const targetCatatan = 
-                                      pLama?.data_perubahan?.UPDATE_PERKAWINAN?.catatan_update || 
-                                      pLama?.data_perubahan?.UPDATE_PERCERAIAN?.catatan_update || 
-                                      pLama?.data_perubahan?.catatan_update || 
-                                      pLama?.catatan_update;
-
-                                    if (!targetCatatan || String(targetCatatan).trim() === "" || String(targetCatatan) === "undefined" || String(targetCatatan) === "null") {
-                                      return null;
-                                    }
-
-                                    let teksKeterangan = "";
-                                    const isJsonString = typeof targetCatatan === "string" && (targetCatatan.trim().startsWith("{") || targetCatatan.trim().startsWith("["));
-
-                                    if (isJsonString) {
-                                      try {
-                                        const parsed = JSON.parse(targetCatatan);
-                                        teksKeterangan = parsed?.keterangan || targetCatatan;
-                                      } catch (error) {
-                                        console.log(error);
-                                        teksKeterangan = targetCatatan;
-                                      }
-                                    } else {
-                                      teksKeterangan = String(targetCatatan);
-                                    }
-
-                                    if (!teksKeterangan || teksKeterangan === "undefined" || teksKeterangan === "null") return null;
-
-                                    return (
-                                      <div className={styles.noteChange}>
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                                          Catatan/Alasan Perubahan:
-                                        </span>
-                                        <p className="text-[11px] text-black italic">
-                                          {teksKeterangan}
-                                        </p>
-                                      </div>
-                                    );
-                                  })()}
                                 </div>
                               </div>
                             )}
+                            {/* Catatan Update */}
+                            {(() => {
+                              const targetCatatan = pLama?.data_perubahan?.UPDATE_PERKAWINAN?.catatan_update || pLama?.data_perubahan?.UPDATE_PERCERAIAN?.catatan_update || pLama?.data_perubahan?.catatan_update || pLama?.catatan_update;
+                              if (!targetCatatan || String(targetCatatan).trim() === "" || String(targetCatatan) === "undefined" || String(targetCatatan) === "null") {
+                                return null;
+                              }
+
+                              let teksKeterangan = "";
+                              const isJsonString = typeof targetCatatan === "string" && (targetCatatan.trim().startsWith("{") || targetCatatan.trim().startsWith("["));
+
+                              if (isJsonString) {
+                                try {
+                                  const parsed = JSON.parse(targetCatatan);
+                                  teksKeterangan = parsed?.keterangan || targetCatatan;
+                                } catch (error) {
+                                  console.log(error);
+                                  teksKeterangan = targetCatatan;
+                                }
+                              } else {
+                                teksKeterangan = String(targetCatatan);
+                              }
+
+                              if (!teksKeterangan || teksKeterangan === "undefined" || teksKeterangan === "null") return null;
+                              return (
+                                <div className={styles.noteChange}>
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                                    Catatan Usulan Perubahan Data:
+                                  </span>
+                                  <p className="text-[11px] text-black italic">
+                                    {teksKeterangan}
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </div>
                         );
                       })}

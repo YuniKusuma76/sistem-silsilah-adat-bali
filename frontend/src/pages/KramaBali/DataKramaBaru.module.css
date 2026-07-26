@@ -58,6 +58,34 @@
   @apply w-full appearance-none px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all;
 }
 
+.inputTextArea {
+  @apply border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center hover:border-amber-500 transition-all bg-gray-50/50;
+}
+
+.iconChecklist {
+  @apply text-green-500 text-3xl mb-1;
+}
+
+.namaFile {
+  @apply text-sm text-gray-700 font-medium;
+}
+
+.btnHapusFile {
+  @apply mt-2 text-xs text-red-600 font-bold hover:underline;
+}
+
+.iconUpload {
+  @apply text-gray-400 text-2xl mb-2;
+}
+
+.areaUpload {
+  @apply flex items-center text-xs text-gray-600;
+}
+
+.upload {
+  @apply relative cursor-pointer bg-white rounded-md font-bold underline text-blue-700 hover:text-blue-800 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-amber-400;
+}
+
 .selectIcon {
   @apply absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400;
 }
