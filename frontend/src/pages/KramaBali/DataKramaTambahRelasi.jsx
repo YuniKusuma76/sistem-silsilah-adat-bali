@@ -246,40 +246,68 @@ const DataKramaTambahRelasi = ({ user }) => {
         const results = await Promise.allSettled([
           axiosInstance.get(`/krama-bali/${realId}`),
           axiosInstance.get("/krama-bali?mode=public"),
+          axiosInstance.get("/krama-bali?mode=personal"),
           axiosInstance.get("/desa-adat"),
           axiosInstance.get("/kecamatan"),
           axiosInstance.get("/kabupaten"),
           axiosInstance.get("/provinsi"),
           axiosInstance.get("/perkawinan?mode=public"),
+          axiosInstance.get("/perkawinan?mode=personal"),
           axiosInstance.get("/relasi-krama?mode=public")
         ]);
 
         const [
           resKramaObj, 
           resKramaListObj, 
+          resKramaPersonalObj,
           resDesaObj, 
           resKecObj, 
           resKabObj, 
           resProvObj, 
           resPerkawinanObj,
+          resPerkawinanPersonalObj,
           resRelasiKramaObj
         ] = results;
 
         const resKrama = resKramaObj.status === "fulfilled" ? resKramaObj.value.data?.data : null;
-        const dataKrama = resKramaListObj.status === "fulfilled" ? resKramaListObj.value.data?.data : [];
+        const dataKramaPublic = resKramaListObj.status === "fulfilled" ? resKramaListObj.value.data?.data : [];
+        const dataKramaPersonal = resKramaPersonalObj.status === "fulfilled" ? resKramaPersonalObj.value.data?.data : [];
         const dataDesa = resDesaObj.status === "fulfilled" ? resDesaObj.value.data?.data : [];
         const dataKec = resKecObj.status === "fulfilled" ? resKecObj.value.data?.data : [];
         const dataKab = resKabObj.status === "fulfilled" ? resKabObj.value.data?.data : [];
         const dataProv = resProvObj.status === "fulfilled" ? resProvObj.value.data?.data : [];
-        const dataPerkawinan = resPerkawinanObj.status === "fulfilled" ? resPerkawinanObj.value.data?.data : [];
+        const dataPerkawinanPublic = resPerkawinanObj.status === "fulfilled" ? resPerkawinanObj.value.data?.data : [];
+        const dataPerkawinanPersonal = resPerkawinanPersonalObj.status === "fulfilled" ? resPerkawinanPersonalObj.value.data?.data : [];
         const dataRelasi = resRelasiKramaObj.status === "fulfilled" ? resRelasiKramaObj.value.data?.data : [];
 
-        setKramaList(dataKrama || []);
+        // Gabungkan data krama public dan personal
+        const mergedKrama = [...(dataKramaPublic || []), ...(dataKramaPersonal || [])];
+        const uniqueKramaMap = new Map();
+        mergedKrama.forEach(item => {
+          if (item && item.id) {
+            uniqueKramaMap.set(item.id, item);
+          }
+        });
+
+        const combinedKramaList = Array.from(uniqueKramaMap.values());
+
+        // Gabungkan data perkawinan public dan personal
+        const mergedPerkawinan = [...(dataPerkawinanPublic || []), ...(dataPerkawinanPersonal || [])];
+        const uniquePerkawinanMap = new Map();
+        mergedPerkawinan.forEach(item => {
+          if (item && item.id) {
+            uniquePerkawinanMap.set(item.id, item);
+          }
+        });
+
+        const combinedPerkawinanList = Array.from(uniquePerkawinanMap.values());
+        
+        setKramaList(combinedKramaList);
         setDesaList(dataDesa || []);
         setKecamatanList(dataKec || []);
         setKabupatenList(dataKab || []);
         setProvinsiList(dataProv || []);
-        setPerkawinanListOptions(dataPerkawinan || []);
+        setPerkawinanListOptions(combinedPerkawinanList);
         setRelasiKramaList(dataRelasi || []);
 
         if (resKrama) {
@@ -314,7 +342,7 @@ const DataKramaTambahRelasi = ({ user }) => {
           });
         }
 
-        const failLoadMasterData = results.slice(2).some(r => r.status === "rejected");
+        const failLoadMasterData = results.slice(3).some(r => r.status === "rejected");
 
         if (failLoadMasterData) {
           setAlert({
@@ -1789,9 +1817,14 @@ const DataKramaTambahRelasi = ({ user }) => {
                                 placeholder="Ketikkan nama ayah atau ibu..."
                                 value={isDropdownOrangTuaOpen ? searchOrangTuaTerm 
                                   : parentData.isManual ? "Data Pasangan Orang Tua Baru" 
-                                  : perkawinanListOptions.find(m => String(m.id) === String(parentData.selected_perkawinan_id))
-                                  ? getPerkawinanLabel(perkawinanListOptions.find(m => String(m.id) === String(parentData.selected_perkawinan_id)))
-                                  : searchOrangTuaTerm
+                                  : (() => {
+                                      const selectedPerkawinan = perkawinanListOptions.find((m) => String(m.id) === String(parentData.selected_perkawinan_id));
+                                      if (!selectedPerkawinan) return searchOrangTuaTerm;
+                                      const isDraft = selectedPerkawinan.status_verifikasi === "Draft";
+                                      return `${getPerkawinanLabel(selectedPerkawinan)}${
+                                        isDraft ? " (DRAFT - MENUNGGU VERIFIKASI)" : ""
+                                      }`;
+                                    })()
                                 }
                                 onChange={(e) => {
                                   setSearchOrangTuaTerm(e.target.value);
@@ -2586,7 +2619,14 @@ const DataKramaTambahRelasi = ({ user }) => {
                                 placeholder="Ketikkan nama orang tua/leluhur purusa tunggal ..."
                                 value={isDropdownOrangTuaOpen ? searchOrangTuaTerm 
                                   : parentData.isManual ? "Data Orang Tua Tunggal Baru"
-                                  : (kramaList.find(k => String(k.id) === String(parentData.selected_parent_id))?.nama_lengkap || (parentData.isManual ? "" : ""))
+                                  : (() => {
+                                      const selectedParent = kramaList.find((k) => String(k.id) === String(parentData.selected_parent_id));
+                                      if (!selectedParent) return "";
+                                      const isDraft = selectedParent.status_verifikasi === "Draft";
+                                      return `${selectedParent.nama_lengkap}${
+                                        isDraft ? " (DRAFT - MENUNGGU VERIFIKASI)" : ""
+                                      }`;
+                                    })()
                                 }
                                 onChange={(e) => {
                                   setSearchOrangTuaTerm(e.target.value);
@@ -3088,9 +3128,14 @@ const DataKramaTambahRelasi = ({ user }) => {
                           placeholder="Ketikkan nama anak angkat..."
                           value={isDropdownAnakOpen ? searchTermAnak 
                             : adoptingData.isAnakManual ? "Data Anak Angkat Baru" 
-                            : kramaList.find(k => String(k.id) === String(adoptingData.anak_angkat_id)) 
-                              ? getOrangTuaLabel(kramaList.find(k => String(k.id) === String(adoptingData.anak_angkat_id))) 
-                              : searchTermAnak
+                            : (() => {
+                                const selectedAnak = kramaList.find((k) => String(k.id) === String(adoptingData.anak_angkat_id));
+                                if (!selectedAnak) return searchTermAnak;
+                                const isDraft = selectedAnak.status_verifikasi === "Draft";
+                                return `${getOrangTuaLabel(selectedAnak)}${
+                                  isDraft ? " (DRAFT - MENUNGGU VERIFIKASI)" : ""
+                                }`;
+                              })()
                           }
                           onChange={(e) => {
                             setSearchTermAnak(e.target.value);

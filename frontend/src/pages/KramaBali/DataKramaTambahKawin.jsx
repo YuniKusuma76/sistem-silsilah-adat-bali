@@ -149,6 +149,7 @@ const DataKramaTambahKawin = ({ user }) => {
         setIsLoading(true);
         const results = await Promise.allSettled([
           axiosInstance.get(`/krama-bali/${realId}`),
+          axiosInstance.get("/krama-bali?mode=public"),
           axiosInstance.get("/krama-bali?mode=personal"),
           axiosInstance.get("/desa-adat"),
           axiosInstance.get("/kecamatan"),
@@ -159,6 +160,7 @@ const DataKramaTambahKawin = ({ user }) => {
         const [
           resKramaObj, 
           resKramaListObj, 
+          resKramaPersonalObj,
           resDesaObj, 
           resKecObj, 
           resKabObj, 
@@ -166,13 +168,25 @@ const DataKramaTambahKawin = ({ user }) => {
         ] = results;
 
         const resKrama = resKramaObj.status === "fulfilled" ? resKramaObj.value.data?.data : null;
-        const dataKrama = resKramaListObj.status === "fulfilled" ? resKramaListObj.value.data?.data : [];
+        const dataKramaPublic = resKramaListObj.status === "fulfilled" ? resKramaListObj.value.data?.data : [];
+        const dataKramaPersonal = resKramaPersonalObj.status === "fulfilled" ? resKramaPersonalObj.value.data?.data : [];
         const dataDesa = resDesaObj.status === "fulfilled" ? resDesaObj.value.data?.data : [];
         const dataKec = resKecObj.status === "fulfilled" ? resKecObj.value.data?.data : [];
         const dataKab = resKabObj.status === "fulfilled" ? resKabObj.value.data?.data : [];
         const dataProv = resProvObj.status === "fulfilled" ? resProvObj.value.data?.data : [];
 
-        setKramaList(dataKrama || []);
+        // Gabungkan data public dan personal
+        const mergedKrama = [...(dataKramaPublic || []), ...(dataKramaPersonal || [])];
+        const uniqueKramaMap = new Map();
+        mergedKrama.forEach(item => {
+          if (item && item.id) {
+            uniqueKramaMap.set(item.id, item);
+          }
+        });
+
+        const combinedKramaList = Array.from(uniqueKramaMap.values());
+
+        setKramaList(combinedKramaList);
         setDesaList(dataDesa || []);
         setKecamatanList(dataKec || []);
         setKabupatenList(dataKab || []);
@@ -291,7 +305,7 @@ const DataKramaTambahKawin = ({ user }) => {
           });
         }
 
-        const failLoadMasterData = results.slice(2).some(r => r.status === "rejected");
+        const failLoadMasterData = results.slice(3).some(r => r.status === "rejected");
 
         if (failLoadMasterData) {
           setAlert({
