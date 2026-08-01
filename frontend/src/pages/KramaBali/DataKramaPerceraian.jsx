@@ -153,6 +153,7 @@ const DataKramaPerceraian = ({ user }) => {
         const results = await Promise.allSettled([
           axiosInstance.get(`/perkawinan/${realId}?mode=${kawinQueryMode}`),
           axiosInstance.get("/krama-bali?mode=public"),
+          axiosInstance.get("/krama-bali?mode=personal"),
           axiosInstance.get("/desa-adat"),
           axiosInstance.get("/kecamatan"),
           axiosInstance.get("/kabupaten"),
@@ -162,6 +163,7 @@ const DataKramaPerceraian = ({ user }) => {
         const [
           resKawinObj, 
           resKramaListObj, 
+          resKramaPersonalObj,
           resDesaObj, 
           resKecObj, 
           resKabObj, 
@@ -169,13 +171,25 @@ const DataKramaPerceraian = ({ user }) => {
         ] = results;
 
         const resKawin = resKawinObj.status === "fulfilled" ? resKawinObj.value.data?.data : null;
-        const dataKrama = resKramaListObj.status === "fulfilled" ? resKramaListObj.value.data?.data : [];
+        const dataKramaPublic = resKramaListObj.status === "fulfilled" ? resKramaListObj.value.data?.data : [];
+        const dataKramaPersonal = resKramaPersonalObj.status === "fulfilled" ? resKramaPersonalObj.value.data?.data : [];
         const dataDesa = resDesaObj.status === "fulfilled" ? resDesaObj.value.data?.data : [];
         const dataKec = resKecObj.status === "fulfilled" ? resKecObj.value.data?.data : [];
         const dataKab = resKabObj.status === "fulfilled" ? resKabObj.value.data?.data : [];
         const dataProv = resProvObj.status === "fulfilled" ? resProvObj.value.data?.data : [];
 
-        setKramaList(dataKrama || []);
+        // Gabungkan data public dan personal
+        const mergedKrama = [...(dataKramaPublic || []), ...(dataKramaPersonal || [])];
+        const uniqueKramaMap = new Map();
+        mergedKrama.forEach(item => {
+          if (item && item.id) {
+            uniqueKramaMap.set(item.id, item);
+          }
+        });
+
+        const combinedKramaList = Array.from(uniqueKramaMap.values());
+
+        setKramaList(combinedKramaList);
         setDesaList(dataDesa || []);
         setKecamatanList(dataKec || []);
         setKabupatenList(dataKab || []);
@@ -194,8 +208,8 @@ const DataKramaPerceraian = ({ user }) => {
               }
             } catch (errKrama) {
               console.error("Gagal mengambil detail krama bali:", errKrama);
-              if (!kramaUtama && dataKrama.length > 0) {
-                kramaUtama = dataKrama.find(k => String(k.id) === String(targetId));
+              if (!kramaUtama && combinedKramaList.length > 0) {
+                kramaUtama = combinedKramaList.find(k => String(k.id) === String(targetId));
               }
             }
           }
@@ -232,10 +246,14 @@ const DataKramaPerceraian = ({ user }) => {
             }
 
             const idPasanganDb = kramaUtama?.jenis_kelamin === "Laki-laki" ? resKawin.istri_id : resKawin.suami_id;
-            const objekPasangan = dataKrama.find(k => String(k.id) === String(idPasanganDb));
-            
+            const objekPasangan = combinedKramaList.find(k => String(k.id) === String(idPasanganDb));
+          
             if (objekPasangan) {
-              setSearchPasangan({ 0: objekPasangan.nama_lengkap });
+              const isDraftPasangan = objekPasangan.status_verifikasi === "Draft";
+              const labelNamaPasangan = `${objekPasangan.nama_lengkap}${
+                isDraftPasangan ? " (DRAFT - MENUNGGU VERIFIKASI)" : ""
+              }`;
+              setSearchPasangan({ 0: labelNamaPasangan });
             }
 
             const tipeAwal = (resKawin.status_perkawinan === "Cerai" || resKawin.status_perkawinan === "Cerai Mati") 

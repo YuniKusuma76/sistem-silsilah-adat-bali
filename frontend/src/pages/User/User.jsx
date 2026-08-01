@@ -127,10 +127,12 @@ const User = ({ user }) => {
   const [isDropdownNotifOpen, setIsDropdownNotifOpen] = useState(false);
   const [listNotifikasi, setListNotifikasi] = useState([]);
 
+  const isAdminDesa = user?.role === 'Admin Desa';
+
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
-    role: 'Viewer',
+    role: isAdminDesa ? 'Krama' : 'Viewer',
     desa_adat_id: '',
     password: '',
     confirmPassword: ''
@@ -343,7 +345,7 @@ const User = ({ user }) => {
     setFormData({
       full_name: '',
       email: '',
-      role: 'Viewer',
+      role: isAdminDesa ? 'Krama' : 'Viewer',
       desa_adat_id: '',
       password: '',
       confirmPassword: ''
@@ -418,7 +420,7 @@ const User = ({ user }) => {
       setFormData({ 
         full_name: '', 
         email: '', 
-        role: 'Viewer', 
+        role: isAdminDesa ? 'Krama' : 'Viewer',
         desa_adat_id: '', 
         password: '', 
         confirmPassword: '' 
@@ -851,8 +853,7 @@ const User = ({ user }) => {
                               e.stopPropagation();
                               const slug = createSlug(item.display_name, item.createdAt, item.id);
                               navigate(`/user-pengguna/detail/${slug}`);
-                            }}
-                          >
+                            }}>
                             <FaInfoCircle /> Detail
                           </button>
                           {currentStatus === 'Aktif' && (
@@ -927,13 +928,19 @@ const User = ({ user }) => {
                   <label className={styles.labelField}>
                     Role
                   </label>
-                  <select id="role" name="role" value={formData.role} onChange={handleChange} className={styles.inputSelect} required>
-                    <option value="Super Admin">Super Admin</option>
-                    <option value="Admin Desa">Admin Desa</option>
-                    <option value="Pakar">Pakar</option>
-                    <option value="Krama">Krama</option>
-                    <option value="Viewer">Viewer</option>
-                  </select>
+                  {isAdminDesa ? (
+                    <select id="role" name="role" value="Krama" onChange={handleChange} className={styles.inputSelect} disabled required>
+                      <option value="Krama">Krama</option>
+                    </select>
+                  ) : (
+                    <select id="role" name="role" value={formData.role} onChange={handleChange} className={styles.inputSelect} required>
+                      <option value="Super Admin">Super Admin</option>
+                      <option value="Admin Desa">Admin Desa</option>
+                      <option value="Pakar">Pakar</option>
+                      <option value="Krama">Krama</option>
+                      <option value="Viewer">Viewer</option>
+                    </select>
+                  )}
                   <div className={styles.selectIcon} style={{ position: 'absolute', right: '1rem', bottom: '0.8rem', pointerEvents: 'none', color: '#6b7280' }}>
                     <FaChevronDown size={12}/>
                   </div>
@@ -967,7 +974,6 @@ const User = ({ user }) => {
                         {desaFiltered.length > 0 ? (
                           desaFiltered.map((desa) => {
                             const wilayah = getWilayahLengkap(desa.id);
-
                             return (
                               <button key={desa.id} type="button" onClick={() => handleSelectDesa(desa)} className={styles.dropdownInput}>
                                 <p className="text-xs font-bold text-gray-800">

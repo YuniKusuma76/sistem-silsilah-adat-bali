@@ -237,11 +237,12 @@ const PengajuanRoleBaru = ({ user }) => {
       return false;
     }
 
-    if (formPengajuan.roleYangDiminta === 'Admin Desa' && !formPengajuan.desaAdatIdTujuan) {
+    const butuhDesaTujuan = formPengajuan.roleYangDiminta === 'Admin Desa' || formPengajuan.roleYangDiminta === 'Krama';
+    if (butuhDesaTujuan && !formPengajuan.desaAdatIdTujuan) {
       setAlert({ 
         show: true, 
         type: 'error', 
-        message: 'Role Admin Desa wajib memilih Desa Adat Tujuan!' 
+        message: `Role ${formPengajuan.roleYangDiminta} wajib memilih Desa Adat Tujuan!` 
       });
       window.scrollTo(0, 0);
       return false;
@@ -273,9 +274,11 @@ const PengajuanRoleBaru = ({ user }) => {
     }
     setShowSaveConfirmModal(false);
 
+    const isDesaReq = formPengajuan.roleYangDiminta === 'Admin Desa' || formPengajuan.roleYangDiminta === 'Krama';
+
     const formData = new FormData();
     formData.append('role_yang_diminta', formPengajuan.roleYangDiminta);
-    formData.append('desa_adat_id_tujuan', formPengajuan.roleYangDiminta === 'Admin Desa' ? formPengajuan.desaAdatIdTujuan : '');
+    formData.append('desa_adat_id_tujuan', isDesaReq ? formPengajuan.desaAdatIdTujuan : '');
     formData.append('alasan_permohonan', formPengajuan.alasanPermohonan);
     formData.append('dokumen_pendukung', formPengajuan.fileDokumen);
     
@@ -471,6 +474,7 @@ const PengajuanRoleBaru = ({ user }) => {
                   <option value="">- Pilih -</option>
                   <option value="Admin Desa">Admin Desa Adat</option>
                   <option value="Pakar">Pakar Aturan Adat</option>
+                  <option value="Krama">Krama Desa Adat</option>
                 </select>
                 <div className={styles.selectIcon}>
                   <FaChevronDown />
@@ -481,7 +485,7 @@ const PengajuanRoleBaru = ({ user }) => {
               </p>
             </div>
             {/* Desa Adat Tujuan */}
-            {formPengajuan.roleYangDiminta === 'Admin Desa' && (
+            {(formPengajuan.roleYangDiminta === 'Admin Desa' || formPengajuan.roleYangDiminta === 'Krama') && (
               <div ref={dropdownRef} className="space-y-4 animate-fade-in">
                 <div>
                   <label className={styles.labelInputSelect}>

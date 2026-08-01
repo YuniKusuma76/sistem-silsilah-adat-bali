@@ -13,7 +13,8 @@ import { supabase } from "../config/supabase.config.js";
 
 const VALID_ROLES_PENGAJUAN = [
   "Admin Desa", 
-  "Pakar"
+  "Pakar",
+  "Krama"
 ];
 
 const VALID_STATUS_PERMOHONAN = [
@@ -95,7 +96,7 @@ export const ajukanPermohonan = async (req, res) => {
       });
     }
 
-    if (role_yang_diminta === "Admin Desa") {
+    if (role_yang_diminta === "Admin Desa" || role_yang_diminta === "Krama") {
       if (!desa_adat_id_tujuan || desa_adat_id_tujuan.toString().trim() === "") {
         return res.status(400).json({
           message: "Kolom wilayah desa adat wajib diisi!"
@@ -141,12 +142,14 @@ export const ajukanPermohonan = async (req, res) => {
       throw new Error(`Gagal mengunggah berkas ke Cloud Storage: ${uploadError.message}`);
     }
 
+    const isDesaReq = role_yang_diminta === "Admin Desa" || role_yang_diminta === "Krama";
+
     const permohonan = await PermohonanRole.create({
       user_id: req.userId,
       role_yang_diminta,
       alasan_permohonan,
       dokumen_pendukung: filePath,
-      desa_adat_id_tujuan: role_yang_diminta === "Admin Desa" ? desa_adat_id_tujuan : null,
+      desa_adat_id_tujuan: isDesaReq ? desa_adat_id_tujuan : null,
       status_permohonan: "Menunggu"
     });
 
@@ -225,7 +228,8 @@ export const verifikasiPermohonan = async (req, res) => {
         role: berkasPermohonan.role_yang_diminta
       };
 
-      if (berkasPermohonan.role_yang_diminta === "Admin Desa") {
+      if (berkasPermohonan.role_yang_diminta === "Admin Desa" || berkasPermohonan.role_yang_diminta === "Krama"
+      ) {
         payloadUpdateUser.desa_adat_id = berkasPermohonan.desa_adat_id_tujuan;
       } else if (berkasPermohonan.role_yang_diminta === "Pakar") {
         payloadUpdateUser.desa_adat_id = null;
