@@ -249,6 +249,7 @@ export const eksekusiVerifikasiPerkawinan = async ({
       where: {
         suami_id,
         status_perkawinan: "Kawin",
+        status_verifikasi: "Disetujui",
         id: { [Op.ne]: perkawinan_id }
       },
       transaction: t
@@ -259,22 +260,52 @@ export const eksekusiVerifikasiPerkawinan = async ({
       const perkawinanPertama = await Perkawinan.findOne({
         where: { 
           suami_id,
+          status_verifikasi: "Disetujui",
           id: { [Op.ne]: perkawinan_id } 
         },
-        order: [["tanggal_perkawinan", "ASC"]],
+        order: [["tanggal_perkawinan", "ASC"], ["createdAt", "ASC"]],
         transaction: t
       });
+
+      if (!perkawinanPertama) {
+        throw new Error(
+          "Proses verifikasi perkawinan poligami dihentikan! Perkawinan pertama krama ini belum diverifikasi dan disetujui oleh Admin Desa."
+        );
+      }
 
       const statusPurusaPertama = await RiwayatPeranAdat.findOne({
         where: {
           krama_id: suami_id,
           status_peran_adat: "Purusa",
-          perkawinan_id: perkawinanPertama.id 
+          perkawinan_id: perkawinanPertama.id
         },
         transaction: t
       });
 
+      if (!statusPurusaPertama && perkawinanPertama.jenis_perkawinan === "Nyentana") {
+        throw new Error(
+          "Krama ini tidak dapat melakukan perkawinan poligami karena berstatus bukan Purusa pada perkawinan pertamanya."
+        );
+      }
+
       isPoligami = true;
+    } else {
+      const kawinDraftLain = await Perkawinan.findOne({
+        where: {
+          suami_id,
+          status_perkawinan: "Kawin",
+          status_verifikasi: "Draft",
+          id: { [Op.ne]: perkawinan_id }
+        },
+        order: [["tanggal_perkawinan", "ASC"], ["createdAt", "ASC"]],
+        transaction: t
+      });
+
+      if (kawinDraftLain && new Date(kawinDraftLain.tanggal_perkawinan) < new Date(tanggal_perkawinan)) {
+        throw new Error(
+          "Proses verifikasi dihentikan! Ditemukan pengajuan perkawinan sebelumnya untuk krama ini yang masih berstatus Draft. Mohon verifikasi perkawinan terdahulu terlebih dahulu."
+        );
+      }
     }
 
     await Promise.all([
@@ -376,6 +407,12 @@ export const eksekusiVerifikasiPerkawinan = async ({
           },
           transaction: t
         });
+        if (!keluargaTarget) {
+          keluargaTarget = await buatKeluargaBali({
+            kepala_keluarga_id: suami_id,
+            jenis_keluarga: jenis_perkawinan
+          }, t);
+        }
       } else {
         await tutupKeluargaAktif({ 
           kepala_keluarga_id: suami_id, 

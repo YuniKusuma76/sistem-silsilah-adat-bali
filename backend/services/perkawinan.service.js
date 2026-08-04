@@ -88,7 +88,8 @@ export const buatPerkawinanBali = async ({
     const perkawinanSuamiAktif = await Perkawinan.findOne({
       where: {
         suami_id,
-        status_perkawinan: "Kawin"
+        status_perkawinan: "Kawin",
+        status_verifikasi: "Disetujui"
       },
       transaction: t
     });
@@ -96,22 +97,27 @@ export const buatPerkawinanBali = async ({
     // memastikan status peran adat sebelumnya adalah Purusa
     if (perkawinanSuamiAktif) {
       const perkawinanPertama = await Perkawinan.findOne({
-        where: { suami_id },
-        order: [["tanggal_perkawinan", "ASC"]],
+        where: { 
+          suami_id,
+          status_verifikasi: "Disetujui" 
+        },
+        order: [["tanggal_perkawinan", "ASC"], ["createdAt", "ASC"]],
         transaction: t
       });
 
-      const statusPurusaPertama = await RiwayatPeranAdat.findOne({
-        where: {
-          krama_id: suami_id,
-          status_peran_adat: "Purusa",
-          selesai_tanggal: null
-        },
-        transaction: t
-      });
-      
-      if (!statusPurusaPertama && perkawinanPertama && perkawinanPertama.jenis_perkawinan === "Nyentana") {
-        throw new Error("Krama ini tidak dapat melakukan poligami karena tidak berstatus purusa pada perkawinan pertamanya (Status Nyentana).");
+      if (perkawinanPertama) {
+        const statusPurusaPertama = await RiwayatPeranAdat.findOne({
+          where: {
+            krama_id: suami_id,
+            status_peran_adat: "Purusa",
+            perkawinan_id: perkawinanPertama.id
+          },
+          transaction: t
+        });
+        
+        if (!statusPurusaPertama && perkawinanPertama.jenis_perkawinan === "Nyentana") {
+          throw new Error("Krama ini tidak dapat melakukan poligami karena tidak berstatus purusa pada perkawinan pertamanya (Status Nyentana).");
+        }
       }
 
       isPoligami = true;
