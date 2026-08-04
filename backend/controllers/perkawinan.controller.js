@@ -1536,6 +1536,24 @@ export const deletePerkawinan = async (req, res) => {
       await eksekusiRollbackPerkawinan(perkawinan, "PERCERAIAN", t);
       await t.commit();
 
+      try {
+        const targetUserIdPengaju = perkawinan.user_id;
+        const labelPelaku = user_role === "Krama" ? "Krama Pemilik Data" : user_role;
+
+        await kirimNotifikasiSistem(req, {
+          judul: "Penghapusan Data Perceraian",
+          deskripsi: `Pencatatan perceraian antara ${suami.nama_lengkap || ""} dan ${istri.nama_lengkap || ""} berhasil dihapus oleh ${labelPelaku}. Status perkawinan kini aktif kembali.`,
+          kategori: "INFORMASI",
+          tautan_fitur: "/krama-bali",
+          desa_adat_id: user_desa_id || suami.desa_adat_id,
+          sender_id: user_id,
+          kontak_pesan_id: null,
+          user_id: targetUserIdPengaju
+        }, null);
+      } catch (errorNotif) {
+        console.error("Gagal mengirim notifikasi:", errorNotif.message);
+      }
+
       return res.status(200).json({
         message: "Data perceraian berhasil dibatalkan. Status perkawinan kini telah dikembalikan menjadi 'Kawin'."
       });

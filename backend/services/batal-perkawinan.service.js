@@ -7,6 +7,7 @@ import {
   Keluarga,
   RelasiKrama
 } from "../models/associations.js";
+import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
 
 const dapatkanRentangHari = (stringTanggal) => {
   if (!stringTanggal) return null;
@@ -40,19 +41,39 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
       throw new Error("Tanggal perceraian tidak ditemukan.");
     }
 
-    const rentangHariCerai = dapatkanRentangHari(tanggal_cerai);
+    const keluargaPredanaBaru = await Keluarga.findOne({
+      where: { kepala_keluarga_id: predanaId },
+      transaction: t
+    });
+
+    if (keluargaPredanaBaru) {
+      await RiwayatKeluarga.destroy({
+        where: { keluarga_id: keluargaPredanaBaru.id },
+        transaction: t
+      });
+
+      await keluargaPredanaBaru.destroy({ transaction: t });
+    }
+
+    await RiwayatKeluarga.destroy({
+      where: {
+        perkawinan_id: perkawinan_id,
+        kategori_event: "CERAI"
+      },
+      transaction: t
+    });
 
     await RiwayatKeluarga.update({ 
       akhir_masuk: null 
     },{
       where: {
         perkawinan_id: perkawinan_id,
-        akhir_masuk: rentangHariCerai
+        krama_id: [suami_id, istri_id]
       },
       transaction: t
     });
 
-    await RiwayatKeluarga.destroy({
+    await RiwayatPeranAdat.destroy({
       where: {
         perkawinan_id: perkawinan_id,
         kategori_event: "CERAI"
@@ -65,15 +86,7 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
     },{
       where: {
         perkawinan_id: perkawinan_id,
-        selesai_tanggal: rentangHariCerai
-      },
-      transaction: t
-    });
-
-    await RiwayatPeranAdat.destroy({
-      where: {
-        perkawinan_id: perkawinan_id,
-        kategori_event: "CERAI"
+        krama_id: [suami_id, istri_id]
       },
       transaction: t
     });
@@ -109,8 +122,13 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
       ketetapan_silsilah_istri: null
     },{ transaction: t });
 
+    await Promise.all([
+      rekonsiliasiKronologiKeluarga(suami_id, t),
+      rekonsiliasiKronologiKeluarga(istri_id, t)
+    ]);
+
     return { 
-      message: "Dampak perceraian berhasil dibatalkan. Status perkawinan kembali menjadi Kawin." 
+      message: "Dampak perceraian berhasil dibatalkan. Status perkawinan dan riwayat keluarga kembali aktif menjadi Kawin." 
     };
   }
 
@@ -189,6 +207,11 @@ export const eksekusiRollbackPerkawinan = async (perkawinan, tipe_rollback, t) =
         await keluargaTerbentuk.destroy({ transaction: t });
       }
     }
+
+    await Promise.all([
+      rekonsiliasiKronologiKeluarga(suami_id, t),
+      rekonsiliasiKronologiKeluarga(istri_id, t)
+    ]);
 
     return { 
       message: "Rollback dampak perkawinan lama berhasil dieksekusi bersih." 

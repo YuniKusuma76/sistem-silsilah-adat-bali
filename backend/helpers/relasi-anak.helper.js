@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import RelasiKrama from "../models/relasi.model.js";
 import KramaBali from "../models/krama.model.js";
 
@@ -7,31 +7,37 @@ export const ambilRelasiAnak = async ({
   mode,
   ayah_id = null,
   ibu_id = null,
-  kepala_keluarga_id = null
+  kepala_keluarga_id = null,
+  sertakanDraft = false
 }, t = null) => {
   const queryOptions = {
     include: {
       model: KramaBali,
       as: "anak",
-      attributes: ["id", "tanggal_lahir"]
+      attributes: ["id", "nama_lengkap", "tanggal_lahir"]
     },
     order: [
-      [{ 
-        model: KramaBali, 
-        as: "anak" 
-      }, "tanggal_lahir", "ASC"], 
-      ["id", "ASC"] 
+      [Sequelize.literal('CASE WHEN "urutan_lahir" IS NOT NULL THEN 0 ELSE 1 END'), "ASC"],
+      ["urutan_lahir", "ASC"],
+      [Sequelize.literal('CASE WHEN "anak"."tanggal_lahir" IS NOT NULL THEN 0 ELSE 1 END'), "ASC"],
+      [{ model: KramaBali, as: "anak" }, "tanggal_lahir", "ASC"],
+      ["id", "ASC"]
     ],
     transaction: t
   };
 
-  // Mengambil relasi anak angkat ketika orang tua belum kawin
+  const filterVerifikasi = sertakanDraft 
+    ? { status_verifikasi: { [Op.in]: ["Disetujui", "Draft"] } }
+    : { status_verifikasi: "Disetujui" };
+
   if (mode === "ANGKAT") {
+    if (!kepala_keluarga_id) return [];
+
     return RelasiKrama.findAll({
       ...queryOptions,
       where: {
         status_hubungan: "Anak Angkat",
-        status_verifikasi: "Disetujui",
+        ...filterVerifikasi,
         [Op.or]: [
           { ayah_id: kepala_keluarga_id },
           { ibu_id: kepala_keluarga_id }
@@ -40,19 +46,33 @@ export const ambilRelasiAnak = async ({
     });
   }
 
-  // Mengambil relasi anak angkat atau anak kandung ketika orang tua telah kawin
   if (mode === "CAMPUR") {
+    const kondisiOr = [];
+
+    if (ayah_id && ibu_id) {
+      kondisiOr.push(
+        { ayah_id, ibu_id },
+        { ayah_id, ibu_id: null },
+        { ayah_id: null, ibu_id }
+      );
+    } else {
+      if (ayah_id) kondisiOr.push({ ayah_id });
+      if (ibu_id) kondisiOr.push({ ibu_id });
+    }
+
+    if (kondisiOr.length === 0) return [];
+
     return RelasiKrama.findAll({
       ...queryOptions,
       where: {
-        ayah_id,
-        ibu_id,
-        status_verifikasi: "Disetujui",
+        ...filterVerifikasi,
         status_hubungan: {
           [Op.in]: ["Anak Kandung", "Anak Angkat"]
-        }
+        },
+        [Op.or]: kondisiOr
       }
     });
   }
+
   return [];
 };

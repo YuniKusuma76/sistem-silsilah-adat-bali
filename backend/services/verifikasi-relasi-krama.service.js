@@ -14,6 +14,7 @@ import { anakAngkatPasangan } from "./anak-angkat-perkawinan.service.js";
 import { integrasiRelasiLeluhur } from "./anak-relasi-leluhur.service.js";
 import { eksekusiRollbackRelasi } from "./batal-relasi-krama.service.js";
 import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
+import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 
 // Helper: konversi nilai ke number atau null
 const toSafeIntOrNull = (value) => {
@@ -415,7 +416,21 @@ export const prosesVerifikasiRelasiKrama = async ({
       await eksekusiRollbackRelasi(relasi, t);
       await relasi.destroy({ transaction: t });
 
+      if (relasi.status_hubungan === "Anak Kandung") {
+        await hitungUrutanLahir({
+          ayah_id: idAyahLama,
+          ibu_id: idIbuLama,
+          mode: "CAMPUR"
+        }, t);
+      } else if (relasi.status_hubungan === "Anak Angkat" && (idAyahLama || idIbuLama)) {
+        await hitungUrutanLahir({
+          kepala_keluarga_id: idAyahLama || idIbuLama,
+          mode: "ANGKAT"
+        }, t);
+      }
+      
       const pengangkatIdStruktural = targetAyahId || targetIbuId;
+      const urutanInputManual = toSafeIntOrNull(rawChange?.urutan_lahir ?? relasi.urutan_lahir);
 
       const servicePayloadStruktural = {
         anak_id: relasi.anak_id, 
@@ -425,7 +440,7 @@ export const prosesVerifikasiRelasiKrama = async ({
         krama_id: pengangkatIdStruktural,
         status_hubungan: targetStatusHubungan, 
         tanggal_pengangkatan: tglAngkatDateOnly,
-        urutan_lahir: toSafeIntOrNull(rawChange.urutan_lahir ?? relasi.urutan_lahir),
+        urutan_lahir: urutanInputManual,
         perkawinan_id: targetPerkawinanId, 
         is_verifikasi: false,
         ...commonParams,
@@ -471,6 +486,12 @@ export const prosesVerifikasiRelasiKrama = async ({
         const userIdPengaju = relasi.user_id;
         await eksekusiRollbackRelasi(relasi, t);
         await relasi.destroy({ transaction: t });
+
+        await hitungUrutanLahir({
+          ayah_id: idAyahLama,
+          ibu_id: idIbuLama,
+          mode: "CAMPUR"
+        }, t);
 
         const servicePayloadKandungNon = {
           anak_id: relasi.anak_id,

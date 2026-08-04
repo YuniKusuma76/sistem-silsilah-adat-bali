@@ -401,13 +401,18 @@ const DataKramaDetail = ({ user }) => {
   }, [user, krama]);
 
   useEffect(() => {
-    if (location.state?.successMessage) {
+    const stateMessage = location.state?.successMessage;
+    const sessionMessage = sessionStorage.getItem('flash_success_message');
+    const finalMessage = stateMessage || sessionMessage;
+
+    if (finalMessage) {
       setAlert({
         show: true,
         type: 'success',
-        message: location.state.successMessage
+        message: finalMessage
       });
       window.history.replaceState({}, document.title);
+      sessionStorage.removeItem('flash_success_message');
     }
   }, [location]);
   
@@ -852,12 +857,20 @@ const DataKramaDetail = ({ user }) => {
   const handleDeletePerkawinan = async (perkawinanId) => {
     if (!perkawinanId) return;
     setIsDeleting(true);
+
+    const isPerceraian = 
+      modalKawinData?.status_perkawinan === "Cerai Hidup" || 
+      modalKawinData?.status_perkawinan === "Cerai Mati" || 
+      modalKawinData?.status_perkawinan === "Cerai";
+
+    const konteksTeks = isPerceraian ? "perceraian" : "perkawinan";
+
     try {
       await axiosInstance.delete(`/perkawinan/kawin/cancel-draft/${perkawinanId}`);
       setAlert({ 
         show: true, 
         type: 'success', 
-        message: 'Draft pengajuan data perkawinan baru berhasil dihapus secara permanen!' 
+        message: `Data ${konteksTeks} berhasil dihapus secara permanen!` 
       });
       setIsOpenModalKawin(false);
       setModalKawinData(null);
@@ -867,7 +880,7 @@ const DataKramaDetail = ({ user }) => {
       setAlert({
         show: true,
         type: 'error',
-        message: error.response?.data?.message || 'Gagal menghapus draft data perkawinan.'
+        message: error.response?.data?.message || `Gagal menghapus draft data ${konteksTeks}.`
       });
     } finally {
       setIsDeleting(false);
@@ -960,14 +973,23 @@ const DataKramaDetail = ({ user }) => {
   };
 
   const handleTriggerDeletePerkawinan = () => {
-    if (!modalKawinData?.id) return
+    if (!modalKawinData?.id) return;
+
+    const isPerceraian = 
+      modalKawinData.status_perkawinan === "Cerai Hidup" || 
+      modalKawinData.status_perkawinan === "Cerai Mati" || 
+      modalKawinData.status_perkawinan === "Cerai";
+
+    const konteksTeks = isPerceraian ? "Perceraian" : "Perkawinan";
+
     setModalDelete({
       isOpen: true,
       type: 'perkawinan',
       targetId: modalKawinData.id,
-      title: 'Konfirmasi Menghapus Perkawinan',
-      message: 'Apakah Anda yakin ingin menghapus permanen draft pengajuan data perkawinan pada krama bali ini?'
+      title: `Konfirmasi Menghapus Data ${konteksTeks}`,
+      message: `Apakah Anda yakin ingin menghapus permanen data ${konteksTeks.toLowerCase()} pada krama bali ini?`
     });
+    
     setIsOpenModalKawin(false); 
   };
 

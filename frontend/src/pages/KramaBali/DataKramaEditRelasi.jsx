@@ -1202,7 +1202,8 @@ const DataKramaEditRelasi = ({ user }) => {
             perkawinan_id: perkawinanAktifKrama ? safeInt(perkawinanAktifKrama.id) : null,
             ayah_id: !perkawinanAktifKrama && kramaData.jenis_kelamin === "Laki-laki" ? safeInt(anchorKramaId) : null,
             ibu_id: !perkawinanAktifKrama && kramaData.jenis_kelamin === "Perempuan" ? safeInt(anchorKramaId) : null,
-            urutan_lahir: null,
+            urutan_lahir: parentData.urutan_lahir ? parseInt(parentData.urutan_lahir, 10) : null, // 👈 Ambil dari state jika diisi
+            catatan_update: parentData.catatan_update || null,
             status_verifikasi: "Disetujui",
             user_id: user?.id || null
           };
@@ -1384,37 +1385,29 @@ const DataKramaEditRelasi = ({ user }) => {
           idRelasiTarget = relasiAmbil?.id;
         }
 
-        // Bikin FormData
         const formDataR = new FormData();
 
-        // 1. Masukkan semua field objek payloadR dengan penanganan nilai null secara tegas
         Object.keys(payloadR).forEach((key) => {
           const val = payloadR[key];
-          if (val === null || val === undefined) {
-            // Kirim string "null" secara eksplisit agar Backend mengetahui bahwa field ini dikosongkan/dihapus
+          if (val === null || val === undefined || val === "") {
             formDataR.append(key, "null");
           } else {
             formDataR.append(key, val);
           }
         });
 
-        // 2. Ambil objek File baru dari state (Parent atau Anak)
         const fileToUpload = berkasPengangkatanParent || berkasPengangkatanAnak;
-
-        // Pastikan file baru di-append ke field "berkas_pengangkatan"
         if (fileToUpload && fileToUpload instanceof File) {
           formDataR.append("berkas_pengangkatan", fileToUpload);
         }
 
-        // 3. Kirim request multipart/form-data
         const response = await axiosInstance.put(`/relasi-krama/${idRelasiTarget}`, formDataR, {
-          headers: { 
-            "Content-Type": "multipart/form-data" 
-          }
+          headers: { "Content-Type": "multipart/form-data" }
         });
 
-        const successMsg = response.data?.message || 'Data perubahan silsilah keluarga berhasil diproses!';
-        navigate(-1, { state: { successMessage: successMsg } });
+        const successMsg = response.data?.message || 'Perubahan data relasi silsilah krama berhasil disimpan!';
+        sessionStorage.setItem('flash_success_message', successMsg);
+        navigate(-1);
       }
     } catch (error) {
       console.error(error);
@@ -1938,6 +1931,25 @@ const DataKramaEditRelasi = ({ user }) => {
                           </div>
                         </div>
                       )}
+                    </div>
+                    {/* Urutan Lahir */}
+                    <div className="flex flex-col space-y-1.5">
+                      <label className={styles.labelInputSelect}>
+                        Urutan Lahir Bersaudara <span className="text-gray-400 font-normal">(Opsional)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="50"
+                        name="urutan_lahir"
+                        value={parentData.urutan_lahir || ""}
+                        onChange={handleParentChange}
+                        placeholder="Masukkan angka urutan lahir anak..."
+                        className={styles.inputText}
+                      />
+                      <p className="text-[10px] text-gray-400 italic">
+                        *Biarkan kosong jika ingin sistem mengurutkan otomatis berdasarkan tanggal lahir.
+                      </p>
                     </div>
                     <div className="flex flex-col space-y-4">
                       {(parentData.status_hubungan === "Anak Kandung" || (parentData.status_hubungan === "Anak Angkat" && parentData.jenis_pengangkatan === "Pasangan")) && parentData.jenis_pengangkatan !== "Tunggal" ? (

@@ -6,30 +6,34 @@ export const hitungUrutanLahir = async ({
   mode,
   ayah_id = null,
   ibu_id = null,
-  kepala_keluarga_id = null
+  kepala_keluarga_id = null,
+  sertakanDraft = false
 }, t = null) => {
-  const relasi = await ambilRelasiAnak({
+  const daftarRelasi = await ambilRelasiAnak({
     mode,
     ayah_id,
     ibu_id,
-    kepala_keluarga_id
+    kepala_keluarga_id,
+    sertakanDraft
   }, t);
+  if (!daftarRelasi || daftarRelasi.length === 0) return;
 
-  if (!relasi || relasi.length === 0) return;
+  for (let i = 0; i < daftarRelasi.length; i++) {
+    const item = daftarRelasi[i];
+    const urutanOtomatis = i + 1;
 
-  await Promise.all(
-    relasi.map((item, i) => {
-      const urutanSeharusnya = i + 1;
-      if (item.urutan_lahir !== urutanSeharusnya) {
-        return RelasiKrama.update(
-          { urutan_lahir: urutanSeharusnya },
-          { 
-            where: { id: item.id }, 
-            transaction: t 
-          }
-        );
-      }
-      return Promise.resolve();
-    })
-  );
+    const urutanFinal = item.urutan_lahir !== null && item.urutan_lahir !== undefined
+      ? Number(item.urutan_lahir)
+      : urutanOtomatis;
+
+    if (Number(item.urutan_lahir) !== urutanFinal) {
+      await RelasiKrama.update({
+        urutan_lahir: urutanFinal 
+      },{ 
+        where: { id: item.id }, 
+        transaction: t 
+      });
+      item.urutan_lahir = urutanFinal;
+    }
+  }
 };

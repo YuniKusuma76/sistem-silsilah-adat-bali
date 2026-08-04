@@ -265,7 +265,7 @@ const DataKramaEditKawin = ({ user }) => {
               pasangan_id: idPasanganDb || "",
               tanggal_cerai: resKawin.tanggal_cerai ? resKawin.tanggal_cerai.substring(0, 10) : "",
               pihak_meninggal: resKawin.pihak_meninggal || "",
-              pilihan_predana: resKawin.pilihan_predana || "Kembali ke Asal",
+              pilihan_predana: resKawin.pilihan_predana || resKawin.ketetapan_silsilah_istri || resKawin.ketetapan_silsilah_suami || "",
               catatan_update: "",
               isPasanganBaru: false,
               isDataLamaTerunci: false
@@ -438,9 +438,6 @@ const DataKramaEditKawin = ({ user }) => {
       }
 
       if (field === "status_perkawinan" && value === "Cerai Mati") {
-        updatedItem.pihak_meninggal = updatedItem.pihak_meninggal || "Pasangan";
-        updatedItem.pilihan_predana = updatedItem.pilihan_predana || "Kembali ke Asal";
-        
         if (updatedItem.isPasanganBaru && updatedItem.pihak_meninggal === "Pasangan") {
           updatedItem.dataPasanganBaru = {
             ...updatedItem.dataPasanganBaru,
@@ -787,8 +784,17 @@ const DataKramaEditKawin = ({ user }) => {
         }
       }
 
+      const isPerceraian = 
+        perkawinanlist[0]?.status_perkawinan === "Cerai Hidup" || 
+        perkawinanlist[0]?.status_perkawinan === "Cerai Mati" || 
+        perkawinanlist[0]?.status_perkawinan === "Cerai";
+
+      const pesanSuksesDinamis = isPerceraian
+        ? 'Perubahan data perceraian adat berhasil diperbarui!'
+        : 'Perubahan data perkawinan adat berhasil diperbarui!';
+
       navigate(`/krama-bali/my-data/detail/${mainId}`, { 
-        state: { successMessage: 'Perubahan data perkawinan adat berhasil diperbarui!' },
+        state: { successMessage: pesanSuksesDinamis },
         replace: true
       });
     } catch (error) {
@@ -1357,29 +1363,29 @@ const DataKramaEditKawin = ({ user }) => {
                               <div className="relative">
                                 <input
                                   type="text"
-                                  className={`${styles.inputText} ${m.isDataLamaTerunci ? 'bg-gray-100 cursor-not-allowed font-semibold' : ''}`}
+                                  className={`${styles.inputText} ${m.isDataLamaTerunci || m.status_perkawinan === "Cerai Hidup" || m.status_perkawinan === "Cerai Mati" ? 'bg-gray-100 cursor-not-allowed font-semibold' : ''}`}
                                   placeholder={m.isDataLamaTerunci ? "" : "Ketikkan nama pasangan..."}
                                   value={openDropdownIndex === index ? (searchPasangan[index] || "") 
                                     : m.isPasanganBaru ? "Data Pasangan Baru" : pasanganTerpilih 
                                     ? `${pasanganTerpilih.nama_lengkap}${isPasanganDraft ? " (DRAFT - MENUNGGU VERIFIKASI)" : ""}` : ""
                                   }
                                   onChange={(e) => {
-                                    if (m.isDataLamaTerunci) return;
+                                    if (m.isDataLamaTerunci || m.status_perkawinan === "Cerai Hidup" || m.status_perkawinan === "Cerai Mati") return;
                                     setSearchPasangan({ ...searchPasangan, [index]: e.target.value }); 
-                                    setOpenDropdownIndex(index); 
+                                    setOpenDropdownIndex(index);
                                   }}
                                   onFocus={() => {
-                                    if (m.isDataLamaTerunci) return;
+                                    if (m.isDataLamaTerunci || m.status_perkawinan === "Cerai Hidup" || m.status_perkawinan === "Cerai Mati") return;
                                     setSearchPasangan({ ...searchPasangan, [index]: "" });
                                     setOpenDropdownIndex(index);
                                   }}
-                                  disabled={m.isDataLamaTerunci}
+                                  disabled={m.isDataLamaTerunci || m.status_perkawinan === "Cerai Hidup" || m.status_perkawinan === "Cerai Mati"}
                                   required={!m.isPasanganBaru}
                                 />
                                 <div className={styles.termsIcon}>
                                   <FaChevronDown size={12} className={`transition-transform ${openDropdownIndex === index ? 'rotate-180' : ''}`} />
                                 </div>
-                                {openDropdownIndex === index && !m.isDataLamaTerunci && (
+                                {openDropdownIndex === index && !m.isDataLamaTerunci &&  m.status_perkawinan !== "Cerai Hidup" && m.status_perkawinan !== "Cerai Mati" && (
                                   <>
                                     <div className="fixed inset-0 z-40" onClick={() => setOpenDropdownIndex(null)}></div>
                                     <div className={styles.dropdownHasilPasangan}>
@@ -1848,7 +1854,7 @@ const DataKramaEditKawin = ({ user }) => {
                 <button type="button" onClick={() => setShowCancelModal(true)} className={styles.btnBackRed} disabled={isLoading}>
                   <FaTimes /> Batal</button>
                 <button type="submit" className={styles.btnSubmit} disabled={isLoading}>
-                  <FaSave size={14} /> {isLoading ? 'Menyimpan...' : 'Simpan Krama'}
+                  <FaSave size={14} /> {isLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
               </div>
             </form>
@@ -1866,13 +1872,31 @@ const DataKramaEditKawin = ({ user }) => {
                 </div>
                 <div className="text-center">
                   <h3 className="text-lg font-bold text-gray-900 mb-2">
-                    Konfirmasi Perubahan Perkawinan Adat
+                    Konfirmasi Perubahan Data {
+                      perkawinanlist[0]?.status_perkawinan === "Cerai Hidup" || 
+                      perkawinanlist[0]?.status_perkawinan === "Cerai Mati" || 
+                      perkawinanlist[0]?.status_perkawinan === "Cerai"
+                        ? "Perceraian" 
+                        : "Perkawinan Adat"
+                    }
                   </h3>
                   <p className="text-sm text-gray-600 leading-relaxed">
-                    Apakah Anda yakin data perkawinan krama utama ini sudah benar, sah, dan sesuai dengan awig-awig/pararem desa adat?
+                    Apakah Anda yakin data {
+                      perkawinanlist[0]?.status_perkawinan === "Cerai Hidup" || 
+                      perkawinanlist[0]?.status_perkawinan === "Cerai Mati" || 
+                      perkawinanlist[0]?.status_perkawinan === "Cerai"
+                        ? "perceraian" 
+                        : "perkawinan"
+                    } krama utama ini sudah benar, sah, dan sesuai dengan awig-awig/pararem desa adat?
                   </p>
                   <p className={styles.noteConf}>
-                    * Perubahan data utama pada perkawinan adat Purusa-Predana ini akan langsung mempengaruhi diagram pohon silsilah keluarga dan membutuhkan proses verifikasi ulang jika terdapat kesalahan input data.
+                    * Perubahan data utama pada {
+                      perkawinanlist[0]?.status_perkawinan === "Cerai Hidup" || 
+                      perkawinanlist[0]?.status_perkawinan === "Cerai Mati" || 
+                      perkawinanlist[0]?.status_perkawinan === "Cerai"
+                        ? "perceraian" 
+                        : "perkawinan"
+                    } adat Purusa-Predana ini akan langsung mempengaruhi diagram pohon silsilah keluarga dan membutuhkan proses verifikasi ulang jika terdapat kesalahan input data.
                   </p>
                 </div>
                 <div className="mt-8 flex gap-3 justify-center">

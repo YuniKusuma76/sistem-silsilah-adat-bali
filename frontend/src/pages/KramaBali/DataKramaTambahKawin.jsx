@@ -1856,7 +1856,7 @@ const DataKramaTambahKawin = ({ user }) => {
                 <button type="button" onClick={() => setShowCancelModal(true)} className={styles.btnBackRed} disabled={isLoading}>
                   <FaTimes /> Batal</button>
                 <button type="submit" disabled={isLoading} className={styles.btnSubmit}>
-                  <FaSave size={14} /> {isLoading ? 'Menyimpan...' : 'Simpan Krama'}
+                  <FaSave size={14} /> {isLoading ? 'Menyimpan...' : 'Simpan Perkawinan'}
                 </button>
               </div>
             </form>

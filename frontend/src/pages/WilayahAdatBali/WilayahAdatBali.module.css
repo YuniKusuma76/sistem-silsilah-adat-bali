@@ -102,6 +102,22 @@
   @apply border-b-0;
 }
 
+.loadContainer {
+  @apply flex justify-center items-center gap-2 text-gray-700 text-sm;
+}
+
+.loadSpinner {
+  @apply rounded-full h-4 w-4 border-b-2 border-amber-700;
+}
+
+.infoDataContent {
+  @apply flex flex-col items-center justify-center;
+}
+
+.infoDataIcon {
+  @apply text-gray-300 text-3xl mb-2;
+}
+
 .btnAddData {
   @apply inline-flex items-center gap-2 bg-[#28a745] text-white px-5 py-2.5 rounded-lg text-xs font-bold hover:bg-[#218838] active:scale-95 transition-all shadow-sm shadow-green-900/10;
 }

@@ -15,6 +15,7 @@ import { anakAngkatPasangan } from "./anak-angkat-perkawinan.service.js";
 import { integrasiRelasiLeluhur } from "./anak-relasi-leluhur.service.js";
 import { eksekusiRollbackRelasi } from "./batal-relasi-krama.service.js";
 import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helper.js";
+import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 
 // Helper: upload berkas ke Storage Supabase
 const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
@@ -84,6 +85,7 @@ export const prosesUpdateRelasiKrama = async ({
   // EVALUASI PERUBAHAN STRUKTURAL
   const ayahLama = toSafeIntOrNull(relasi.ayah_id);
   const ibuLama = toSafeIntOrNull(relasi.ibu_id);
+  const statusLama = relasi.status_hubungan;
   const ayahBaru = toSafeIntOrNull(targetAyahId);
   const ibuBaru = toSafeIntOrNull(targetIbuId);
 
@@ -93,7 +95,21 @@ export const prosesUpdateRelasiKrama = async ({
     await eksekusiRollbackRelasi(relasi, t);
     await relasi.destroy({ transaction: t });
 
+    if (statusLama === "Anak Kandung") {
+      await hitungUrutanLahir({
+        ayah_id: ayahLama,
+        ibu_id: ibuLama,
+        mode: "CAMPUR"
+      }, t);
+    } else if (statusLama === "Anak Angkat" && (ayahLama || ibuLama)) {
+      await hitungUrutanLahir({
+        kepala_keluarga_id: ayahLama || ibuLama,
+        mode: "ANGKAT"
+      }, t);
+    }
+
     const isLeluhurMode = anak.tipe_data === "Leluhur" || ayah?.tipe_data === "Leluhur" || ibu?.tipe_data === "Leluhur";
+    const urutanInputManual = dataUpdate?.urutan_lahir ? Number(dataUpdate.urutan_lahir) : null;
 
     const servicePayload = { 
       anak_id: anakIdAktif,
@@ -102,7 +118,7 @@ export const prosesUpdateRelasiKrama = async ({
       status_hubungan: targetStatusHubungan,
       tanggal_pengangkatan: tglAngkatDateOnly,
       berkas_pengangkatan: berkasPathFinal,
-      urutan_lahir: dataUpdate.urutan_lahir || relasi.urutan_lahir || null,
+      urutan_lahir: urutanInputManual,
       perkawinan_id: targetPerkawinanId,
       is_verifikasi: false,
       file,
@@ -139,6 +155,7 @@ export const prosesUpdateRelasiKrama = async ({
     await relasi.update({
       tanggal_pengangkatan: tglAngkatDateOnly,
       berkas_pengangkatan: berkasPathFinal,
+      urutan_lahir: dataUpdate?.urutan_lahir ? Number(dataUpdate.urutan_lahir) : relasi.urutan_lahir,
       ...commonParams,
       user_id: userIdAsli
     }, { transaction: t });

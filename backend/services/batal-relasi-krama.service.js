@@ -99,12 +99,6 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
       },
       transaction: t
     });
-
-    await hitungUrutanLahir({
-      ayah_id: ayah_id,
-      ibu_id: ibu_id,
-      mode: "CAMPUR"
-    }, t);
   }
 
   // KONDISI 2: ROLLBACK DAMPAK ANAK ANGKAT
@@ -239,11 +233,6 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
         await keluargaAngkat.destroy({ transaction: t });
       }
     }
-
-    await hitungUrutanLahir({
-      kepala_keluarga_id: kepala_keluarga_lama_id, 
-      mode: "ANGKAT"
-    }, t);
 
     // membuka kembali riwayat keluar keluarga kandung
     if (waktuAdopsi) {
@@ -421,6 +410,19 @@ export const eksekusiRollbackRelasi = async (relasi, t) => {
     );
   }
 
+  if (status_hubungan === "Anak Kandung") {
+    await hitungUrutanLahir({
+      ayah_id: ayah_id,
+      ibu_id: ibu_id,
+      mode: "CAMPUR"
+    }, t);
+  } else if (status_hubungan === "Anak Angkat" && kepala_keluarga_lama_id) {
+    await hitungUrutanLahir({
+      kepala_keluarga_id: kepala_keluarga_lama_id, 
+      mode: "ANGKAT"
+    }, t);
+  }
+
   // REKONSILIASI KRONOLOGIS
   const entitasTerdampak = new Set();
 
@@ -462,6 +464,22 @@ export const batalkanRelasiKrama = async (relasiId) => {
       where: { id: relasiId },
       transaction: t
     });
+
+    if (relasi.status_hubungan === "Anak Kandung") {
+      await hitungUrutanLahir({
+        ayah_id: relasi.ayah_id,
+        ibu_id: relasi.ibu_id,
+        mode: "CAMPUR"
+      }, t);
+    } else if (relasi.status_hubungan === "Anak Angkat") {
+      const kepalaKeluargaId = relasi.ayah_id || relasi.ibu_id;
+      if (kepalaKeluargaId) {
+        await hitungUrutanLahir({
+          kepala_keluarga_id: kepalaKeluargaId,
+          mode: "ANGKAT"
+        }, t);
+      }
+    }
 
     await t.commit();
     transactionCommittedOrRolledBack = true;
