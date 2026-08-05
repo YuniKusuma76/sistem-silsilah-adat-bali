@@ -409,14 +409,6 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
                 {statusHidupDisplay}
               </p>
             </div>
-            <div>
-              <p className={styles.titleDetail}>
-                Status Perkawinan
-              </p>
-              <p className={styles.textDetail}>
-                {krama.status_perkawinan || "Tidak Diketahui"}
-              </p>
-            </div>
             {krama.jenis_perkawinan && krama.jenis_perkawinan !== "-" && (
               <div>
                 <p className={styles.titleDetail}>
