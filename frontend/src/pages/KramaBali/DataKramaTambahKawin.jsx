@@ -1390,11 +1390,29 @@ const DataKramaTambahKawin = ({ user }) => {
                                   }
                                   onChange={(e) => {
                                     if (m.isDataLamaTerunci) return;
+                                    if (kramaData.jenis_kelamin === "Tidak Diketahui") {
+                                      setOpenDropdownIndex(null);
+                                      setAlert({
+                                        show: true,
+                                        type: "warning",
+                                        message: "Harap merubah jenis kelamin krama pada Form I terlebih dahulu sebelum mendaftarkan perkawinan."
+                                      });
+                                      return;
+                                    }
                                     setSearchPasangan({ ...searchPasangan, [index]: e.target.value }); 
                                     setOpenDropdownIndex(index); 
                                   }}
                                   onFocus={() => {
                                     if (m.isDataLamaTerunci) return;
+                                    if (kramaData.jenis_kelamin === "Tidak Diketahui") {
+                                      setOpenDropdownIndex(null);
+                                      setAlert({
+                                        show: true,
+                                        type: "warning",
+                                        message: "Harap merubah jenis kelamin krama pada Form I terlebih dahulu sebelum mendaftarkan perkawinan."
+                                      });
+                                      return;
+                                    }
                                     setSearchPasangan({ ...searchPasangan, [index]: "" });
                                     setOpenDropdownIndex(index);
                                   }}
