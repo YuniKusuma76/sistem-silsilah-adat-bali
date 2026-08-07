@@ -199,7 +199,7 @@ export const getLeluhurOnlyById = async (req, res) => {
 
 export const getAllKrama = async (req, res) => {
   try {
-    const { mode, tipe } = req.query;
+    const { mode, tipe, search } = req.query;
 
     const userRole = req.role;
     const currentUserId = req.userId;
@@ -295,11 +295,82 @@ export const getAllKrama = async (req, res) => {
       whereCondition.tipe_data = tipe;
     }
 
+    let orderCondition = [["id", "DESC"]];
+    
+    // Logika Fitur Pencarian Rekursif
+    if (search && search.trim() !== "") {
+      const keywordRaw = search.trim().toLowerCase();
+      const keywordLike = `%${keywordRaw}%`;
+      const keywordStart = `${keywordRaw}%`;
+
+      const recursiveQuery = `
+        WITH RECURSIVE KramaMatched AS (
+          SELECT 
+            krama.id,
+            0 AS depth,
+            CASE 
+              -- Prioritas 1: nama persis sama atau diawali dengan keyword
+              WHEN LOWER(krama.nama_lengkap) = :keywordRaw OR LOWER(krama.nama_lengkap) LIKE :keywordStart THEN 1
+              -- Prioritas 2: nama mengandung keyword
+              WHEN LOWER(krama.nama_lengkap) LIKE :keywordLike OR LOWER(krama.nama_panggilan) LIKE :keywordLike THEN 2
+              -- Prioritas 3: kecocokan tempat asal, alamat, atau desa adat
+              ELSE 3
+            END AS match_priority
+          FROM tb_krama_bali krama
+          LEFT JOIN tb_desa_adat desa ON krama.desa_adat_id = desa.id
+          WHERE (
+            LOWER(krama.nama_lengkap) LIKE :keywordLike
+            OR LOWER(krama.nama_panggilan) LIKE :keywordLike
+            OR LOWER(krama.tempat_asal_khusus) LIKE :keywordLike
+            OR LOWER(krama.alamat_luar) LIKE :keywordLike
+            OR LOWER(desa.nama_desa_adat) LIKE :keywordLike
+          )
+
+          UNION
+
+          SELECT 
+            relasi.anak_id AS id,
+            ortu.depth + 1 AS depth,
+            4 AS match_priority
+          FROM tb_relasi_krama relasi
+          INNER JOIN KramaMatched ortu ON (relasi.ayah_id = ortu.id OR relasi.ibu_id = ortu.id)
+        )
+        -- mengambil ID krama yang paling relevan
+        SELECT id 
+        FROM (
+          SELECT id, MIN(match_priority) AS final_priority
+          FROM KramaMatched
+          GROUP BY id
+        ) AS unique_matched
+        ORDER BY final_priority ASC, id DESC;
+      `;
+
+      // Eksekusi CTE untuk mendapatkan daftar ID krama + keturunan yang cocok
+      const searchResults = await db.query(recursiveQuery, {
+        replacements: { 
+          keywordRaw,
+          keywordStart,
+          keywordLike 
+        },
+        type: db.QueryTypes.SELECT
+      });
+
+      const targetIds = searchResults.map(item => item.id);
+
+      whereCondition.id = {
+        [Op.in]: targetIds.length > 0 ? targetIds : [0]
+      };
+
+      if (targetIds.length > 0) {
+        orderCondition = [db.literal(`ARRAY_POSITION(ARRAY[${targetIds.join(',')}], "tb_krama_bali"."id")`)];
+      }
+    }
+
     // Kondisi 4: Mengambil semua data tanpa terkecuali
     const kramaRaw = await KramaBali.findAll({
       where: whereCondition,
       include: KRAMA_INCLUDE,
-      order: [["id", "DESC"]]
+      order: orderCondition
     });
 
     // ============================================================
@@ -346,7 +417,6 @@ export const getAllKrama = async (req, res) => {
     });
   } catch (error) {
     const statusCode = error.status || 500;
-    console.error("ERROR GET_KRAMA_BALI:", error);
     return res.status(statusCode).json({
       message: error.message || "Terjadi kesalahan server saat memuat data krama bali."
     });

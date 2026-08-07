@@ -102,13 +102,18 @@ const DataKramaBali = ({ user }) => {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (searchQuery = '') => {
     setIsLoading(true);
     try {
-      const response = await axiosInstance.get('/krama-bali?mode=public');
+      const response = await axiosInstance.get('/krama-bali', {
+        params: {
+          mode: 'public',
+          search: searchQuery
+        }
+      });
       setKramaList(response.data.data || []);
     } catch (error) {
-      console.log(error);
+      console.error("Gagal memuat data krama:", error);
       setAlert({
         show: true,
         type: 'error',
@@ -121,8 +126,14 @@ const DataKramaBali = ({ user }) => {
 
   useEffect(() => {
     fetchWilayahDanDesa();
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchData(searchTerm);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -209,10 +220,8 @@ const DataKramaBali = ({ user }) => {
   };
   
   const filteredKrama = useMemo(() => {
-    return kramaList.filter(krama => 
-      krama.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [kramaList, searchTerm]);
+    return kramaList;
+  }, [kramaList]);
 
   // HANDLE PAGINATION
   const indexOfLastItem = currentPage * itemsPerPage;
