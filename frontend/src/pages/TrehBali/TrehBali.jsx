@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { 
@@ -264,7 +264,6 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
     if (data.nama_panggilan && data.nama_panggilan !== '-' && data.nama_panggilan.trim() !== '') {
       return data.nama_panggilan;
     }
-
     const words = (data.nama_lengkap || '').trim().split(/\s+/);
     if (words.length <= 2) {
       return data.nama_lengkap;
@@ -274,6 +273,7 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
 
   return (
     <div 
+      id={isTarget ? "target-krama-node" : undefined}
       onClick={() => onClick(data)} 
       className={`${styles.treeCard} 
         ${getGenderClass(data.jenis_kelamin)} 
@@ -328,13 +328,13 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
 
   const getBadgeVerifikasiClass = (status) => {
     switch (status) {
-      case 'Disetujui':
+      case 'Disetujui': 
         return 'bg-green-100 text-green-800 border-green-300';
-      case 'Draft':
+      case 'Draft': 
         return 'bg-amber-100 text-amber-800 border-amber-300';
-      case 'Ditolak':
+      case 'Ditolak': 
         return 'bg-red-100 text-red-800 border-red-300';
-      default:
+      default: 
         return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
@@ -386,37 +386,21 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
           </div>
           <div className={styles.detailContent}>
             <div>
-              <p className={styles.titleDetail}>
-                Nomor Pendaftaran Krama
-              </p>
-              <p className={styles.textDetailReg}>
-                {krama.nomor_pendaftaran || "-"}
-              </p>
+              <p className={styles.titleDetail}>Nomor Pendaftaran Krama</p>
+              <p className={styles.textDetailReg}>{krama.nomor_pendaftaran || "-"}</p>
             </div>
             <div>
-              <p className={styles.titleDetail}>
-                Jenis Kelamin
-              </p>
-              <p className={styles.textDetail}>
-                {genderDisplay}
-              </p>
+              <p className={styles.titleDetail}>Jenis Kelamin</p>
+              <p className={styles.textDetail}>{genderDisplay}</p>
             </div>
             <div>
-              <p className={styles.titleDetail}>
-                Status Hidup
-              </p>
-              <p className={styles.textDetail}>
-                {statusHidupDisplay}
-              </p>
+              <p className={styles.titleDetail}>Status Hidup</p>
+              <p className={styles.textDetail}>{statusHidupDisplay}</p>
             </div>
             {krama.jenis_perkawinan && krama.jenis_perkawinan !== "-" && (
               <div>
-                <p className={styles.titleDetail}>
-                  Jenis Perkawinan
-                </p>
-                <p className={styles.textDetail}>
-                  Perkawinan {krama.jenis_perkawinan}
-                </p>
+                <p className={styles.titleDetail}>Jenis Perkawinan</p>
+                <p className={styles.textDetail}>Perkawinan {krama.jenis_perkawinan}</p>
               </div>
             )}
           </div>
@@ -436,6 +420,7 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
 const TrehBali = () => {
   const { id: slugParam } = useParams();
   const [isLoading, setIsLoading] = useState(true);
+  const transformComponentRef = useRef(null);
 
   const [treeData, setTreeData] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -506,23 +491,22 @@ const TrehBali = () => {
   // Helper: memfokuskan pada target silsilah
   useEffect(() => {
     if (treeData && !isLoading) {
-      setTimeout(() => {
-        const targetElement = document.querySelector(`.${styles.isTarget}`);
-        if (targetElement) {
-          targetElement.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center', 
-            inline: 'center' 
-          });
+      const timer = setTimeout(() => {
+        if (transformComponentRef.current) {
+          const { zoomToElement } = transformComponentRef.current;
+          const targetElement = document.getElementById("target-krama-node");
+          if (targetElement && zoomToElement) {
+            zoomToElement(targetElement, 1.0, 300, "easeOut");
+          }
         }
-      }, 500);
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [treeData, isLoading]);
 
   const getLineColorClass = (statusHubungan) => {
     if (!statusHubungan) return styles.lineAnakKandung;
     const statusStr = String(statusHubungan).toLowerCase();
-    
     if (statusStr.includes('angkat') || statusStr.includes('adopsi')) {
       return styles.lineAnakAngkat;
     }
@@ -594,9 +578,7 @@ const TrehBali = () => {
         <div className="flex items-center gap-3">
           {initialTargetId && actualId !== initialTargetId && (
             <button 
-              onClick={() => {
-                navigate(`/treh-bali/${initialSlug}`);
-              }} 
+              onClick={() => navigate(`/treh-bali/${initialSlug}`)} 
               className={styles.btnReset}
               title="Kembali ke target treh awal">
               <FaUndo size={10} /> RESET
@@ -609,6 +591,7 @@ const TrehBali = () => {
       </div>
       <div className={styles.areaVisualisasi}>
         <TransformWrapper
+          ref={transformComponentRef}
           initialScale={0.9}
           minScale={0.2}
           maxScale={2.5}
