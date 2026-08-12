@@ -292,7 +292,7 @@ export const getAllUsers = async (req, res) => {
 
     if (req.role === "Super Admin") {
       dataUser = await User.findAll({
-        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
+        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id", "createdAt"],
         include: [{
           model: DesaAdat,
           as: "desa_adat",
@@ -306,7 +306,7 @@ export const getAllUsers = async (req, res) => {
           role: "Krama",
           desa_adat_id: req.desaAdatId
         },
-        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
+        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id", "createdAt"],
         include: [{
           model: DesaAdat,
           as: "desa_adat",
@@ -342,7 +342,7 @@ export const getUsers = async (req, res) => {
             [Op.ne]: req.userId 
           }
         },
-        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
+        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id", "createdAt"],
         include: [{
           model: DesaAdat,
           as: "desa_adat",
@@ -359,7 +359,7 @@ export const getUsers = async (req, res) => {
           role: "Krama",
           desa_adat_id: req.desaAdatId
         },
-        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
+        attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id", "createdAt"],
         include: [{
           model: DesaAdat,
           as: "desa_adat",
@@ -387,7 +387,7 @@ export const getUsers = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.userId, {
-      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
+      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id", "createdAt"],
       include: [{
         model: DesaAdat,
         as: "desa_adat",
@@ -415,7 +415,7 @@ export const getProfile = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const user = await User.findByPk(req.params.id, {
-      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
+      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id", "createdAt"],
       include: [{
         model: DesaAdat,
         as: "desa_adat",
@@ -463,7 +463,8 @@ export const getUserById = async (req, res) => {
         email: user.email,
         role: user.role,
         status_akun: user.status_akun,
-        desa_adat: user.desa_adat
+        desa_adat: user.desa_adat,
+        createdAt: user.createdAt
       }
     });
   } catch (error) {
@@ -601,7 +602,7 @@ export const createUser = async (req, res) => {
     });
 
     const dataUser = await User.findByPk(newUser.id, {
-      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun"],
+      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "createdAt"],
       include: [{
         model: DesaAdat,
         as: "desa_adat",
@@ -809,7 +810,7 @@ export const updateUser = async (req, res) => {
     });
 
     const updatedUser = await User.findByPk(user.id, {
-      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id"],
+      attributes: ["id", "full_name", "display_name", "email", "role", "status_akun", "desa_adat_id", "createdAt"],
       include: [{
         model: DesaAdat,
         as: "desa_adat",
@@ -826,7 +827,8 @@ export const updateUser = async (req, res) => {
         email: updatedUser.email,
         role: updatedUser.role,
         status_akun: updatedUser.status_akun,
-        desa_adat: updatedUser.desa_adat
+        desa_adat: updatedUser.desa_adat,
+        createdAt: updatedUser.createdAt
       }
     });
   } catch (error) {

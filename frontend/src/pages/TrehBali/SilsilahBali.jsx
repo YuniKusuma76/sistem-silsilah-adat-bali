@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { 
@@ -118,7 +118,6 @@ const getActiveTreeData = (node, acc = null) => {
 
   if (!node) return acc;
   const gender = node.jenis_kelamin?.toLowerCase();
-  
   if (gender === 'laki-laki' || gender === 'l') {
     acc.genders.add('male');
   } else if (gender === 'perempuan' || gender === 'p') {
@@ -160,10 +159,10 @@ const getActiveTreeData = (node, acc = null) => {
 
 const findTargetNode = (node) => {
   if (!node) return null;
-  if (node.is_target) return node;
+  if (node.is_target || node.isTarget) return node;
 
   if (node.pasangan && node.pasangan.length > 0) {
-    const foundSpouse = node.pasangan.find((p) => p.is_target);
+    const foundSpouse = node.pasangan.find((p) => p.is_target || p.isTarget);
     if (foundSpouse) return foundSpouse;
   }
 
@@ -183,14 +182,12 @@ const Legenda = ({ activeData }) => {
     if (item.type === 'gender') {
       return activeData.genders.has(item.id);
     }
-
     if (item.id === 'ancestor') return activeData.hasAncestor;
     if (item.id === 'descendant') return activeData.hasDescendant;
     if (item.id === 'spouse') return activeData.hasSpouse;
     if (item.id === 'spouse_line') return activeData.hasSpouse;
     if (item.id === 'kandung_line') return activeData.hasAnakKandung;
     if (item.id === 'angkat_line') return activeData.hasAnakAngkat;
-
     return false;
   });
   
@@ -255,7 +252,6 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
     if (data.nama_panggilan && data.nama_panggilan !== '-' && data.nama_panggilan.trim() !== '') {
       return data.nama_panggilan;
     }
-
     const words = (data.nama_lengkap || '').trim().split(/\s+/);
     if (words.length <= 2) {
       return data.nama_lengkap;
@@ -265,6 +261,7 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
 
   return (
     <div 
+      id={isTarget ? "target-krama-node" : undefined}
       onClick={() => onClick(data)} 
       className={`${styles.treeCard} 
         ${getGenderClass(data.jenis_kelamin)} 
@@ -377,37 +374,21 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
           </div>
           <div className={styles.detailContent}>
             <div>
-              <p className={styles.titleDetail}>
-                Nomor Pendaftaran Krama
-              </p>
-              <p className={styles.textDetailReg}>
-                {krama.nomor_pendaftaran}
-              </p>
+              <p className={styles.titleDetail}>Nomor Pendaftaran Krama</p>
+              <p className={styles.textDetailReg}>{krama.nomor_pendaftaran}</p>
             </div>
             <div>
-              <p className={styles.titleDetail}>
-                Jenis Kelamin
-              </p>
-              <p className={styles.textDetail}>
-                {genderDisplay}
-              </p>
+              <p className={styles.titleDetail}>Jenis Kelamin</p>
+              <p className={styles.textDetail}>{genderDisplay}</p>
             </div>
             <div>
-              <p className={styles.titleDetail}>
-                Status Hidup
-              </p>
-              <p className={styles.textDetail}>
-                {statusHidupDisplay}
-              </p>
+              <p className={styles.titleDetail}>Status Hidup</p>
+              <p className={styles.textDetail}>{statusHidupDisplay}</p>
             </div>
             {krama.jenis_perkawinan && krama.jenis_perkawinan !== "-" && (
               <div>
-                <p className={styles.titleDetail}>
-                  Jenis Perkawinan
-                </p>
-                <p className={styles.textDetail}>
-                  Perkawinan {krama.jenis_perkawinan}
-                </p>
+                <p className={styles.titleDetail}>Jenis Perkawinan</p>
+                <p className={styles.textDetail}>Perkawinan {krama.jenis_perkawinan}</p>
               </div>
             )}
           </div>
@@ -434,6 +415,7 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
 const SilsilahBali = () => {
   const { id: slugParam } = useParams(); 
   const [isLoading, setIsLoading] = useState(true);
+  const transformComponentRef = useRef(null);
 
   const [treeData, setTreeData] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -512,23 +494,22 @@ const SilsilahBali = () => {
   // Helper: memfokuskan pada target silsilah
   useEffect(() => {
     if (treeData && !isLoading) {
-      setTimeout(() => {
-        const targetElement = document.querySelector(`.${styles.isTarget}`);
-        if (targetElement) {
-          targetElement.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center', 
-            inline: 'center' 
-          });
+      const timer = setTimeout(() => {
+        if (transformComponentRef.current) {
+          const { zoomToElement } = transformComponentRef.current;
+          const targetElement = document.getElementById("target-krama-node");
+          if (targetElement && zoomToElement) {
+            zoomToElement(targetElement, 1.0, 300, "easeOut");
+          }
         }
-      }, 500);
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [treeData, isLoading]);
 
   const getLineColorClass = (statusHubungan) => {
     if (!statusHubungan) return styles.lineAnakKandung;
     const statusStr = String(statusHubungan).toLowerCase();
-    
     if (statusStr.includes('angkat') || statusStr.includes('adopsi')) {
       return styles.lineAnakAngkat;
     }
@@ -550,14 +531,14 @@ const SilsilahBali = () => {
         `}>
         <div className={styles.treeNodeWrapper}>
           <div className={styles.coupleContainer}>
-            <NodeCard data={node} onClick={handleNodeClick} isTarget={node.is_target} />
+            <NodeCard data={node} onClick={handleNodeClick} isTarget={node.is_target || node.isTarget} />
             {hasPasangan && node.pasangan.map((p, index) => (
               <React.Fragment key={p.id}>
                 <div className={styles.marriageLine}></div>
                 <NodeCard 
                   data={p} 
                   onClick={handleNodeClick} 
-                  isTarget={p.is_target} 
+                  isTarget={p.is_target || p.isTarget} 
                   pasanganIndex={index}
                 />
               </React.Fragment>
@@ -615,6 +596,7 @@ const SilsilahBali = () => {
       </div>
       <div className={styles.areaVisualisasi}>
         <TransformWrapper
+          ref={transformComponentRef}
           initialScale={0.9}
           minScale={0.2}
           maxScale={2.5}
@@ -634,7 +616,7 @@ const SilsilahBali = () => {
                   <FaSearchMinus size={13} />
                 </button>
                 <ZoomPercentage scale={state?.scale} />
-                <button onClick={() => zoomIn(0.15)} className={styles.zoom}title="Zoom In">
+                <button onClick={() => zoomIn(0.15)} className={styles.zoom} title="Zoom In">
                   <FaSearchPlus size={13} />
                 </button>
                 <div className="w-[1px] h-4 bg-gray-300 mx-0.5"></div>
