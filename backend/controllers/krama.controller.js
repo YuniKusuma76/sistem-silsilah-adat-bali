@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, QueryTypes } from 'sequelize';
 import { customAlphabet } from "nanoid";
 import db from "../config/db.config.js";
 import {
@@ -203,7 +203,7 @@ export const getAllKrama = async (req, res) => {
 
     const userRole = req.role;
     const currentUserId = req.userId;
-    const userDesaId = req.desaAdatId
+    const userDesaId = req.desaAdatId;
 
     // Proteksi mode: jika kosong, paksa ke public demi keamanan
     const validModes = ["public", "personal", "verification"];
@@ -295,74 +295,97 @@ export const getAllKrama = async (req, res) => {
       whereCondition.tipe_data = tipe;
     }
 
-    let orderCondition = [["id", "DESC"]];
-    
-    // Logika Fitur Pencarian Rekursif
-    if (search && search.trim() !== "") {
-      const keywordRaw = search.trim().toLowerCase();
-      const keywordLike = `%${keywordRaw}%`;
-      const keywordStart = `${keywordRaw}%`;
+    const depthMap = new Map();
 
-      const recursiveQuery = `
-        WITH RECURSIVE KramaMatched AS (
-          SELECT 
-            krama.id,
-            0 AS depth,
-            CASE 
-              -- Prioritas 1: nama persis sama atau diawali dengan keyword
-              WHEN LOWER(krama.nama_lengkap) = :keywordRaw OR LOWER(krama.nama_lengkap) LIKE :keywordStart THEN 1
-              -- Prioritas 2: nama mengandung keyword
-              WHEN LOWER(krama.nama_lengkap) LIKE :keywordLike OR LOWER(krama.nama_panggilan) LIKE :keywordLike THEN 2
-              -- Prioritas 3: kecocokan tempat asal, alamat, atau desa adat
-              ELSE 3
-            END AS match_priority
-          FROM tb_krama_bali krama
-          LEFT JOIN tb_desa_adat desa ON krama.desa_adat_id = desa.id
-          WHERE (
-            LOWER(krama.nama_lengkap) LIKE :keywordLike
-            OR LOWER(krama.nama_panggilan) LIKE :keywordLike
-            OR LOWER(krama.tempat_asal_khusus) LIKE :keywordLike
-            OR LOWER(krama.alamat_luar) LIKE :keywordLike
-            OR LOWER(desa.nama_desa_adat) LIKE :keywordLike
-          )
+    // Logika search krama + relasi ke atas dan ke bawah
+    if (search && search.trim() !== '') {
+      const keyword = `%${search.trim()}%`;
 
-          UNION
+      const lineageQuery = `
+        WITH RECURSIVE 
+        -- CTE 1: MENELUSURI ORANG TUA/LELUHUR KE ATAS
+        Ancestors AS (
+          SELECT krama.id, 0 AS depth
+          FROM "tb_krama_bali" krama
+          LEFT JOIN "tb_desa_adat" desa ON krama.desa_adat_id = desa.id
+          WHERE krama.nama_lengkap ILIKE :searchKey
+            OR krama.nama_panggilan ILIKE :searchKey
+            OR krama.tempat_asal_khusus ILIKE :searchKey
+            OR krama.alamat_luar ILIKE :searchKey
+            OR desa.nama_desa_adat ILIKE :searchKey
 
-          SELECT 
-            relasi.anak_id AS id,
-            ortu.depth + 1 AS depth,
-            4 AS match_priority
-          FROM tb_relasi_krama relasi
-          INNER JOIN KramaMatched ortu ON (relasi.ayah_id = ortu.id OR relasi.ibu_id = ortu.id)
+          UNION ALL
+
+          SELECT relasi_ortu.parent_id AS id, krama.depth + 1 AS depth
+          FROM Ancestors krama
+          JOIN "tb_relasi_krama" relasi ON relasi.anak_id = krama.id
+          CROSS JOIN LATERAL (VALUES (relasi.ayah_id), (relasi.ibu_id)) AS relasi_ortu(parent_id)
+          WHERE relasi_ortu.parent_id IS NOT NULL AND relasi.status_verifikasi = 'Disetujui'
+        ),
+
+        -- CTE 2: MENELUSURI KETURUNAN KE BAWAH
+        Descendants AS (
+          SELECT keturunan.id, 0 AS depth
+          FROM "tb_krama_bali" keturunan
+          LEFT JOIN "tb_desa_adat" desa_adat ON keturunan.desa_adat_id = desa_adat.id
+          WHERE keturunan.nama_lengkap ILIKE :searchKey
+            OR keturunan.nama_panggilan ILIKE :searchKey
+            OR keturunan.tempat_asal_khusus ILIKE :searchKey
+            OR keturunan.alamat_luar ILIKE :searchKey
+            OR desa_adat.nama_desa_adat ILIKE :searchKey
+
+          UNION ALL
+
+          SELECT relasi_anak.anak_id AS id, keturunan.depth - 1 AS depth
+          FROM Descendants keturunan
+          JOIN "tb_relasi_krama" relasi_anak ON (relasi_anak.ayah_id = keturunan.id OR relasi_anak.ibu_id = keturunan.id)
+          WHERE relasi_anak.anak_id IS NOT NULL AND relasi_anak.status_verifikasi = 'Disetujui'
+        ),
+
+        -- HASIL SEARCH
+        FullLineage AS (
+          SELECT id, depth FROM Ancestors
+          UNION ALL
+          SELECT id, depth FROM Descendants
         )
-        -- mengambil ID krama yang paling relevan
-        SELECT id 
-        FROM (
-          SELECT id, MIN(match_priority) AS final_priority
-          FROM KramaMatched
-          GROUP BY id
-        ) AS unique_matched
-        ORDER BY final_priority ASC, id DESC;
+
+        SELECT id, 
+          CASE 
+            WHEN MIN(ABS(depth)) = 0 THEN 0
+            ELSE (ARRAY_AGG(depth ORDER BY ABS(depth)))[1]
+          END AS depth
+        FROM FullLineage
+        WHERE id IS NOT NULL
+        GROUP BY id;
       `;
 
-      // Eksekusi CTE untuk mendapatkan daftar ID krama + keturunan yang cocok
-      const searchResults = await db.query(recursiveQuery, {
-        replacements: { 
-          keywordRaw,
-          keywordStart,
-          keywordLike 
-        },
-        type: db.QueryTypes.SELECT
-      });
+      try {
+        const matchedResults = await db.query(lineageQuery, {
+          replacements: { searchKey: keyword },
+          type: QueryTypes.SELECT
+        });
 
-      const targetIds = searchResults.map(item => item.id);
+        if (matchedResults.length === 0) {
+          return res.status(200).json({
+            message: "Berhasil mengambil data krama bali!",
+            count: 0,
+            data: []
+          });
+        }
 
-      whereCondition.id = {
-        [Op.in]: targetIds.length > 0 ? targetIds : [0]
-      };
+        const allowedIds = [];
 
-      if (targetIds.length > 0) {
-        orderCondition = [db.literal(`ARRAY_POSITION(ARRAY[${targetIds.join(',')}], "tb_krama_bali"."id")`)];
+        matchedResults.forEach(row => {
+          const kramaId = Number(row.id);
+          const depthVal = Number(row.depth);
+          allowedIds.push(kramaId);
+          depthMap.set(kramaId, depthVal);
+        });
+
+        whereCondition.id = { [Op.in]: allowedIds };
+      } catch (err) {
+        console.error("Error pada CTE Lineage Query:", err);
+        throw err;
       }
     }
 
@@ -370,16 +393,11 @@ export const getAllKrama = async (req, res) => {
     const kramaRaw = await KramaBali.findAll({
       where: whereCondition,
       include: KRAMA_INCLUDE,
-      order: orderCondition
+      order: [["id", "DESC"]]
     });
 
-    // ============================================================
-    // LOGIKA FILTER PRIVASI & BUFFER SANITIZATION (POST-PROCESSING)
-    // ============================================================
-    const kramaList = kramaRaw.map(instance => {
-      // konversi ke plain object agar manipulasi properti bersih
+    let kramaList = kramaRaw.map(instance => {
       const krama = instance.toJSON(); 
-
       const isSatuDesa = krama.desa_adat_id === userDesaId;
       const isAdmin = userRole === "Admin Desa" || userRole === "Super Admin";
       const isOwner = krama.user_id === currentUserId;
@@ -409,6 +427,20 @@ export const getAllKrama = async (req, res) => {
       }
       return krama;
     });
+
+    if (search && search.trim() !== '') {
+      const getSortPriority = (depth) => {
+        if (depth === 0) return 0;
+        if (depth < 0) return Math.abs(depth);
+        return 100 + depth;
+      };
+
+      kramaList.sort((a, b) => {
+        const depthA = depthMap.has(a.id) ? depthMap.get(a.id) : 999;
+        const depthB = depthMap.has(b.id) ? depthMap.get(b.id) : 999;
+        return getSortPriority(depthA) - getSortPriority(depthB);
+      });
+    }
 
     return res.status(200).json({
       message: "Berhasil mengambil data krama bali!",
