@@ -1,5 +1,6 @@
 import { Op } from "sequelize";
 import db from "../config/db.config.js";
+import path from "path";
 import {
   RelasiKrama, 
   KramaBali, 
@@ -7,6 +8,7 @@ import {
   RiwayatKeluarga, 
   Keluarga
 } from "../models/associations.js";
+import { supabase } from "../config/supabase.config.js";
 import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 import { simpanRiwayatKeluarga } from "./riwayat-keluarga.service.js";
 import { hitungTanggalKeluarAnak } from "../helpers/tanggal-keluar.helper.js";
@@ -19,12 +21,37 @@ const BOBOT_EVENT = {
   "CERAI": 4
 };
 
+// Helper: upload berkas ke Storage Supabase
+const uploadBerkasKelahiran = async (file, bucketName = "berkas-kelengkapan") => {
+  if (!file) return null;
+
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+  const fileName = `kelahiran_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const filePath = `relasi-krama-kandung/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .upload(filePath, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false
+    });
+
+  if (error) {
+    throw new Error(`Gagal mengunggah berkas ke Cloud Storage: ${error.message}`);
+  }
+
+  return data.path;
+};
+
 export const buatAnakKandung = async ({
   anak_id,
   perkawinan_id,
+  berkas_kelengkapan = null,
   user_id,             
   status_verifikasi,   
-  catatan_admin_desa
+  catatan_admin_desa,
+  is_verifikasi = false,
+  file = null
 }, passedTransaction = null) => {
   // Menggunakan transaksi yang dilewatkan atau buat baru
   const t = passedTransaction || await db.transaction();
@@ -66,16 +93,56 @@ export const buatAnakKandung = async ({
       })
     ]);
 
-    const relasi = await RelasiKrama.create({
-      anak_id,
-      ayah_id: suami_id,
-      ibu_id: istri_id,
-      status_hubungan: "Anak Kandung",
-      tanggal_pengangkatan: null,
-      user_id,             
-      status_verifikasi,   
-      catatan_admin_desa
-    }, { transaction: t });
+    let berkasPath = berkas_kelengkapan;
+
+    if (file) {
+      const pathUploaded = await uploadBerkasKelahiran(file);
+      if (pathUploaded) {
+        berkasPath = pathUploaded;
+      }
+    }
+
+    let relasi;
+
+    if (!is_verifikasi) {
+      relasi = await RelasiKrama.create({
+        anak_id,
+        ayah_id: suami_id,
+        ibu_id: istri_id,
+        status_hubungan: "Anak Kandung",
+        tanggal_pengangkatan: null,
+        berkas_kelengkapan: berkasPath,
+        user_id,             
+        status_verifikasi,   
+        catatan_admin_desa
+      }, { transaction: t });
+    } else {
+      relasi = await RelasiKrama.findOne({
+        where: { 
+          anak_id, 
+          ayah_id: suami_id, 
+          ibu_id: istri_id, 
+          status_hubungan: "Anak Kandung", 
+          status_verifikasi: "Draft" 
+        },
+        transaction: t
+      });
+
+      if (relasi) {
+        const updatePayload = {
+          status_verifikasi: "Disetujui",
+          catatan_admin_desa
+        };
+
+        if (berkasPath) {
+          updatePayload.berkas_kelengkapan = berkasPath;
+        }
+
+        await relasi.update(updatePayload, { 
+          transaction: t 
+        });
+      }
+    }
 
     if (status_verifikasi !== "Disetujui") {
       if (!passedTransaction) {

@@ -7,7 +7,7 @@ import {
   verifikasiRelasiKrama,
   cancelUpdateRelasiKrama,
   deleteRelasiKramaById,
-  getBerkasPengangkatan
+  getBerkasKelengkapan
 } from '../controllers/relasi.controller.js';
 import { 
   verifyToken,
@@ -18,7 +18,7 @@ import { upload } from '../middlewares/upload.middleware.js';
 const router = express.Router();
 
 const uploadBerkasMiddleware = (req, res, next) => {
-  upload.single('berkas_pengangkatan')(req, res, (error) => {
+  upload.single('berkas_kelengkapan')(req, res, (error) => {
     if (error) {
       if (error.code === "LIMIT_FILE_SIZE") {
         return res.status(400).json({
@@ -37,7 +37,7 @@ router.get('/', verifyToken, getAllRelasiKrama);
 router.post("/", verifyToken, uploadBerkasMiddleware, createRelasiKrama);
 router.patch('/verifikasi/:id', verifyToken, superAdminOrAdminDesa, verifikasiRelasiKrama);
 router.patch('/cancel-update/:id', verifyToken, cancelUpdateRelasiKrama);
-router.get("/document/:id", verifyToken, getBerkasPengangkatan);
+router.get("/document/:id", verifyToken, getBerkasKelengkapan);
 router.get('/:id', verifyToken, getRelasiKramaById);
 router.put('/:id', verifyToken, uploadBerkasMiddleware, updateRelasiKramaById);
 router.delete('/:id', verifyToken, deleteRelasiKramaById);

@@ -18,12 +18,16 @@ import { rekonsiliasiKronologiKeluarga } from "../helpers/kronologis-order.helpe
 import { hitungUrutanLahir } from "./urutan-lahir.service.js";
 
 // Helper: upload berkas ke Storage Supabase
-const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
+const uploadBerkasRelasi = async (file, statusHubungan = "Anak Kandung", bucketName = "berkas-kelengkapan") => {
   if (!file) return null;
 
+  const isAngkat = statusHubungan === "Anak Angkat";
+  const prefix = isAngkat ? "pengangkatan" : "kelahiran";
+  const folderPath = isAngkat ? "relasi-krama-angkat" : "relasi-krama-kandung";
+
   const fileExtension = path.extname(file.originalname).toLowerCase();
-  const fileName = `pengangkatan_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
-  const filePath = `relasi-krama-angkat/${fileName}`;
+  const fileName = `${prefix}_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const filePath = `${folderPath}/${fileName}`;
 
   const { data, error } = await supabase.storage
     .from(bucketName)
@@ -73,10 +77,10 @@ export const prosesUpdateRelasiKrama = async ({
   const userIdAsli = relasi.user_id;
   const teksHapusOtomatis = " (tanggal riwayat disesuaikan dengan tanggal input sistem karena tanggal pengangkatan kosong).";
 
-  let berkasPathFinal = relasi.berkas_pengangkatan || null;
+  let berkasPathFinal = relasi.berkas_kelengkapan || null;
 
   if (file) {
-    const pathUploaded = await uploadBerkasPengangkatan(file);
+    const pathUploaded = await uploadBerkasRelasi(file, targetStatusHubungan);
     if (pathUploaded) {
       berkasPathFinal = pathUploaded;
     }
@@ -117,7 +121,7 @@ export const prosesUpdateRelasiKrama = async ({
       ibu_id: ibuBaru,
       status_hubungan: targetStatusHubungan,
       tanggal_pengangkatan: tglAngkatDateOnly,
-      berkas_pengangkatan: berkasPathFinal,
+      berkas_kelengkapan: berkasPathFinal,
       urutan_lahir: urutanInputManual,
       perkawinan_id: targetPerkawinanId,
       is_verifikasi: false,
@@ -154,7 +158,7 @@ export const prosesUpdateRelasiKrama = async ({
   } else {
     await relasi.update({
       tanggal_pengangkatan: tglAngkatDateOnly,
-      berkas_pengangkatan: berkasPathFinal,
+      berkas_kelengkapan: berkasPathFinal,
       urutan_lahir: dataUpdate?.urutan_lahir ? Number(dataUpdate.urutan_lahir) : relasi.urutan_lahir,
       ...commonParams,
       user_id: userIdAsli

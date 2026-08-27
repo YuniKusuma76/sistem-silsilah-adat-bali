@@ -584,3 +584,7 @@
 .btnLihatBerkas {
   @apply flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 hover:bg-blue-100 px-3 py-1.5 rounded-md shadow-sm transition-all;
 }
+
+.teksBerkasEmpty {
+  @apply mt-4 flex items-center justify-between p-3 bg-red-50/60 border border-dashed border-red-200/80 rounded-lg text-red-800 text-xs;
+}

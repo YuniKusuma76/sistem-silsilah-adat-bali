@@ -64,12 +64,16 @@ const RELASI_INCLUDE = [
 ];
 
 // Helper: upload berkas ke Storage Supabase
-const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
+const uploadBerkasRelasi = async (file, statusHubungan = "Anak Kandung", bucketName = "berkas-kelengkapan") => {
   if (!file) return null;
 
+  const isAngkat = statusHubungan === "Anak Angkat";
+  const prefix = isAngkat ? "pengangkatan" : "kelahiran";
+  const folderPath = isAngkat ? "relasi-krama-angkat" : "relasi-krama-kandung";
+
   const fileExtension = path.extname(file.originalname).toLowerCase();
-  const fileName = `pengangkatan_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
-  const filePath = `relasi-krama-angkat/${fileName}`;
+  const fileName = `${prefix}_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const filePath = `${folderPath}/${fileName}`;
 
   const { data, error } = await supabase.storage
     .from(bucketName)
@@ -86,7 +90,7 @@ const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan"
 };
 
 // Helper: hapus berkas dari Storage Supabase
-const hapusBerkasPengangkatan = async (filePath, bucketName = "berkas-pengangkatan") => {
+const hapusBerkasRelasi = async (filePath, bucketName = "berkas-kelengkapan") => {
   if (!filePath) return;
   try {
     const { error } = await supabase.storage.from(bucketName).remove([filePath]);
@@ -374,7 +378,7 @@ export const getRelasiKramaById = async (req, res) => {
           ibu_id: result.ibu_id,
           status_hubungan: result.status_hubungan,
           tanggal_pengangkatan: result.tanggal_pengangkatan,
-          berkas_pengangkatan: result.berkas_pengangkatan,
+          berkas_kelengkapan: result.berkas_kelengkapan,
           status_verifikasi: result.status_verifikasi,
           urutan_lahir: result.urutan_lahir,
           garis_keturunan: result.garis_keturunan,
@@ -565,7 +569,7 @@ export const createRelasiKrama = async (req, res) => {
       let berkasPath = null;
 
       if (req.file) {
-        berkasPath = await uploadBerkasPengangkatan(req.file);
+        berkasPath = await uploadBerkasRelasi(req.file, status_hubungan);
       }
 
       relasiBaru = await RelasiKrama.create({
@@ -574,7 +578,7 @@ export const createRelasiKrama = async (req, res) => {
         ibu_id: ibu_id || null,
         status_hubungan,
         tanggal_pengangkatan: tglAngkatDateOnly,
-        berkas_pengangkatan: berkasPath,
+        berkas_kelengkapan: berkasPath,
         urutan_lahir: urutan_lahir || null,
         data_perubahan: null,
         status_sebelum_draft: null,
@@ -757,10 +761,10 @@ export const updateRelasiKramaById = async (req, res) => {
     }
 
     const tglAngkatTimestamp = tglAngkatDateOnly ? `${tglAngkatDateOnly}T00:00:00.000Z` : null;
-    let berkasPathFinal = relasi.berkas_pengangkatan || null;
+    let berkasPathFinal = relasi.berkas_kelengkapan || null;
 
     if (req.file) {
-      const pathUploaded = await uploadBerkasPengangkatan(req.file);
+      const pathUploaded = await uploadBerkasRelasi(req.file, targetStatusHubungan);
       if (pathUploaded) {
         berkasPathFinal = pathUploaded;
       }
@@ -780,7 +784,7 @@ export const updateRelasiKramaById = async (req, res) => {
         status_hubungan: targetStatusHubungan,
         tanggal_pengangkatan: tglAngkatDateOnly,
         perkawinan_id: targetPerkawinanId,
-        berkas_pengangkatan: berkasPathFinal,
+        berkas_kelengkapan: berkasPathFinal,
         catatan_update: catatanUpdateText
       };
 
@@ -879,7 +883,7 @@ export const updateRelasiKramaById = async (req, res) => {
         status_hubungan: targetStatusHubungan,
         tanggal_pengangkatan: tglAngkatDateOnly,
         perkawinan_id: targetPerkawinanId,
-        berkas_pengangkatan: berkasPathFinal,
+        berkas_kelengkapan: berkasPathFinal,
         catatan_update: catatanUpdateText
       };
 
@@ -1192,11 +1196,11 @@ export const cancelUpdateRelasiKrama = async (req, res) => {
     // =========================================================
     // LOGIKA PEMULIHAN STATUS & TERITORIAL FISIK
     // =========================================================
-    const berkasDraft = dataPerubahanRaw?.berkas_pengangkatan;
-    const berkasAktifLama = relasi.berkas_pengangkatan;
+    const berkasDraft = dataPerubahanRaw?.berkas_kelengkapan;
+    const berkasAktifLama = relasi.berkas_kelengkapan;
 
     if (berkasDraft && berkasDraft !== berkasAktifLama) {
-      await hapusBerkasPengangkatan(berkasDraft);
+      await hapusBerkasRelasi(berkasDraft);
     }
 
     const statusPulih = relasi.status_sebelum_draft || "Disetujui";
@@ -1285,7 +1289,15 @@ export const deleteRelasiKramaById = async (req, res) => {
         { 
           model: KramaBali, 
           as: "anak", 
-          attributes: ["id", "nomor_pendaftaran", "desa_adat_id", "nama_lengkap"] 
+          attributes: ["id", "nomor_pendaftaran", "desa_adat_id", "nama_lengkap", "tipe_data"] 
+        },{ 
+          model: KramaBali, 
+          as: "ayah", 
+          attributes: ["id", "nomor_pendaftaran", "desa_adat_id", "nama_lengkap", "tipe_data"] 
+        },{ 
+          model: KramaBali, 
+          as: "ibu", 
+          attributes: ["id", "nomor_pendaftaran", "desa_adat_id", "nama_lengkap", "tipe_data"] 
         }
       ],
       transaction: t
@@ -1350,28 +1362,27 @@ export const deleteRelasiKramaById = async (req, res) => {
     }
 
     // MENGHAPUS BERKAS PENGANGKATAN
-    const berkasUtama = relasi.berkas_pengangkatan;
+    const berkasUtama = relasi.berkas_kelengkapan;
     let dataPerubahanRaw = relasi.data_perubahan;
 
     if (dataPerubahanRaw && dataPerubahanRaw.data_perubahan) {
       dataPerubahanRaw = dataPerubahanRaw.data_perubahan;
     }
 
-    const berkasDraft = dataPerubahanRaw?.berkas_pengangkatan;
+    const berkasDraft = dataPerubahanRaw?.berkas_kelengkapan;
 
     if (berkasUtama) {
-      await hapusBerkasPengangkatan(berkasUtama);
+      await hapusBerkasRelasi(berkasUtama);
     }
 
     if (berkasDraft && berkasDraft !== berkasUtama) {
-      await hapusBerkasPengangkatan(berkasDraft);
+      await hapusBerkasRelasi(berkasDraft);
     }
 
     if (isApproved) {
       await eksekusiRollbackRelasi(relasi, t);
     }
 
-    const anakId = relasi.anak_id;
     await relasi.destroy({ transaction: t });
     await t.commit();
 
@@ -1389,7 +1400,7 @@ export const deleteRelasiKramaById = async (req, res) => {
   }
 };
 
-export const getBerkasPengangkatan = async (req, res) => {
+export const getBerkasKelengkapan = async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -1436,19 +1447,17 @@ export const getBerkasPengangkatan = async (req, res) => {
       });
     }
 
-    let targetBerkas = relasi.berkas_pengangkatan;
-
-    if (!targetBerkas && relasi.data_perubahan) {
-      let dataPerubahanRaw = relasi.data_perubahan;
-      if (dataPerubahanRaw.data_perubahan) {
-        dataPerubahanRaw = dataPerubahanRaw.data_perubahan;
-      }
-      targetBerkas = dataPerubahanRaw?.berkas_pengangkatan;
+    let dataPerubahanRaw = relasi.data_perubahan;
+    
+    if (dataPerubahanRaw && dataPerubahanRaw.data_perubahan) {
+      dataPerubahanRaw = dataPerubahanRaw.data_perubahan;
     }
+
+    let targetBerkas = dataPerubahanRaw?.berkas_kelengkapan || relasi.berkas_kelengkapan;
 
     if (!targetBerkas) {
       return res.status(404).json({ 
-        message: "Berkas dokumen pengangkatan tidak tersedia."
+        message: "Berkas kelengkapan tidak tersedia."
       });
     }
 
@@ -1456,7 +1465,7 @@ export const getBerkasPengangkatan = async (req, res) => {
     const expiresInSeconds = 120; 
 
     const { data, error: storageError } = await supabase.storage
-      .from('berkas-pengangkatan')
+      .from('berkas-kelengkapan')
       .createSignedUrl(targetBerkas, expiresInSeconds);
 
     if (storageError || !data) {

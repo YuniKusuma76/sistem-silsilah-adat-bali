@@ -36,7 +36,8 @@ import {
   FaCamera,
   FaFilePdf,
   FaFileImage,
-  FaDownload 
+  FaDownload,
+  FaExclamationCircle
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import Footer from '../../components/Footer/Footer.jsx';
@@ -625,8 +626,8 @@ const DataKramaDetail = ({ user }) => {
     }
   };
 
-  // Helper: melihat atau mengunduh dokumen pengangkatan
-  const handleBerkasPengangkatan = async (relasiId) => {
+  // Helper: melihat atau mengunduh berkas kelengkapan
+  const handleBerkasKelengkapan = async (relasiId) => {
     if (!relasiId) return;
     try {
       setIsProcessingAction(true);
@@ -639,15 +640,15 @@ const DataKramaDetail = ({ user }) => {
         setAlert({
           show: true,
           type: 'error',
-          message: 'Tautan dokumen tidak ditemukan.'
+          message: 'Tautan berkas tidak ditemukan.'
         });
       }
     } catch (error) {
-      console.error("Gagal mengambil dokumen pengangkatan:", error);
+      console.error("Gagal mengambil berkas kelengkapan:", error);
       setAlert({
         show: true,
         type: 'error',
-        message: error.response?.data?.message || 'Gagal mengambil tautan dokumen pengangkatan.'
+        message: error.response?.data?.message || 'Gagal mengambil tautan berkas kelengkapan.'
       });
     } finally {
       setIsProcessingAction(false);
@@ -1285,8 +1286,8 @@ const DataKramaDetail = ({ user }) => {
                   <button
                     type="button"
                     onClick={() => {
-                      if (typeof handleBerkasPengangkatan === 'function') {
-                        handleBerkasPengangkatan(activeRelasi.id);
+                      if (typeof handleBerkasKelengkapan === 'function') {
+                        handleBerkasKelengkapan(activeRelasi.id);
                       }
                     }}
                     className={styles.pratinjauDoc}>
@@ -1721,6 +1722,7 @@ const DataKramaDetail = ({ user }) => {
                 </h3>
               </div>
               <div className="p-6 space-y-6">
+                {/* Section Anak Kandung */}
                 {orangTuaKandung && (
                   <div>
                     <div className={styles.headerCard}>
@@ -1764,6 +1766,52 @@ const DataKramaDetail = ({ user }) => {
                         )}
                       </div>
                     </div>
+                    {/* Berkas Kelengkapan Orang Tua Kandung */}
+                    {(() => {
+                      const berkasPath = orangTuaKandung?.berkas_kelengkapan;
+                      if (berkasPath) {
+                        const isGambar = isImageFile(berkasPath);
+                        return (
+                          <div className={styles.fieldBerkas}>
+                            <div className="flex items-center gap-2">
+                              {isGambar ? (
+                                <FaFileImage className="text-emerald-600 text-xl flex-shrink-0 mb-1" />
+                              ) : (
+                                <FaFilePdf className="text-red-500 text-xl flex-shrink-0 mb-1" />
+                              )}
+                              <div>
+                                <p className="text-xs font-bold text-gray-800">
+                                  Berkas Kelengkapan Relasi Anak Kandung
+                                </p>
+                                <p className="text-[11px] text-gray-500">
+                                  {isGambar ? "File Gambar" : "File PDF"}
+                                </p>
+                              </div>
+                            </div>
+                            <button type="button" disabled={isProcessingAction} onClick={() => handleBerkasKelengkapan(orangTuaKandung.id)} className={styles.btnLihatBerkas}>
+                              <FaEye className="text-xs" />
+                              <span>Lihat</span>
+                            </button>
+                          </div>
+                        );
+                      }
+                      {/* Tampilan Jika Berkas Kosong */}
+                      return (
+                        <div className={styles.teksBerkasEmpty}>
+                          <div className="flex items-center gap-2.5">
+                            <FaExclamationCircle className="text-red-500 text-base flex-shrink-0" />
+                            <div>
+                              <p className="font-semibold text-gray-700">
+                                Berkas Kelengkapan Belum Diunggah
+                              </p>
+                              <p className="text-[11px] text-gray-500">
+                                Silakan tekan tombol <strong>Kelola Ortu Kandung</strong>, lalu tekan tombol <strong>Edit Relasi</strong> untuk menambahkan berkas kelengkapan!
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {hasAccess && orangTuaKandung.id && (
                       <div className="flex justify-end mt-3 border-t border-gray-100/50 pt-2">
                         <button 
@@ -1778,6 +1826,7 @@ const DataKramaDetail = ({ user }) => {
                     )}
                   </div>
                 )}
+                {/* Section Anak Angkat */}
                 {orangTuaAngkatList.map((angkat, idx) => (
                   <div key={idx} className={styles.cardOrtu}>
                     <div className={styles.headerCard}>
@@ -1788,19 +1837,27 @@ const DataKramaDetail = ({ user }) => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pl-1">
                       <div className="md:col-span-2 flex flex-col gap-4">
-                        {angkat?.ayah?.nama_lengkap && (
+                        {angkat?.ayah?.nama_lengkap ? (
                           <IconInfoRow 
                             icon={<FaUser className="text-blue-500" />} 
                             label="Ayah Angkat" 
                             value={angkat.ayah.nama_lengkap} 
                           />
+                        ) : (
+                          <p className="text-xs text-gray-400 italic pl-8">
+                            Data Ayah Angkat Tidak Tercatat
+                          </p>
                         )}
-                        {angkat?.ibu?.nama_lengkap && (
+                        {angkat?.ibu?.nama_lengkap ? (
                           <IconInfoRow 
                             icon={<FaUser className="text-pink-500" />} 
                             label="Ibu Angkat" 
                             value={angkat.ibu.nama_lengkap} 
                           />
+                        ) : (
+                          <p className="text-xs text-gray-400 italic pl-8">
+                            Data Ibu Angkat Tidak Tercatat
+                          </p>
                         )}
                       </div>
                       <div className="md:col-span-1 flex flex-col gap-4 justify-start">
@@ -1821,32 +1878,49 @@ const DataKramaDetail = ({ user }) => {
                         />
                       </div>
                     </div>
-                    {/* Berkas Pengangkatan */}
+                    {/* Berkas Kelengkapan Orang Tua Angkat */}
                     {(() => {
-                      const berkasPath = angkat?.berkas_pengangkatan
-                      if (!berkasPath) return null;
-                      const isGambar = isImageFile(berkasPath);
+                      const berkasPath = angkat?.berkas_kelengkapan;
+                      if (berkasPath) {
+                        const isGambar = isImageFile(berkasPath);
+                        return (
+                          <div className={styles.fieldBerkas}>
+                            <div className="flex items-center gap-2">
+                              {isGambar ? (
+                                <FaFileImage className="text-emerald-600 text-xl flex-shrink-0 mb-1" />
+                              ) : (
+                                <FaFilePdf className="text-red-500 text-xl flex-shrink-0 mb-1" />
+                              )}
+                              <div>
+                                <p className="text-xs font-bold text-gray-800">
+                                  Berkas Kelengkapan Relasi Anak Angkat
+                                </p>
+                                <p className="text-[11px] text-gray-500">
+                                  {isGambar ? "File Gambar" : "File PDF"}
+                                </p>
+                              </div>
+                            </div>
+                            <button type="button" disabled={isProcessingAction} onClick={() => handleBerkasKelengkapan(angkat.id)} className={styles.btnLihatBerkas}>
+                              <FaEye className="text-xs" />
+                              <span>Lihat</span>
+                            </button>
+                          </div>
+                        );
+                      }
+                      {/* Tampilan Jika Berkas Kosong */}
                       return (
-                        <div className={styles.fieldBerkas}>
-                          <div className="flex items-center gap-2">
-                            {isGambar ? (
-                              <FaFileImage className="text-emerald-600 text-xl flex-shrink-0 mb-1" />
-                            ) : (
-                              <FaFilePdf className="text-red-500 text-xl flex-shrink-0 mb-1" />
-                            )}
+                        <div className={styles.teksBerkasEmpty}>
+                          <div className="flex items-center gap-2.5">
+                            <FaExclamationCircle className="text-red-500 text-base flex-shrink-0" />
                             <div>
-                              <p className="text-xs font-bold text-gray-800">
-                                Dokumen Pengangkatan Anak
+                              <p className="font-semibold text-gray-700">
+                                Berkas Kelengkapan Belum Diunggah
                               </p>
                               <p className="text-[11px] text-gray-500">
-                                {isGambar ? "File Gambar" : "File PDF"}
+                                Silakan tekan tombol <strong>Kelola Ortu Angkat</strong>, lalu tekan tombol <strong>Edit Relasi</strong> untuk menambahkan berkas kelengkapan!
                               </p>
                             </div>
                           </div>
-                          <button type="button" disabled={isProcessingAction} onClick={() => handleBerkasPengangkatan(angkat.id)} className={styles.btnLihatBerkas}>
-                            <FaEye className="text-xs" />
-                            <span>Lihat</span>
-                          </button>
                         </div>
                       );
                     })()}
@@ -2445,7 +2519,7 @@ const DataKramaDetail = ({ user }) => {
                               {renderPerubahanRelasiRow("Status Hubungan", modalRelasiData.status_hubungan, "status_hubungan", "text", modalRelasiData)}
                               {renderPerubahanRelasiRow("Urutan Lahir (Anak Ke)", modalRelasiData.urutan_lahir, "urutan_lahir", "text", modalRelasiData)}
                               {renderPerubahanRelasiRow("Tanggal Pengangkatan", modalRelasiData.tanggal_pengangkatan, "tanggal_pengangkatan", "date", modalRelasiData)}
-                              {renderPerubahanRelasiRow("Dokumen Pengangkatan", modalRelasiData.berkas_pengangkatan, "berkas_pengangkatan", "file", modalRelasiData)}
+                              {renderPerubahanRelasiRow("Berkas Kelengkapan", modalRelasiData.berkas_kelengkapan, "berkas_kelengkapan", "file", modalRelasiData)}
                             </tbody>
                           </table>
                         </div>

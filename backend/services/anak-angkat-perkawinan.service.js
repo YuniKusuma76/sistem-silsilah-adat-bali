@@ -22,7 +22,7 @@ const BOBOT_EVENT = {
 };
 
 // Helper: upload berkas ke Storage Supabase
-const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
+const uploadBerkasPengangkatan = async (file, bucketName = "berkas-kelengkapan") => {
   if (!file) return null;
 
   const fileExtension = path.extname(file.originalname).toLowerCase();
@@ -47,7 +47,7 @@ export const anakAngkatPasangan = async ({
   anak_id,
   perkawinan_id,
   tanggal_pengangkatan,
-  berkas_pengangkatan = null,
+  berkas_kelengkapan = null,
   status_hubungan = "Anak Angkat",
   user_id,             
   status_verifikasi,   
@@ -130,7 +130,7 @@ export const anakAngkatPasangan = async ({
       }
     }
 
-    let berkasPath = berkas_pengangkatan;
+    let berkasPath = berkas_kelengkapan;
 
     if (file) {
       const pathUploaded = await uploadBerkasPengangkatan(file);
@@ -152,7 +152,7 @@ export const anakAngkatPasangan = async ({
         ibu_id: istri_id,
         status_hubungan,
         tanggal_pengangkatan: dbTanggalPengangkatan,
-        berkas_pengangkatan: berkasPath,
+        berkas_kelengkapan: berkasPath,
         user_id,             
         status_verifikasi,   
         catatan_admin_desa,
@@ -188,7 +188,7 @@ export const anakAngkatPasangan = async ({
         };
 
         if (berkasPath) {
-          updatePayload.berkas_pengangkatan = berkasPath;
+          updatePayload.berkas_kelengkapan = berkasPath;
         }
 
         await relasi.update(updatePayload, { transaction: t });

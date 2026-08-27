@@ -33,7 +33,7 @@ const RelasiKrama = db.define("tb_relasi_krama", {
     type: DataTypes.DATEONLY,
     allowNull: true
   },
-  berkas_pengangkatan: {
+  berkas_kelengkapan: {
     type: DataTypes.STRING,
     allowNull: true
   },

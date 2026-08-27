@@ -20,12 +20,16 @@ const BOBOT_EVENT = {
 };
 
 // Helper: upload berkas ke Storage Supabase
-const uploadBerkasPengangkatan = async (file, bucketName = "berkas-pengangkatan") => {
+const uploadBerkasLeluhur = async (file, statusHubungan = "Anak Kandung", bucketName = "berkas-kelengkapan") => {
   if (!file) return null;
 
+  const isAngkat = statusHubungan === "Anak Angkat";
+  const prefix = isAngkat ? "pengangkatan" : "kelahiran";
+  const folderPath = isAngkat ? "relasi-krama-angkat" : "relasi-krama-kandung";
+
   const fileExtension = path.extname(file.originalname).toLowerCase();
-  const fileName = `pengangkatan_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
-  const filePath = `relasi-krama-angkat/${fileName}`;
+  const fileName = `${prefix}_${Date.now()}_${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const filePath = `${folderPath}/${fileName}`;
 
   const { data, error } = await supabase.storage
     .from(bucketName)
@@ -48,7 +52,7 @@ export const integrasiRelasiLeluhur = async ({
   status_hubungan = "Anak Kandung",
   urutan_lahir,
   tanggal_pengangkatan,
-  berkas_pengangkatan = null,
+  berkas_kelengkapan = null,
   ayah,
   ibu,
   anak,
@@ -97,10 +101,10 @@ export const integrasiRelasiLeluhur = async ({
       jangkarTanggalAnakTimestamp = `${cleanDate}T00:00:00.000Z`;
     }
 
-    let berkasPath = berkas_pengangkatan;
+    let berkasPath = berkas_kelengkapan;
 
     if (file) {
-      const pathUploaded = await uploadBerkasPengangkatan(file);
+      const pathUploaded = await uploadBerkasLeluhur(file, status_hubungan);
       if (pathUploaded) {
         berkasPath = pathUploaded;
       }
@@ -116,7 +120,7 @@ export const integrasiRelasiLeluhur = async ({
         status_hubungan,
         urutan_lahir: urutan_lahir || null,
         tanggal_pengangkatan: dbTanggalPengangkatan,
-        berkas_pengangkatan: berkasPath,
+        berkas_kelengkapan: berkasPath,
         user_id,             
         status_verifikasi,   
         catatan_admin_desa
@@ -150,7 +154,7 @@ export const integrasiRelasiLeluhur = async ({
         };
 
         if (berkasPath) {
-          updatePayload.berkas_pengangkatan = berkasPath;
+          updatePayload.berkas_kelengkapan = berkasPath;
         }
 
         await relasi.update(updatePayload, { transaction: t });

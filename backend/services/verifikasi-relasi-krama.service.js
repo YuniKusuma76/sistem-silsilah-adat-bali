@@ -224,9 +224,9 @@ export const prosesVerifikasiRelasiKrama = async ({
     ? rawChange.status_hubungan 
     : relasi.status_hubungan;
   
-  const filePengangkatanRaw = isModeUpdate && hasProp(rawChange, 'berkas_pengangkatan')
-    ? rawChange.berkas_pengangkatan
-    : relasi.berkas_pengangkatan;
+  const filePengangkatanRaw = isModeUpdate && hasProp(rawChange, 'berkas_kelengkapan')
+    ? rawChange.berkas_kelengkapan
+    : relasi.berkas_kelengkapan;
 
   const targetBerkasPengangkatan = (!filePengangkatanRaw || String(filePengangkatanRaw).trim() === '' || String(filePengangkatanRaw) === 'null')
     ? null
@@ -323,7 +323,7 @@ export const prosesVerifikasiRelasiKrama = async ({
     desa_adat_id_tujuan: isLintasDesaAktif ? desaTujuanId : null,
     approved_asal_by: idApprovedAsal,
     approved_tujuan_by: idApprovedTujuan,
-    berkas_pengangkatan: targetBerkasPengangkatan
+    berkas_kelengkapan: targetBerkasPengangkatan
   };
 
   const isLeluhurMode = relasi.anak?.tipe_data === "Leluhur" || ayahBaru?.tipe_data === "Leluhur" || ibuBaru?.tipe_data === "Leluhur";
@@ -512,7 +512,7 @@ export const prosesVerifikasiRelasiKrama = async ({
           tanggal_pengangkatan: tglAngkatDateOnly,
           urutan_lahir: toSafeIntOrNull(rawChange.urutan_lahir ?? relasi.urutan_lahir),
           perkawinan_id: targetPerkawinanId,
-          berkas_pengangkatan: targetBerkasPengangkatan,
+          berkas_kelengkapan: targetBerkasPengangkatan,
           data_perubahan: null,
           status_sebelum_draft: null,
           ...commonParams,
