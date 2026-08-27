@@ -219,6 +219,10 @@ const App = () => {
             path="/treh-bali/:id?" 
             element={<TrehBali />}
           />
+          <Route 
+            path="/treh-bali/leluhur-puncak/:id?" 
+            element={<TrehPuncak user={user} />} 
+          />
           {/* Conditional Routes */}
           <Route 
             path="/profile" 
@@ -347,10 +351,6 @@ const App = () => {
           <Route 
             path="/krama-bali" 
             element={<DataKramaBali user={user} />} 
-          />
-          <Route 
-            path="/krama-bali/treh-puncak/:id?" 
-            element={<TrehPuncak user={user} />} 
           />
           <Route 
             path="/krama-bali/my-data" 

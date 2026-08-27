@@ -485,7 +485,7 @@ const TrehPuncak = () => {
   const handleVisualize = (targetId, namaLengkap, tipeData) => {
     const newSlug = createSlug(namaLengkap, tipeData, targetId);
     setIsModalOpen(false); 
-    navigate(`/krama-bali/detail/silsilah/${newSlug}`);
+    navigate(`/treh-bali/leluhur-puncak/${newSlug}`);
     window.scrollTo({ 
       top: 0, 
       behavior: 'smooth' 
@@ -583,7 +583,7 @@ const TrehPuncak = () => {
           {initialTargetId && actualId !== initialTargetId && (
             <button 
               onClick={() => {
-                navigate(`/krama-bali/detail/silsilah/${initialSlug}`);
+                navigate(`/treh-bali/leluhur-puncak/${initialSlug}`);
               }} 
               className={styles.btnReset}
               title="Kembali ke target treh awal">

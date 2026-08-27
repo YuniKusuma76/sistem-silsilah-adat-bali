@@ -441,13 +441,6 @@ const DataKramaBali = ({ user }) => {
             />
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              className={styles.btnTrehPuncak} 
-              onClick={() => navigate('/krama-bali/treh-puncak')}
-              title="Lihat silsilah dari leluhur tertinggi">
-              <FaSitemap size={14} />
-              <span>Treh Puncak</span>
-            </button>
             {user?.role !== 'Viewer' && user?.role !== 'Pakar' && (
               <button 
                 className={styles.btnMyData} 

@@ -45,6 +45,10 @@ const SIDEBAR_MENU = {
       label: "Home", 
       icon: <FaHome size={18} /> 
     },{ 
+      path: "/treh-bali/leluhur-puncak", 
+      label: "Treh Bali", 
+      icon: <LuNetwork size={18} /> 
+    },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
       icon: <FaUsers size={18} /> 
@@ -69,6 +73,10 @@ const SIDEBAR_MENU = {
       label: "Home", 
       icon: <FaHome size={18} /> 
     },{ 
+      path: "/treh-bali/leluhur-puncak", 
+      label: "Treh Bali", 
+      icon: <LuNetwork size={18} /> 
+    },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
       icon: <FaUsers size={18} /> 
@@ -92,6 +100,10 @@ const SIDEBAR_MENU = {
       path: "/home", 
       label: "Home", 
       icon: <FaHome size={18} /> 
+    },{ 
+      path: "/treh-bali/leluhur-puncak", 
+      label: "Treh Bali", 
+      icon: <LuNetwork size={18} /> 
     },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
@@ -118,6 +130,10 @@ const SIDEBAR_MENU = {
       icon: <MdDashboard size={18} /> 
     },{ 
       type: "divider" 
+    },{ 
+      path: "/treh-bali/leluhur-puncak", 
+      label: "Treh Bali", 
+      icon: <LuNetwork size={18} /> 
     },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
@@ -158,6 +174,10 @@ const SIDEBAR_MENU = {
       icon: <MdDashboard size={18} /> 
     },{ 
       type: "divider" 
+    },{ 
+      path: "/treh-bali/leluhur-puncak", 
+      label: "Treh Bali", 
+      icon: <LuNetwork size={18} /> 
     },{ 
       path: "/krama-bali", 
       label: "Data Krama Bali", 
