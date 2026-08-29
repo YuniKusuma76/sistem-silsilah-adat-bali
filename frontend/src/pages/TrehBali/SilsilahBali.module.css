@@ -103,16 +103,22 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  width: 150px;
-  padding: 14px 10px;
+  justify-content: flex-start;
+  width: 150px !important;
+  height: 150px !important;
+  min-width: 150px !important;
+  max-width: 150px !important;
+  min-height: 150px !important;
+  max-height: 150px !important;
+  padding: 10px 8px;
   background-color: #ffffff;
-  border-radius: 16px;
+  border-radius: 15px;
   border: 2px solid #e2e8f0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   cursor: pointer;
   transition: all 0.2s ease-in-out;
   position: relative;
+  box-sizing: border-box !important;
 }
 
 .treeCard:hover {
@@ -286,9 +292,8 @@
   text-align: center;
   list-style-type: none;
   position: relative;
-  /* Memberikan padding horizontal yang cukup antar saudara */
   padding: var(--gap) var(--sibling-gap) 0 var(--sibling-gap);
-  flex: 0 0 auto; /* Ganti dari flex: 1 1 auto agar node tidak memampat atau menyusut */
+  flex: 0 0 auto;
 }
 
 .tree > ul {
@@ -387,7 +392,6 @@
   border-radius: 0 8px 0 0;
 }
 
-/* 3. Mencegah Wrapper Menyusut */
 .treeNodeWrapper {
   display: inline-flex;
   flex-direction: column;
@@ -396,7 +400,7 @@
   z-index: 10;
   flex-shrink: 0;
 }
-/* 2. Container Pasangan (Mencegah penyusutan saat ada perkawinan) */
+
 .coupleContainer {
   display: inline-flex;
   align-items: center;
@@ -404,7 +408,6 @@
   position: relative;
   width: auto;
   margin: 0 auto;
-  /* Pastikan container tidak menyusut secara paksa ketika layar memuat banyak pasangan */
   flex-shrink: 0;
 }
 
@@ -414,6 +417,11 @@
 
 .coupleContainer:has(.marriageLine) {
   transform: translateX(calc((100% - 150px) / 2));
+}
+
+.coupleContainer:has(.marriageLine):has(> :nth-child(5)) {
+  margin-right: 110px !important;
+  margin-left: 110px;
 }
 
 .coupleContainer > :nth-child(n + 3) {
@@ -483,15 +491,25 @@
 }
 
 .nodeDisplayName {
-  @apply font-bold text-sm text-white leading-snug text-center line-clamp-1 max-w-[120px];
+  @apply font-bold text-[13px] text-white leading-tight text-center;
+  width: 100%;
+  max-width: 135px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  margin-top: 2px;
 }
 
 .nodeTipeData {
-  @apply text-[10px] text-gray-800 font-medium mb-3 text-center capitalize italic;
+  @apply text-[10px] text-gray-800 font-medium text-center capitalize italic;
+  margin-bottom: 5px;
 }
 
 .labelIstri {
-  @apply absolute -top-2.5 left-1/2 transform -translate-x-1/2 bg-sky-600 text-white text-[9px] font-semibold px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap z-20;
+  @apply absolute left-1/2 transform -translate-x-1/2 bg-sky-600 text-white text-[9px] font-semibold px-2 py-0.5 rounded-full shadow border border-white whitespace-nowrap;
+  top: -10px !important;
+  z-index: 30 !important;
+  pointer-events: none;
 }
 
 /* Style Modal Detail Krama */
@@ -553,4 +571,24 @@
 
 .btnDetailTreh {
   @apply flex-1 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-900/90 flex items-center justify-center gap-2 text-xs font-bold transition-colors duration-300 shadow-sm text-center;
+}
+
+.cardWarning {
+  @apply relative bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden border border-[#c5a059]/30 z-[1000];
+}
+
+.titleWarning {
+  @apply bg-[#3a2000] p-4 flex justify-between items-center font-bold text-white border-b border-[#c5a059];
+}
+
+.subTittle {
+  @apply flex items-center gap-2 text-sm uppercase tracking-wide;
+}
+
+.batalExport {
+  @apply py-2.5 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 transition-colors text-xs;
+}
+
+.lanjutExport {
+  @apply py-2.5 bg-[#3a2000] text-white font-bold rounded-lg hover:bg-amber-950 transition-colors shadow-md text-xs flex items-center justify-center gap-1.5;
 }

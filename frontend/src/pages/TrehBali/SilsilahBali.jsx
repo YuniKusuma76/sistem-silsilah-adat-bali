@@ -12,8 +12,14 @@ import {
   FaCrown,
   FaSeedling,
   FaUserFriends,
-  FaLayerGroup 
+  FaLayerGroup,
+  FaDownload,
+  FaFilePdf,
+  FaFileImage,
+  FaExclamationTriangle
 } from 'react-icons/fa';
+import { toPng, toJpeg } from 'html-to-image';
+import jsPDF from 'jspdf';
 import axiosInstance from '../../api/axiosInstance.js';
 import styles from './SilsilahBali.module.css';
 
@@ -254,10 +260,10 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
       return data.nama_panggilan;
     }
     const words = (data.nama_lengkap || '').trim().split(/\s+/);
-    if (words.length <= 2) {
+    if (words.length <= 3) {
       return data.nama_lengkap;
     }
-    return words.slice(-2).join(' ');
+    return words.slice(-3).join(' ');
   };
 
   return (
@@ -282,6 +288,7 @@ const NodeCard = ({ data, onClick, isTarget, pasanganIndex }) => {
           alt={data.nama_lengkap || "Krama Bali"} 
           className={`w-14 h-14 rounded-full object-cover border-2 ${getAvatarRingClass()} ring-1 ring-white shadow-sm`}
           onError={(e) => { e.target.src = DEFAULT_AVATAR_URL; }}
+          crossOrigin="anonymous"
         />
         {isAncestor && (
           <div className={styles.iconLeluhur} title="Leluhur">
@@ -354,6 +361,7 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
               alt={krama.nama_lengkap} 
               className={styles.avatarDetail}
               onError={(e) => { e.target.src = DEFAULT_AVATAR_URL; }}
+              crossOrigin="anonymous"
             />
           </div>
           <div className="text-center mb-5">
@@ -413,16 +421,55 @@ const ModalDetail = ({ krama, isOpen, onClose, onVisualize }) => {
   );
 };
 
+// Sub-Component: modal konfirmasi export gambar silsilah
+const ModalConfirmExport = ({ isOpen, onClose, onConfirm, exportType }) => {
+  if (!isOpen) return null;
+  return (
+    <div className={styles.modal}>
+      <div className={styles.overlay} onClick={onClose}></div>
+      <div className={`${styles.cardWarning} animate-fade-in`}>
+        <div className={styles.titleWarning}>
+          <h3 className={styles.subTittle}>
+            <FaExclamationTriangle size={16} className="text-amber-400" /> 
+            Konfirmasi Export {exportType?.toUpperCase()}
+          </h3>
+        </div>
+        <div className="p-6 text-center">
+          <p className="text-sm font-medium text-gray-800 leading-relaxed">
+            Disarankan tidak mengeksport gambar silsilah melebihi ukuran <span className="text-amber-700 font-bold">A3</span> atau silsilah ke samping (<span className="text-amber-700 font-bold">saudara/keturunan</span>) yang terlalu panjang agar gambar hasil export tetap terlihat jelas.
+          </p>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <button
+              onClick={onClose}
+              className={styles.batalExport}>
+              BATAL
+            </button>
+            <button
+              onClick={onConfirm}
+              className={styles.lanjutExport}>
+              LANJUT EXPORT
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SilsilahBali = () => {
   const { id: slugParam } = useParams(); 
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  
   const transformComponentRef = useRef(null);
+  const treeContainerRef = useRef(null);
 
   const [treeData, setTreeData] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedKrama, setSelectedKrama] = useState(null);
 
   const [maxDepth, setMaxDepth] = useState(2);
+  const [pendingExportType, setPendingExportType] = useState(null);
 
   const navigate = useNavigate();
   const [initialTargetId, setInitialTargetId] = useState(null);
@@ -484,6 +531,7 @@ const SilsilahBali = () => {
     setIsModalOpen(true);  
   };
 
+  // Helper: menangani perubahan slug
   const handleVisualize = (targetId, namaLengkap, tipeData) => {
     const newSlug = createSlug(namaLengkap, tipeData, targetId);
     setIsModalOpen(false); 
@@ -509,6 +557,131 @@ const SilsilahBali = () => {
       return () => clearTimeout(timer);
     }
   }, [treeData, isLoading]);
+
+  const getNamaPuncak = () => {
+    return treeData?.nama_lengkap || targetKrama?.nama_lengkap || 'KRAMA BALI';
+  };
+
+  // Helper: menangani export gambar silsilah (png)
+  const executeExportPNG = async () => {
+    if (!treeContainerRef.current) return;
+    setIsExporting(true);
+
+    try {
+      const dataUrl = await toPng(treeContainerRef.current, {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left'
+        }
+      });
+
+      const img = new Image();
+      img.src = dataUrl;
+      img.onload = () => {
+        const padding = 40;
+        const topMargin = 30; 
+        const headerHeight = 115;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = img.width + padding * 2;
+        canvas.height = img.height + headerHeight + topMargin + padding * 2;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.font = 'bold 48px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('SILSILAH KELUARGA ADAT BALI', canvas.width / 2, padding + topMargin + 35);
+        ctx.fillStyle = '#937641';
+        ctx.font = 'bold 36px Arial, sans-serif';
+        ctx.fillText(`- ${getNamaPuncak()} -`, canvas.width / 2, padding + topMargin + 85);
+        ctx.drawImage(img, padding, padding + topMargin + headerHeight);
+
+        const link = document.createElement('a');
+        const filename = `Silsilah_${getNamaPuncak()}`.replace(/\s+/g, '_') + '.png';
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      };
+    } catch (err) {
+      console.error("Gagal export gambar PNG:", err);
+      alert("Terjadi kesalahan saat mengeksport gambar silsilah.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Helper: menangani export gambar silsilah (pdf)
+  const executeExportPDF = async () => {
+    if (!treeContainerRef.current) return;
+    setIsExporting(true);
+
+    try {
+      const dataUrl = await toJpeg(treeContainerRef.current, {
+        quality: 0.95,
+        backgroundColor: '#ffffff',
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left'
+        }
+      });
+
+      const img = new Image();
+      img.src = dataUrl;
+      img.onload = () => {
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a3'
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const marginTop = 38;
+        const marginBottom = 10;
+        const marginSide = 15;
+        const availableWidth = pdfWidth - marginSide * 2;
+        const availableHeight = pdfHeight - marginTop - marginBottom;
+
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(25);
+        pdf.setTextColor(26, 26, 26);
+        pdf.text('SILSILAH KELUARGA ADAT BALI', pdfWidth / 2, 20, { align: 'center' });
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(20);
+        pdf.setTextColor(147, 118, 65);
+        pdf.text(`- ${getNamaPuncak()} -`, pdfWidth / 2, 30, { align: 'center' });
+
+        const ratio = Math.min(availableWidth / img.width, availableHeight / img.height);
+        const renderWidth = img.width * ratio;
+        const renderHeight = img.height * ratio;
+        const xOffset = (pdfWidth - renderWidth) / 2;
+        const yOffset = marginTop;
+
+        pdf.addImage(dataUrl, 'JPEG', xOffset, yOffset, renderWidth, renderHeight);
+        const filename = `Silsilah_${getNamaPuncak()}`.replace(/\s+/g, '_') + '.pdf';
+        pdf.save(filename);
+      };
+    } catch (err) {
+      console.error("Gagal export PDF:", err);
+      alert("Terjadi kesalahan saat mengeksport PDF silsilah.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleConfirmExport = () => {
+    const type = pendingExportType;
+    setPendingExportType(null);
+    if (type === 'png') {
+      executeExportPNG();
+    } else if (type === 'pdf') {
+      executeExportPDF();
+    }
+  };
 
   const getLineColorClass = (statusHubungan) => {
     if (!statusHubungan) return styles.lineAnakKandung;
@@ -627,7 +800,7 @@ const SilsilahBali = () => {
             smooth: true,
           }}
           zoomAnimation={{ animationTime: 200, animationType: "easeOut" }}>
-          {({ zoomIn, zoomOut, resetTransform, state }) => (
+          {({ zoomIn, zoomOut, state }) => (
             <>
               <div className={styles.zoomCard}>
                 <button onClick={() => zoomOut(0.15)} className={styles.zoom} title="Zoom Out">
@@ -638,8 +811,21 @@ const SilsilahBali = () => {
                   <FaSearchPlus size={13} />
                 </button>
                 <div className="w-[1px] h-4 bg-gray-300 mx-0.5"></div>
-                <button onClick={() => resetTransform()} className={styles.resetZoom} title="Reset Tampilan Zoom">
-                  <FaUndo size={11} />
+                <button 
+                  onClick={() => setPendingExportType('png')} 
+                  disabled={isExporting}
+                  className={`${styles.zoom} flex items-center gap-1 text-xs font-bold text-[#937641]`} 
+                  title="Export PNG">
+                  <FaFileImage size={12} />
+                  <span>{isExporting && pendingExportType === 'png' ? 'Mengeksport...' : 'PNG'}</span>
+                </button>
+                <button 
+                  onClick={() => setPendingExportType('pdf')} 
+                  disabled={isExporting}
+                  className={`${styles.zoom} flex items-center gap-1 text-xs font-bold text-[#937641]`} 
+                  title="Export PDF">
+                  <FaFilePdf size={12} />
+                  <span>{isExporting && pendingExportType === 'pdf' ? 'Mengeksport...' : 'PDF'}</span>
                 </button>
               </div>
               <TransformComponent
@@ -653,7 +839,7 @@ const SilsilahBali = () => {
                   justifyContent: "center",
                   alignItems: "center"
                 }}>
-                <div className={styles.tree}>
+                <div ref={treeContainerRef} className={styles.tree}>
                   {treeData ? (
                     <ul>{renderTree(treeData)}</ul>
                   ) : (
@@ -673,6 +859,12 @@ const SilsilahBali = () => {
         krama={selectedKrama}
         onClose={() => setIsModalOpen(false)}
         onVisualize={handleVisualize}
+      />
+      <ModalConfirmExport 
+        isOpen={Boolean(pendingExportType)}
+        exportType={pendingExportType}
+        onClose={() => setPendingExportType(null)}
+        onConfirm={handleConfirmExport}
       />
     </div>
   );
