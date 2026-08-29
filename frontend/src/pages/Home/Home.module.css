@@ -4,57 +4,191 @@
 }
 
 .bannerHome {
-  @apply w-full h-[350px] bg-gray-300 overflow-hidden relative;
+  @apply w-full h-[380px] bg-gray-300 overflow-hidden relative flex items-center justify-center;
+}
+
+.bannerImg {
+  @apply w-full h-full object-cover absolute inset-0;
 }
 
 .bannerOverlay {
-  @apply absolute inset-0 bg-gradient-to-b from-transparent to-black/10;
+  @apply absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20;
+}
+
+.bannerContent {
+  @apply relative z-10 text-center text-white px-6 max-w-3xl flex flex-col items-center gap-2;
+}
+
+.heroSub {
+  @apply text-xs md:text-sm font-semibold text-[#c5a059] uppercase tracking-[0.2em];
+}
+
+.heroTitle {
+  @apply text-3xl md:text-4xl font-extrabold text-white tracking-wide drop-shadow-md;
+}
+
+.heroDesc {
+  @apply text-sm md:text-base text-gray-200 font-light max-w-xl leading-relaxed;
 }
 
 .homeSection {
-  @apply max-w-7xl mx-auto px-10 py-12 flex-grow;
+  @apply max-w-7xl mx-auto px-8 md:px-12 py-12 flex-grow w-full;
+}
+
+.sectionBlock {
+  @apply mb-12;
+}
+
+.headerGroup {
+  @apply text-center mb-8 flex flex-col items-center;
 }
 
 .sectionTitle {
-  @apply text-3xl font-bold text-[#3A2000] uppercase inline-block border-b-2 border-bali-gold w-4/5 pb-1 mb-6 tracking-widest;
+  @apply text-2xl md:text-3xl font-bold text-[#3A2000] uppercase inline-block pb-2 tracking-widest;
+}
+
+.divider {
+  @apply w-24 h-1 bg-[#c5a059] rounded-full mt-2;
+}
+
+.paragraphGrid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6 mb-8;
 }
 
 .sectionContent {
-  @apply text-justify text-gray-900 leading-relaxed text-[15px];
+  @apply text-justify text-gray-800 leading-relaxed text-[15px];
 }
 
-.sectionCard {
-  @apply flex flex-col md:flex-row gap-6 mt-8 mb-12;
+.sectionLead {
+  @apply text-center text-gray-700 text-base max-w-3xl mx-auto mb-8 leading-relaxed;
 }
 
-.cardContent {
-  @apply w-full md:w-1/2 h-[300px] rounded-xl overflow-hidden shadow-lg relative;
+.infoCardGrid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-6 my-8;
+}
+
+.infoCard {
+  @apply bg-[#FAF6F0] p-6 rounded-xl border border-[#c5a059]/30 shadow-sm flex flex-col transition-all duration-300 hover:shadow-md hover:border-[#c5a059];
+}
+
+.infoCardIcon {
+  @apply w-12 h-12 rounded-lg bg-[#3A2000] text-[#c5a059] flex items-center justify-center mb-4 shadow-sm;
+}
+
+.infoCardTitle {
+  @apply text-lg font-bold text-[#3A2000] mb-2 tracking-wide;
+}
+
+.infoCardDesc {
+  @apply text-sm text-gray-700 leading-relaxed text-justify font-light;
+}
+
+.carouselContainer {
+  @apply relative my-12 w-full px-2;
+}
+
+.galleryTrack {
+  @apply flex gap-6 overflow-x-auto scroll-smooth py-4 px-2;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.galleryTrack::-webkit-scrollbar {
+  display: none;
+}
+
+.galleryCard {
+  @apply flex-shrink-0 w-[280px] md:w-[350px] h-[240px] md:h-[280px] rounded-xl overflow-hidden shadow-lg relative cursor-pointer;
+}
+
+.galleryImg {
+  @apply w-full h-full object-cover transition-transform duration-500 group-hover:scale-110;
+}
+
+.galleryCaption {
+  @apply absolute bottom-0 inset-x-0 p-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent text-white font-semibold text-sm tracking-wide;
+}
+
+.scrollBtn {
+  @apply absolute top-1/2 -translate-y-1/2 z-20 bg-[#3A2000]/80 hover:bg-[#3A2000] text-[#c5a059] p-3 rounded-full shadow-xl transition-all duration-300 hover:scale-110 border border-[#c5a059]/40 backdrop-blur-sm;
+}
+
+.btnLeft {
+  @apply -left-4 md:-left-6;
+}
+
+.btnRight {
+  @apply -right-4 md:-right-6;
+}
+
+.quoteBox {
+  @apply relative max-w-full mx-auto my-8 p-6 md:p-8 bg-[#FAF6F0] rounded-xl border-l-4 border-[#c5a059] shadow-sm flex flex-col md:flex-row items-center md:items-start gap-4 transition-all hover:shadow-md;
+}
+
+.quoteIcon {
+  @apply w-8 h-8 md:w-10 md:h-10 text-[#c5a059] flex-shrink-0 rotate-180 opacity-80;
+}
+
+.quoteText {
+  @apply text-center md:text-left text-gray-800 text-base md:text-lg leading-relaxed font-serif italic;
+}
+
+.quoteText b {
+  @apply text-[#3A2000] font-semibold not-italic;
 }
 
 .cardKhusus {
-  @apply grid grid-cols-1 md:grid-cols-3 gap-6 mt-12;
+  @apply grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 mb-12;
 }
 
 .cardContainer {
-  @apply rounded-xl overflow-hidden shadow-2xl flex flex-col h-full bg-bali-brown border-bali-gold/30 transition-all hover:-translate-y-2;
+  @apply rounded-xl overflow-hidden shadow-xl flex flex-col h-full bg-[#2A1800] border border-[#c5a059]/30 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl;
 }
 
-.cardImage {
-  @apply h-72 overflow-hidden bg-gray-300 relative border-b-2 border-[#c5a059];
+.cardImageWrapper {
+  @apply h-64 overflow-hidden bg-gray-300 relative border-b-2 border-[#c5a059];
 }
 
 .imageContent {
   @apply w-full h-full object-cover transition-transform duration-500 group-hover:scale-110;
 }
 
+.cardBadge {
+  @apply absolute top-3 right-3 bg-[#c5a059] text-white text-[10px] font-bold uppercase px-3 py-1 rounded-full shadow-md tracking-wider;
+}
+
 .cardText {
-  @apply p-5 flex flex-col flex-grow text-white bg-gradient-to-b from-transparent to-black/20;
+  @apply p-5 flex flex-col flex-grow text-white bg-gradient-to-b from-transparent to-black/30;
 }
 
 .cardTitle {
-  @apply font-bold text-lg mb-3 text-white tracking-wide;
+  @apply font-bold text-lg mb-2 text-[#f3e5ab] tracking-wide;
 }
 
 .cardDesc {
-  @apply text-xs leading-5 text-white font-light text-left;
+  @apply text-xs leading-relaxed text-gray-200 font-light text-left;
+}
+
+.tradisiWrapper {
+  @apply mt-12 pt-8 border-t border-gray-200;
+}
+
+.subHeading {
+  @apply text-xl font-bold text-[#3A2000] text-center mb-6 uppercase tracking-wider;
+}
+
+.tradisiGrid {
+  @apply grid grid-cols-1 md:grid-cols-3 gap-6;
+}
+
+.tradisiCard {
+  @apply bg-[#FAF6F0] p-5 rounded-xl border border-[#c5a059]/20 shadow-sm transition-all hover:border-[#c5a059];
+}
+
+.tradisiCard h4 {
+  @apply font-bold text-[#3A2000] text-base mb-2;
+}
+
+.tradisiCard p {
+  @apply text-xs text-gray-700 leading-relaxed;
 }
