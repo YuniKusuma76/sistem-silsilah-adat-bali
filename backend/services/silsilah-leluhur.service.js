@@ -7,6 +7,19 @@ import {
 
 const VERIFIKASI_APPROVED = { status_verifikasi: "Disetujui" };
 
+export const getListLeluhur = async () => {
+  const listLeluhur = await KramaBali.findAll({
+    where: {
+      tipe_data: "Leluhur",
+      ...VERIFIKASI_APPROVED
+    },
+    attributes: ["id", "nomor_pendaftaran", "nama_lengkap", "nama_panggilan", "jenis_kelamin", "foto_profile"],
+    order: [["nama_lengkap", "ASC"]]
+  });
+
+  return listLeluhur;
+};
+
 const isPerempuanPurusa = async (krama_id) => {
   const perkawinanNyentana = await Perkawinan.findOne({
     where: {
@@ -237,7 +250,7 @@ const trehLeluhur = async (
   target_highlight_id, 
   depth = 1, 
   targetDepth = 1,
-  maxDepth = 10, 
+  maxDepth = 2, 
   statusHubunganCurrent = "Anak Kandung"
 ) => {
   const krama = await KramaBali.findOne({
@@ -338,7 +351,7 @@ export const findAkarLeluhurId = async () => {
   return akarLeluhur.id;
 };
 
-export const getTrehLeluhur = async (root_id, maxDepth = 10) => {
+export const getTrehLeluhur = async (root_id, maxDepth = 2) => {
   let rootId = root_id;
   let finalTargetId = root_id;
 
@@ -364,12 +377,17 @@ export const getTrehLeluhur = async (root_id, maxDepth = 10) => {
     return null;
   }
 
-  const actualDownSteps = await countMaxDownSteps(finalTargetId, targetCek.jenis_kelamin, maxDepth - 1);
-  let maxUpSteps = 1;
+  const isTargetPredana = await isPredana(targetCek.id, targetCek.jenis_kelamin);
+  const maxDownStepsAllowed = maxDepth - 1;
+  const actualDownSteps = await countMaxDownSteps(finalTargetId, targetCek.jenis_kelamin, maxDownStepsAllowed);
 
-  if (actualDownSteps < maxDepth - 1) {
-    maxUpSteps = maxDepth - 1 - actualDownSteps;
+  let maxUpSteps = maxDownStepsAllowed - actualDownSteps;
+
+  if (isTargetPredana && maxUpSteps < 1) {
+    maxUpSteps = 1;
   }
+
+  if (maxUpSteps < 0) maxUpSteps = 0;
 
   const { rootId: newRootId, targetDepth } = await findLeluhurPurusa(finalTargetId, maxUpSteps);
   return await trehLeluhur(newRootId, finalTargetId, 1, targetDepth, maxDepth);

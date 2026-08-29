@@ -11,7 +11,9 @@ import {
   FaSitemap,
   FaCrown,
   FaSeedling,
-  FaUserFriends 
+  FaUserFriends,
+  FaLayerGroup,
+  FaUser
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import styles from './SilsilahBali.module.css';
@@ -426,9 +428,27 @@ const TrehBali = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedKrama, setSelectedKrama] = useState(null);
 
+  const [maxDepth, setMaxDepth] = useState(2);
+  const [leluhurOptions, setLeluhurOptions] = useState([]);
+
   const navigate = useNavigate();
   const [initialTargetId, setInitialTargetId] = useState(null);
   const [initialSlug, setInitialSlug] = useState(null);
+
+  // Helper: mengambil daftar leluhur
+  useEffect(() => {
+    const fetchLeluhurOptions = async () => {
+      try {
+        const response = await axiosInstance.get('/silsilah/leluhur/options');
+        if (response.data?.success && response.data?.data) {
+          setLeluhurOptions(response.data.data);
+        }
+      } catch (error) {
+        console.error("Gagal memuat daftar opsi leluhur:", error);
+      }
+    };
+    fetchLeluhurOptions();
+  }, []);
 
   // Helper: mengambil ID krama paling atas
   const getActiveId = () => {
@@ -456,18 +476,18 @@ const TrehBali = () => {
       }
       setIsLoading(true);
       try {
-        const response = await axiosInstance.get(`/silsilah/leluhur/${targetId}?maxDepth=10`);
+        const response = await axiosInstance.get(`/silsilah/leluhur/${targetId}?maxDepth=${maxDepth}`);
         if (response.data?.data) {
           setTreeData(response.data.data);
         }
       } catch (error) {
-        console.error(error);
+        console.error("Gagal memuat treh silsilah leluhur Adat Bali:", error);
       } finally {
         setIsLoading(false);
       }
     };
     fetchTree();
-  }, [actualId]);
+  }, [actualId, maxDepth]);
 
   const targetKrama = useMemo(() => {
     return findTargetNode(treeData);
@@ -486,6 +506,16 @@ const TrehBali = () => {
       top: 0, 
       behavior: 'smooth' 
     });
+  };
+
+  const handleSelectLeluhurChange = (e) => {
+    const selectedId = e.target.value;
+    if (!selectedId) return;
+
+    const selectedItem = leluhurOptions.find((l) => String(l.id) === String(selectedId));
+    if (selectedItem) {
+      handleVisualize(selectedItem.id, selectedItem.nama_lengkap, selectedItem.tipe_data || "Leluhur");
+    }
   };
 
   // Helper: memfokuskan pada target silsilah
@@ -576,6 +606,37 @@ const TrehBali = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Select Target Treh */}
+          <div className={styles.selectGen}>
+            <FaUser className="text-[#937641] mb-0.5" />
+            <span>Pilih Target Treh:</span>
+            <select
+              value={targetKrama?.id || actualId || ''}
+              onChange={handleSelectLeluhurChange}
+              className="bg-transparent font-bold text-[#937641] focus:outline-none cursor-pointer max-w-[180px] truncate">
+              <option value="" disabled>-- Pilih Target Leluhur --</option>
+              {leluhurOptions.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.nama_lengkap}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Select Tingkat Treh */}
+          <div className={styles.selectGen}>
+            <FaLayerGroup className="text-[#937641] mb-0.5" />
+            <span>Tingkat:</span>
+            <select
+              value={maxDepth}
+              onChange={(e) => setMaxDepth(Number(e.target.value))}
+              className="bg-transparent font-bold text-[#937641] focus:outline-none cursor-pointer">
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
+                <option key={level} value={level}>
+                  {level} Generasi
+                </option>
+              ))}
+            </select>
+          </div>
           {initialTargetId && actualId !== initialTargetId && (
             <button 
               onClick={() => navigate(`/treh-bali/${initialSlug}`)} 

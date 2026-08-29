@@ -204,6 +204,10 @@
   @apply px-2 font-mono text-xs font-bold w-12 text-center text-[#3A2000];
 }
 
+.selectGen {
+  @apply flex items-center gap-1.5 bg-white border border-[#D4C5A9] px-2 py-1.5 rounded-md text-xs font-semibold text-[#3A2000] shadow-sm;
+}
+
 .btnReset {
   @apply px-4 py-2 bg-[#3A2000] text-white rounded-md text-xs font-bold flex items-center gap-2 hover:bg-amber-950/90 transition-all shadow-md;
 }

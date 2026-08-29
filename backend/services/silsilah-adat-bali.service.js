@@ -352,7 +352,7 @@ const buildPohonSilsilah = async (
   verifikasiFilter, 
   depth = 1, 
   targetDepth = 1, 
-  maxDepth = 4, 
+  maxDepth = 2, 
   statusHubunganCurrent = "Anak Kandung",
   isRelasiDraft = false
 ) => {
@@ -434,7 +434,7 @@ const buildPohonSilsilah = async (
   };
 };
 
-export const getSilsilahPurusaTree = async (krama_id, user = null, maxDepth = 4) => {
+export const getSilsilahPurusaTree = async (krama_id, user = null, maxDepth = 2) => {
   if (!krama_id) {
     throw new Error("ID Krama wajib diisi");
   }
@@ -454,14 +454,19 @@ export const getSilsilahPurusaTree = async (krama_id, user = null, maxDepth = 4)
   }
 
   const targetCek = applyDataPerubahan(rawTargetCek);
-  const actualDownSteps = await countMaxDownSteps(krama_id, targetCek.jenis_kelamin, verifikasiFilter, maxDepth - 1);
-  let maxUpSteps = 1;
+  const isTargetPredana = await isPredana(targetCek.id, targetCek.jenis_kelamin, verifikasiFilter);
+  const maxDownStepsAllowed = maxDepth - 1;
+  const actualDownSteps = await countMaxDownSteps(krama_id, targetCek.jenis_kelamin, verifikasiFilter, maxDownStepsAllowed);
 
-  if (actualDownSteps < maxDepth - 1) {
-    maxUpSteps = maxDepth - 1 - actualDownSteps;
+  let maxUpSteps = maxDownStepsAllowed - actualDownSteps;
+
+  if (isTargetPredana && maxUpSteps < 1) {
+    maxUpSteps = 1;
   }
+
+  if (maxUpSteps < 0) maxUpSteps = 0;
 
   const { rootId, targetDepth } = await findLeluhurPurusa(krama_id, verifikasiFilter, maxUpSteps);
   const silsilahTree = await buildPohonSilsilah(rootId, krama_id, verifikasiFilter, 1, targetDepth, maxDepth);
-  return silsilahTree; 
+  return silsilahTree;
 };

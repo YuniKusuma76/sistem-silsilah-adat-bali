@@ -8,6 +8,19 @@ import {
 
 const VERIFIKASI_APPROVED = { status_verifikasi: "Disetujui" };
 
+export const getListLeluhurPuncak = async () => {
+  const listLeluhur = await KramaBali.findAll({
+    where: {
+      tipe_data: "Leluhur",
+      ...VERIFIKASI_APPROVED
+    },
+    attributes: ["id", "nomor_pendaftaran", "nama_lengkap", "nama_panggilan", "jenis_kelamin", "foto_profile", "tipe_data"],
+    order: [["nama_lengkap", "ASC"]]
+  });
+
+  return listLeluhur;
+};
+
 // Helper: mengambil riwayat peran adat terakhir
 const getLatestPeranAdat = async (krama_id) => {
   const peran = await RiwayatPeranAdat.findOne({
@@ -250,7 +263,7 @@ const buildPohonSilsilah = async (
   target_highlight_id, 
   depth = 1, 
   targetDepth = 1,
-  maxDepth = 10, 
+  maxDepth = 2, 
   statusHubunganCurrent = "Anak Kandung"
 ) => {
   const krama = await KramaBali.findOne({
@@ -326,7 +339,7 @@ const buildPohonSilsilah = async (
   };
 };
 
-export const getPuncakSilsilahService = async (krama_id, maxDepth = 10) => {
+export const getPuncakSilsilahService = async (krama_id, maxDepth = 2) => {
   let rootId = krama_id;
   let finalTargetId = krama_id;
 
@@ -371,12 +384,17 @@ export const getPuncakSilsilahService = async (krama_id, maxDepth = 10) => {
     return null;
   }
 
-  const actualDownSteps = await countMaxDownSteps(finalTargetId, targetCek.jenis_kelamin, maxDepth - 1);
-  let maxUpSteps = 1;
+  const isTargetPredana = await isPredana(targetCek.id, targetCek.jenis_kelamin);
+  const maxDownStepsAllowed = maxDepth - 1;
+  const actualDownSteps = await countMaxDownSteps(finalTargetId, targetCek.jenis_kelamin, maxDownStepsAllowed);
 
-  if (actualDownSteps < maxDepth - 1) {
-    maxUpSteps = maxDepth - 1 - actualDownSteps;
+  let maxUpSteps = maxDownStepsAllowed - actualDownSteps;
+
+  if (isTargetPredana && maxUpSteps < 1) {
+    maxUpSteps = 1;
   }
+
+  if (maxUpSteps < 0) maxUpSteps = 0;
 
   const { rootId: newRootId, targetDepth } = await findLeluhurPurusa(finalTargetId, maxUpSteps);
   const silsilahTree = await buildPohonSilsilah(newRootId, finalTargetId, 1, targetDepth, maxDepth);

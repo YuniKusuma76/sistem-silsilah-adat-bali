@@ -3,17 +3,6 @@ import { getSilsilahPurusaTree } from "../services/silsilah-adat-bali.service.js
 export const getSilsilahTree = async (req, res) => {
   try {
     const { kramaId } = req.params;
-    const depthParam = req.query.maxDepth || req.query.depth;
-    let maxDepth = parseInt(depthParam, 10);
-
-    if (isNaN(maxDepth) || maxDepth < 1) {
-      maxDepth = 4;
-    }
-
-    const currentUser = req.userId ? {
-      id: req.userId,
-      role: req.role
-    } : null;
 
     if (!kramaId) {
       return res.status(400).json({
@@ -21,6 +10,20 @@ export const getSilsilahTree = async (req, res) => {
         message: "ID Krama wajib disertakan dalam parameter."
       });
     }
+
+    const depthParam = req.query.maxDepth || req.query.depth;
+    let maxDepth = parseInt(depthParam, 10);
+
+    if (isNaN(maxDepth) || maxDepth < 1) {
+      maxDepth = 2;
+    } else if (maxDepth > 10) {
+      maxDepth = 10;
+    }
+
+    const currentUser = req.userId ? {
+      id: req.userId,
+      role: req.role
+    } : null;
 
     const result = await getSilsilahPurusaTree(kramaId, currentUser, maxDepth);
 

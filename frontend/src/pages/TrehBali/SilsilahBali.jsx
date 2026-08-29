@@ -11,7 +11,8 @@ import {
   FaSitemap,
   FaCrown,
   FaSeedling,
-  FaUserFriends 
+  FaUserFriends,
+  FaLayerGroup 
 } from 'react-icons/fa';
 import axiosInstance from '../../api/axiosInstance.js';
 import styles from './SilsilahBali.module.css';
@@ -421,6 +422,8 @@ const SilsilahBali = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedKrama, setSelectedKrama] = useState(null);
 
+  const [maxDepth, setMaxDepth] = useState(2);
+
   const navigate = useNavigate();
   const [initialTargetId, setInitialTargetId] = useState(null);
   const [initialSlug, setInitialSlug] = useState(null);
@@ -452,7 +455,7 @@ const SilsilahBali = () => {
       }
       setIsLoading(true);
       try {
-        const response = await axiosInstance.get(`/silsilah/krama/${actualId}?maxDepth=4`);
+        const response = await axiosInstance.get(`/silsilah/krama/${actualId}?maxDepth=${maxDepth}`);
         if (response.data?.success && response.data?.data) {
           setTreeData(response.data.data);
           if (!initialTargetId) {
@@ -469,7 +472,7 @@ const SilsilahBali = () => {
     };
     fetchTree();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actualId]);
+  }, [actualId, maxDepth]);
 
   const targetKrama = useMemo(() => {
     if (!treeData) return null;
@@ -579,6 +582,21 @@ const SilsilahBali = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Select Tingkat Treh */}
+          <div className={styles.selectGen}>
+            <FaLayerGroup className="text-[#937641] mb-0.5" />
+            <span>Tingkat:</span>
+            <select
+              value={maxDepth}
+              onChange={(e) => setMaxDepth(Number(e.target.value))}
+              className="bg-transparent font-bold text-[#937641] focus:outline-none cursor-pointer">
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
+                <option key={level} value={level}>
+                  {level} Generasi
+                </option>
+              ))}
+            </select>
+          </div>
           {initialTargetId && actualId !== initialTargetId && (
             <button 
               onClick={() => {
