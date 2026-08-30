@@ -189,3 +189,43 @@
 .dotUnreadIndicator {
   @apply h-2 w-2 rounded-full bg-blue-600 animate-pulse mt-1.5;
 }
+
+.glosariumWrapper {
+  @apply w-full max-w-6xl mx-auto px-4 mt-10;
+}
+
+.glosariumContainer {
+  @apply bg-white p-6 rounded-xl border border-gray-100 shadow-sm w-full;
+}
+
+.glosariumHeader {
+  @apply border-b border-gray-100 pb-4 mb-5;
+}
+
+.glosariumTitle {
+  @apply text-base font-bold text-amber-900 flex items-center gap-2 uppercase tracking-wide;
+}
+
+.glosariumGrid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4;
+}
+
+.glosariumCard {
+  @apply p-4 bg-amber-50/40 rounded-xl border border-amber-100/80 hover:border-amber-300 transition-all duration-200 flex flex-col justify-between;
+}
+
+.glosariumCardHeader {
+  @apply flex items-center justify-between mb-2 gap-2;
+}
+
+.glosariumItemName {
+  @apply text-xs font-bold text-amber-950 uppercase tracking-wide;
+}
+
+.glosariumBadge {
+  @apply text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-teal-800 text-white shrink-0;
+}
+
+.glosariumDesc {
+  @apply text-xs text-gray-600 leading-relaxed;
+}

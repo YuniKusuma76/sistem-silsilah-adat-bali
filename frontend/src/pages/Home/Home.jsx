@@ -66,9 +66,6 @@ const Home = () => {
           <span className={styles.heroSub}>
             Kebudayaan & Hukum Adat
           </span>
-          <h1 className={styles.heroTitle}>
-            Sistem Kekerabatan Adat Bali
-          </h1>
           <p className={styles.heroDesc}>
             Mengenal tatanan silsilah Adat Bali, garis keturunan <i>Purusa-Predana</i>, serta struktur kekeluargaan Krama Bali.
           </p>

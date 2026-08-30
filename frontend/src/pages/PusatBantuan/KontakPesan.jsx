@@ -30,6 +30,43 @@ const formatWaktuRelatif = (dateString) => {
   });
 };
 
+const DAFTAR_ISTILAH = [
+  {
+    istilah: "Purusa",
+    arti: "Kedudukan dalam Hukum Adat Bali yang menjadi pemegang tanggung jawab atau penerus garis keturunan keluarga."
+  },{
+    istilah: "Predana",
+    arti: "Kedudukan dalam Hukum Adat Bali yang mengikuti status adat dan tanggung jawab pada keluarga pihak purusa."
+  },{
+    istilah: "Krama Adat",
+    arti: "Warga atau anggota masyarakat yang terikat dalam suatu kesatuan masyarakat hukum adat atau desa adat di Bali."
+  },{
+    istilah: "Awig-Awig",
+    arti: "Aturan atau Hukum Adat tertulis maupun tidak tertulis yang dibuat dan disepakati oleh masyarakat di desa adat untuk mengatur tata kehidupan masyarakat."
+  },{
+    istilah: "Pararem",
+    arti: "Keputusan atau peraturan pelaksana hasil rapat adat (paruman) desa adat di Bali yang bersifat dinamis untuk mengatur hal teknis baru atau menyelesaikan perkara adat."
+  },{
+    istilah: "Desa Kala Patra",
+    arti: "Konsep atau pedoman hidup masyarakat Bali serta umat Hindu yang merujuk pada penyesuaian diri terhadap tempat (desa), waktu (kala), dan keadaan/situasi (patra)."
+  },{
+    istilah: "Desa Adat",
+    arti: "Kesatuan masyarakat hukum adat yang mengatur tradisi, agama, dan budaya berdasarkan aturan leluhur."
+  },{
+    istilah: "Desa Dinas",
+    arti: "Lembaga pemerintahan administratif resmi di bawah negara yang mengurus urusan kependudukan dan pembangunan."
+  },{
+    istilah: "Prejuru Desa Adat",
+    arti: "Pengurus atau badan pengatur dalam lembaga desa adat atau banjar adat di Bali yang dipilih oleh krama adat."
+  },{
+    istilah: "Sentana Rajeg",
+    arti: "Anak perempuan dalam Hukum Adat Bali yang kedudukannya diangkat secara adat sebagai purusa untuk meneruskan garis keturunan."
+  },{
+    istilah: "Ngidih (Memadik)",
+    arti: "Prosesi resmi dalam perkawinan biasa di Bali dimana calon pengantin laki-laki datang ke rumah calon pengantin perempuan untuk meminang atau melamar."
+  }
+];
+
 const KontakPesan = ({user}) => {
   const [daftarDesa, setDaftarDesa] = useState([]);
   const [daftarKecamatan, setDaftarKecamatan] = useState([]);
@@ -420,8 +457,7 @@ const KontakPesan = ({user}) => {
                     value={formData.kategori_pesan}
                     onChange={handleChange}
                     className={styles.inputPilihan}
-                    required
-                  >
+                    required>
                     <option value="" disabled>- Pilih -</option>
                     {VALID_KATEGORI_PESAN.map((kat, idx) => (
                       <option key={idx} value={kat}>{kat}</option>
@@ -467,8 +503,7 @@ const KontakPesan = ({user}) => {
                                 setFormData(prev => ({ ...prev, desa_adat_id: desa.id }));
                                 setSearchTerm(desa.nama_desa_adat);
                                 setIsDropdownOpen(false);
-                              }}
-                            >
+                              }}>
                               <p className="text-sm font-bold text-gray-800">
                                 {desa.nama_desa_adat}
                               </p>
@@ -536,7 +571,7 @@ const KontakPesan = ({user}) => {
                   placeholder="Tuliskan detail aspirasi atau kendala Anda di sini"
                   className={styles.inputText}
                   required
-                ></textarea>
+                />
               </div>
               <div className="flex justify-center items-center gap-4 pt-10 pb-3">
                 {user && (user.role === "Super Admin" || user.role === "Admin Desa") && (
@@ -599,6 +634,32 @@ const KontakPesan = ({user}) => {
                   Pengaduan khusus seputaran teknis adat yang akan diteruskan ke dasbor Prajuru/Admin Desa Adat tujuan Anda.
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+        <div className={styles.glosariumWrapper}>
+          <div className={styles.glosariumContainer}>
+            <div className={styles.glosariumHeader}>
+              <h3 className={styles.glosariumTitle}>
+                <FaInfoCircle className="mb-0.5" size={17} />
+                Glosarium Adat Bali
+              </h3>
+            </div>
+            <div className={styles.glosariumGrid}>
+              {DAFTAR_ISTILAH.map((item, idx) => (
+                <div key={idx} className={styles.glosariumCard}>
+                  <div>
+                    <div className={styles.glosariumCardHeader}>
+                      <span className={styles.glosariumItemName}>
+                        {item.istilah}
+                      </span>
+                    </div>
+                    <p className={styles.glosariumDesc}>
+                      {item.arti}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
