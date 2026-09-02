@@ -582,7 +582,7 @@ const SilsilahBali = () => {
       img.onload = () => {
         const padding = 40;
         const topMargin = 30; 
-        const headerHeight = 115;
+        const headerHeight = 95;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
@@ -647,13 +647,13 @@ const SilsilahBali = () => {
         const availableHeight = pdfHeight - marginTop - marginBottom;
 
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(25);
+        pdf.setFontSize(20);
         pdf.setTextColor(26, 26, 26);
         pdf.text('SILSILAH KELUARGA ADAT BALI', pdfWidth / 2, 20, { align: 'center' });
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(20);
+        pdf.setFontSize(15);
         pdf.setTextColor(147, 118, 65);
-        pdf.text(`- ${getNamaPuncak()} -`, pdfWidth / 2, 30, { align: 'center' });
+        pdf.text(`- ${getNamaPuncak()} -`, pdfWidth / 2, 27, { align: 'center' });
 
         const ratio = Math.min(availableWidth / img.width, availableHeight / img.height);
         const renderWidth = img.width * ratio;
